@@ -125,13 +125,26 @@ struct osm_disk_info {
  * osm disk info lists
  *
  * Each file_info struct has a list of disks it has opened.  As this
- * is an N->N mapping, an intermediary structure is needed
+ * is an M->N mapping, an intermediary structure is needed
  */
 struct osm_disk_head {
 	struct osm_disk_info *h_disk;	/* Hook into disk's list */
 	struct osmfs_file_info *h_file;	/* Hook into file's list */
 	struct list_head h_flist;	/* Pointer to owning file */
 	struct list_head h_dlist;	/* Pointer to associated disk */
+};
+
+
+/* OSM I/O requests */
+
+struct osm_request {
+	struct list_head r_list;
+	struct osmfs_file_info *r_file;
+	struct osm_disk_info *r_disk;
+	osm_ioc *r_ioc;				/* User osm_ioc */
+	__u16 r_status;				/* status_osm_ioc */
+	int r_error;
+	unsigned long r_elapsed;		/* start time while in-flight, elapsted time once complete */
 };
 
 
@@ -744,6 +757,116 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 }  /* osm_disk_close() */
 
 
+static int osm_submit_io(struct osmfs_file_info *ofi, 
+			 struct osmfs_inode_info *oi,
+			 osm_ioc *ioc)
+{
+	return 0;
+}  /* osm_submit_io() */
+
+
+static int osm_maybe_wait_io(struct osmfs_file_info *ofi, 
+			     struct osmfs_inode_info *oi,
+			     osm_ioc *ioc)
+{
+	return 0;
+}  /* osm_maybe_wait_io() */
+
+
+static int osm_complete_io(struct osmfs_file_info *ofi, 
+			   struct osmfs_inode_info *oi,
+			   osm_ioc **ioc)
+{
+	int ret = 0;
+	struct list_head *l;
+	struct osm_request *r;
+
+	spin_lock(&ofi->f_lock);
+
+	if (list_empty(&ofi->f_complete)) {
+		spin_unlock(&ofi->f_lock);
+		*ioc = NULL;
+		return 0;
+	}
+
+	l = ofi->f_complete.next;
+	list_del(l);
+	spin_unlock(&ofi->f_lock);
+	r = list_entry(l, struct osm_request, r_list);
+	*ioc = r->r_ioc;
+
+	ret = put_user(r->r_status, &((*ioc)->status_osm_ioc));
+	if (ret)
+		goto out_free;
+	ret = put_user(r->r_error, &((*ioc)->error_osm_ioc));
+	if (ret)
+		goto out_free;
+	ret = put_user(r->r_elapsed, &((*ioc)->elaptime_osm_ioc));
+	if (ret)
+		goto out_free;
+	ret = put_user(0UL, &((*ioc)->reserved_osm_ioc_low));
+	if (!ret)
+		goto out_free;
+
+out_free:
+	/* FIXME: Free the osm_request */
+
+	return ret;
+}  /* osm_complete_io() */
+
+
+static int osm_do_io(struct osmfs_file_info *ofi,
+		     struct osmfs_inode_info *oi,
+		     struct osmio *ioc)
+{
+	long ret = 0;
+	__u32 i;
+	osm_ioc *iocp, tmp;
+
+	if (ioc->requests) {
+		for (i = 0; i < ioc->reqlen; i++) {
+			if (get_user(iocp, ioc->requests + i))
+				return -EFAULT;
+			if (copy_from_user(&tmp, iocp, sizeof(tmp)))
+				return -EFAULT;
+
+			ret = osm_submit_io(ofi, oi, &tmp);
+		}
+	}
+
+	if (ioc->waitreqs) {
+		for (i = 0; i < ioc->waitlen; i++) {
+			if (get_user(iocp, ioc->waitreqs + i))
+				return -EFAULT;
+			if (copy_from_user(&tmp, iocp, sizeof(tmp)))
+				return -EFAULT;
+
+			ret = osm_maybe_wait_io(ofi, oi, &tmp);
+		}
+	}
+
+	if (ioc->completions) {
+		for (i = 0; i < ioc->complen; i++) {
+			ret = osm_complete_io(ofi, oi, &iocp);
+			if (ret)
+				return ret;
+			if (iocp) {
+				ret = put_user(iocp,
+					       ioc->completions + i);
+			} else {
+				i--; /* Reset this completion */
+				if (ioc->waitreqs)
+					break;
+				/* FIXME: Wait on some I/Os */
+			}
+		}
+	}
+
+
+	return 0;
+}  /* osm_do_io() */
+
+
 static int osmfs_file_open(struct inode * inode, struct file * file)
 {
 	struct osmfs_inode_info * oi;
@@ -873,8 +996,9 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 	struct gendisk *g;
 	int drive, first_minor, dev;
 	unsigned long handle;
-	struct osmfs_file_info *ofi;
-	struct osmfs_inode_info *oi;
+	struct osmfs_file_info *ofi = OSMFS_FILE(file);
+	struct osmfs_inode_info *oi = OSMFS_INODE(inode);
+	struct osmio ioc;
 
 	switch (cmd) {
 		default:
@@ -903,8 +1027,6 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (get_user(handle, (unsigned long *)arg))
 				return -EFAULT;
 			kdv = to_kdev_t(handle);
-			ofi = OSMFS_FILE(file);
-			oi = OSMFS_INODE(inode);
 			handle = osm_disk_open(ofi, oi, kdv);
 			printk("OSM: Opened handle 0x%.8lX\n", handle);
 			return put_user(handle, (unsigned long *)arg);
@@ -913,19 +1035,19 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case OSMIOC_CLOSEDISK:
 			if (get_user(handle, (unsigned long *)arg))
 				return -EFAULT;
-			ofi = OSMFS_FILE(file);
-			oi = OSMFS_INODE(inode);
 			printk("OSM: Closing handle 0x%.8lX\n", handle);
 			return osm_disk_close(ofi, oi, handle);
 			break;
 
 		case OSMIOC_IODISK:
+			if (copy_from_user(&ioc, (struct osmio *)arg,
+					   sizeof(ioc)))
+				return -EFAULT;
+			return osm_do_io(ofi, oi, &ioc);
 			break;
 
 		case OSMIOC_DUMP:
 			/* Dump data */
-			ofi = OSMFS_FILE(file);
-			oi = OSMFS_INODE(inode);
 			osmdump_file(ofi);
 			osmdump_inode(oi);
 			break;

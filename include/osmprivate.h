@@ -42,11 +42,11 @@
 struct osmio
 {
     unsigned long       handle;
-    osm_ioc             *requests;
+    osm_ioc             **requests;
     unsigned long       reqlen;
-    osm_ioc             *waitreqs;
+    osm_ioc             **waitreqs;
     unsigned long       waitlen;
-    osm_ioc             *completions;
+    osm_ioc             **completions;
     unsigned long       complen;
     __u32               intr;
     __u32               timeout;

@@ -74,8 +74,8 @@ struct _osm_ioc {
 			 __u32 reserved_osm_ioc_4_1;
 		} reserved_osm_ioc_4;
 	} reserved_osm_ioc_u;
-#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_0
-#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_1
+#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
+#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
 };
 
 #endif  /* _OSMKERNEL */
