@@ -977,7 +977,7 @@ static void osm_finish_io(struct osm_request *r)
 	struct osm_disk_info *d = r->r_disk;
 	struct osmfs_file_info *ofi = r->r_file;
 	struct osmfs_inode_info *oi;
-	unsigned long flags, now;
+	unsigned long flags;
 
 	if (!ofi)
 		BUG();
@@ -1003,13 +1003,7 @@ static void osm_finish_io(struct osm_request *r)
 
 	spin_unlock_irqrestore(&ofi->f_lock, flags);
 
-	now = jiffies;
-	if (now > r->r_elapsed)
-		r->r_elapsed = now - r->r_elapsed;
-	else
-		r->r_elapsed = ~0UL - r->r_elapsed + now;
-
-	r->r_elapsed = (r->r_elapsed * 1000000) / HZ;
+	r->r_elapsed = ((jiffies - r->r_elapsed) * 1000000) / HZ;
 
 	wake_up(&ofi->f_wait);
 }  /* osm_finish_io() */
