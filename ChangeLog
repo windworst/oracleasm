@@ -1,6 +1,22 @@
 
 2003-08-20	Joel Becker <joel.becker@oracle.com>
 
+	* include/osmlib.h: Latest drop from 10g.
+	* include/osmabi.h: Pad struct osmio to 64bit size.
+	* include/osmerror.h: Silly capitalization.
+	* test/osmtest-multi.c: Remove OSM_API_STUB bits.
+	* test/osmtest.c: Remove OSM_API_STUB, remove intr argument
+		from osm_io() calls.
+	* test/sizes.c: Add x86-64.
+	* libosm/osmlib.c: Remove posted calls.  Error on
+		OSM_WAIT/waitlen bits.  Remove intr from osm_io().
+	* include/linux/osmabi.h: Remove intr argument and add pad.
+	* include/linux/osmkernel.h: Propagate osmlib.h alignment
+		changes.
+	* kernel/osm.c: Remove link_osm_ioc from promote call.
+
+2003-08-20	Joel Becker <joel.becker@oracle.com>
+
 	* include/linux/osmkernel.h: Add pad for 32->64.
 	* include/osmlib.h: Add pad for 32->64.
 	* kernel/osm.c: Debug logging for 32->64.

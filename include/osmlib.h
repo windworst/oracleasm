@@ -35,8 +35,8 @@
   raw disks, rather than the standard operating system interface. A storage
   vendor may implement a library that presents this API to enhance the
   performance and/or managability of OSM for their storage. The API provides
-  six major enhancements over standard interfaces: discovery, I/O processing,
-  serverless copy, metadata validation, usage hints, and write validation.
+  five major enhancements over standard interfaces: discovery, I/O processing,
+  metadata validation, usage hints, and write validation.
 
   Discovery
 
@@ -55,12 +55,6 @@
   instance for accessing the same disk. This eliminates multiple open
   calls and multiple file descriptors.
   
-  Serverless copy
- 
-  A read and a write can be linked so that the data can be copied
-  without sending it to a server. This is useful for replicating data,
-  taking backups, and relocating data for load balancing. 
-
   Metadata validation on I/O
   
   osmlib allows disk key and fence key values to be loaded into a disk. Every
@@ -124,7 +118,6 @@
     osm_ioerror    - Translate an I/O error code into an error message
     osm_iowarn     - Translate an I/O warning code into a message
     osm_cancel     - Cancel an I/O request that is being processed.
-    osm_posted     - Thread is posted out of its I/O wait
 
   PRIVATE FUNCTIONS 
 
@@ -149,7 +142,21 @@
      same Oracle kernel. Each library would provide access to a different
      set of disks.
 
+     Some of the interfaces specified in this header are not acutally used
+     in 10iR1 of Oracle. The code to use these features was targeted for 10iR1,
+     but did not make the release. In particular OSM_KEYVALID is ignored and
+     key validation is not used. The I/O status flags OSM_WARN and
+     OSM_LOCAL_ERROR are ignored. OSM_OK_FRACTURE is never set - even if it
+     could be set. The I/O operations OSM_NOOP, OSM_GETKEY, OSM_SETKEY,
+     OSM_GETFENCE, OSM_SETFENCE, and OSM_GETTAG are never used.
+     
+     
   MODIFIED
+     wbridge    06/26/03 - eliminate post out of I/O
+     wbridge    06/10/03 - align structs for 64bit OS
+     wbridge    06/06/03 - 10i Beta 2 version
+     wbridge    04/04/03 - make compatible with 10i beta 1
+     wbridge    02/21/03 - remove 3rd party copy
      wbridge    01/30/03 - 30 char limit on failure group name and disk label
      wbridge    12/05/02 - remove atomic key change on I/O
      pbagal     11/22/02 - Introduce maxio size for read & write
@@ -175,6 +182,15 @@
 /*---------------------------------------------------------------------------*/
 /*                    PUBLIC TYPES AND CONSTANTS                             */
 /*---------------------------------------------------------------------------*/
+
+/*
+ * All structures in this header are ordered and padded so that every field
+ * starts at an offset which is a multiple of the size of the field type.
+ * This is to ensure the fields will have the same offset when compiled with
+ * a 64 bit compiler or a 32 bit compiler. Any pointers are placed at the end
+ * of the structure. These measures simplify a 64 bit operating system
+ * supporting a 32 bit client.
+ */
 
 /*
  * Instance identifier
@@ -222,7 +238,7 @@ typedef void *osm_ctx;                                    /* context pointer */
  * possible errors. There may be implementations where the example errors
  * could not occur. The examples are intended to aid understanding, not limit
  * the set of errors.  */
-typedef sword osm_erc;                                      /* an error code */
+typedef sb4 osm_erc;                                        /* an error code */
 
 /*
  * Disk name and attributes structure
@@ -248,7 +264,7 @@ typedef struct osm_name osm_name;                /* disk name and attributes */
 
 struct osm_name
 {
-  uword    interface_osm_name;                /* osmlib interfaces supported */
+  ub4    interface_osm_name;                  /* osmlib interfaces supported */
   /* This field indicates what can be done with the disk through the OSM
    * interface. It is a bit mask with a bit set for every feature that this
    * disk supports. These same bits are also returned by osm_version() to
@@ -289,21 +305,14 @@ struct osm_name
         /* A valid OS file name is provided in path_osm_name. The name may be
          * used by any process on this node to access the contents of this
          * disk through the normal operating system I/O interface. Oracle will
-         * only use this name to access the disk if OSM_IO is not set. This
+         * use this path name to access the disk if OSM_IO is not set. This
          * must be set if OSM_IO is not set. Even if this bit is not set,
          * path_osm_name may contain a non-null string, but it may be in some
-         * other file name space. */
-#define OSM_ICOPY    0x0040                       /* internal copy supported */
-        /* This is set if serverless copies within this disk are supported. A
-         * read from one area of the disk can be linked to a write to another
-         * area of the same disk. If this flag is set then OSM_IO must be
-         * set. */
-#define OSM_XCOPY    0x0080                       /* external copy supported */
-        /* This is set if serverless copies are supported between disks
-         * accessed through this library.  A read from this disk can be linked
-         * to a write to any other disk with OSM_XCOPY set. Note that
-         * OSM_XCOPY implies OSM_ICOPY. */
-#define OSM_ABNVALID   0x0100     /* Virtual block number checking supported */
+         * other file name space. For example, it may start with a vendor
+         * name. If both OSM_IO and OSM_OSNAME are set then the library must
+         * accept the path name without a vendor name as a valid discovery
+         * string to discover the disk. */
+#define OSM_ABNVALID 0x0100       /* Virtual block number checking supported */
         /* This is set if the application block number validators can be used
          * to validate block numbers in the data. The disk can be told about
          * the first application block number, application block size, and the
@@ -334,6 +343,8 @@ struct osm_name
    * disk group. Changing the label will not change the osmlib disk name. If
    * the library cannot provide a label this may be the null string. */
 
+  ub1 spare1_osm_name;                                  /* pad for alignment */
+
   oratext udid_osm_name[OSM_MAXUDID];                    /* Unique Disk ID */
   /* If OSM_UDID is set then this field contains a world wide unique id for
    * this disk as a null terminated string. It could be a manufacturer and
@@ -348,20 +359,25 @@ struct osm_name
    * be a valid discovery string for passing to osm_discover().  The call to
    * osm_discover() may be made on any node in cluster, and it will only
    * discover the one disk described by this osm_name (or no disks if this
-   * disk is no longer available). */
+   * disk is no longer available). As with any discovery string, it should
+   * start with the vendor name to ensure it is only recognized by this
+   * library. */
   
   oratext path_osm_name[OSM_MAXPATH];                    /* Access path name */
   /* This is a node local name for accessing the disk. It would commonly be
    * the path name for a Unix raw device. However it could be a name that is
-   * only meaningful to the osmlib library. If it exists then it must also be
-   * a valid discovery string for passing to osm_discover(). In a cluster it
-   * will only be used on the same node that discovered this name. It will
-   * refer to the same disk if used by any process on the same node. If
-   * OSM_OSNAME is set, it is a standard OS file name and the standard
-   * operating system I/O interface will access the same disk that is accessed
-   * through the osmlib library.  If OSM_UDID is set then this could be the
-   * null string and the unique disk id is used for finding the disk. */
-
+   * only meaningful to the osmlib library, and starts with the vendor
+   * name. If the string is not null then it must also be a valid discovery
+   * string for passing to osm_discover(). In a cluster it will only be used
+   * on the same node that discovered this name. It will refer to the same
+   * disk if used by any process on the same node. If OSM_OSNAME is set, it is
+   * a standard OS file name and the standard operating system I/O interface
+   * will access the same disk that is accessed through the osmlib library. If
+   * OSM_OSNAME is not set then the path name should start with a vendor name
+   * to ensure no other library can discover it. If OSM_UDID is set then this
+   * could be the null string and the unique disk id is used for finding the
+   * disk. */
+  
   oratext fgroup_osm_name[OSM_MAXFGROUP];              /* Failure group name */
   /* If OSM_FGROUP is set then this contains a null terminated string that
    * names the failure group containing this disk. If OSM_FGROUP is not set
@@ -379,12 +395,21 @@ struct osm_name
    * the same failure group. However a system with 8 disk controllers would
    * likely consider the disks as being in 8 named failure groups. */
 
+  ub1     spare2_osm_name;                              /* pad for alignment */
+
   ub4     blksz_osm_name;                 /* physical block size of the disk */
   /* This is the physical sector size of the disk in bytes. All I/O's to the
    * disk are described in physical sectors. This must be a power of 2. An
    * ideal value would be 4096, but most disks are formatted with 512 byte
    * sectors. */
-  
+
+  ub8     size_osm_name;                              /* disk size in blocks */
+  /* This is the size of the disk in physical blocks. The size of a disk could
+   * change between discoveries. This would happen if the disk is actually a
+   * virtual disk. The amount of space used by Oracle does not change just
+   * because the amount discovered changes. An administrative command can
+   * change the amount of space used by Oracle. */
+     
   ub4     maxio_osm_name;                      /* maximum I/O size in blocks */
   /* This is largest value allowed in rcount_osm_ioc for a read or write
    * command. Oracle will never request a larger transfer. This should be a
@@ -412,13 +437,6 @@ struct osm_name
    * XOR of the data is stored in xor_osm_ioc. With this algorithm
    * max_abs_osm_name becomes the maximum transfer size. */
   
-  ub8     size_osm_name;                              /* disk size in blocks */
-  /* This is the size of the disk in physical blocks. The size of a disk could
-   * change between discoveries. This would happen if the disk is actually a
-   * virtual disk. The amount of space used by Oracle does not change just
-   * because the amount discovered changes. An administrative command can
-   * change the amount of space used by Oracle. */
-   
   ub4     keys_osm_name;                    /* number of disk keys supported */
   /* If OSM_KEYVALID is set then this is the number of disk keys that the disk
    * can maintain. In the year 2000 there should be one key for every megabyte
@@ -521,11 +539,6 @@ struct osm_check
   ub4     fence_value_osm_check;    /* value to compare with fence key value */
   /* If OSM_FENCE is set in operation_osm_ioc then this is the value to compare
    * with the value stored in the disk. */
-
-  ub4     key_num_osm_check;                         /* disk key to validate */
-  /* If OSM_KEYCHK is set in operation_osm_ioc then this is the number of the
-   * disk key to test.  It must be less than keys_osm_name. The first key is
-   * number zero. */
   
   ub4    error_fence_osm_check;      /* actual fence key value if fenced out */
   /* If the operation completes with status bit OSM_FENCED set, then the
@@ -536,6 +549,11 @@ struct osm_check
    * did succeed once, but was fenced on a retry. A value of zero indicates
    * that the disk has lost its key values and they must be reloaded. */
 
+  ub4     key_num_osm_check;                         /* disk key to validate */
+  /* If OSM_KEYCHK is set in operation_osm_ioc then this is the number of the
+   * disk key to test.  It must be less than keys_osm_name. The first key is
+   * number zero. */
+  
   ub8     key_mask_osm_check;                 /* mask of key bits to compare */
   /* If OSM_KEYCHK is set in operation_osm_ioc then this is used to determine
    * which bits are compared when validating the disk key. Only the bits that
@@ -546,7 +564,7 @@ struct osm_check
   ub8     key_value_osm_check;     /* value to compare with masked key value */
   /* If OSM_KEYCHK is set in operation_osm_ioc then this value is compared with
    * the value in the disk key, subject to masking. */
-  
+
   ub8    error_key_osm_check;       /* actual disk key value if key mismatch */
   /* If the operation completes with status bit OSM_BADKEY set, then the
    * actual value of the disk key is returned here. This is the value that was
@@ -601,9 +619,11 @@ struct osm_ioc {                                        /* I/O control block */
    * too big or not a multiple of the physical block size. Errors involving
    * hardware failures or permissions are positive. A disk key or fence key
    * mismatch is not an error, and does not store an error code in
-   * error_osm_ioc. Errors are not returned unless all reasonable attempts
-   * to retry have failed. OSM will not retry the operation as part of error
-   * recovery. */
+   * error_osm_ioc. Errors are not returned unless all reasonable attempts to
+   * retry have failed. An error when reading a disk will not be retried by
+   * Oracle, but an error on write will be retried once. The retry will be
+   * done as a single call to osm_io with only one request, and the request
+   * will be in the wait list so that the I/O is synchronous.  */
 
   osm_erc   warn_osm_ioc;                              /* Warning error code */
   /* This field is zero if the I/O completed normally. If the I/O was
@@ -712,6 +732,16 @@ struct osm_ioc {                                        /* I/O control block */
          * operation is complete, so OSM_COMPLETED will be set. As with a disk
          * key mismatch, the operation may have succeeded but the retry was
          * fenced off. */
+#define OSM_LOCAL_ERROR  0x0400               /* error is local to this host */
+        /* This status bit is set when it is known that the error is due to a
+         * problem in this host rather than with the storage itself. Other
+         * hosts still have access to the disk. For example this should be set
+         * if the HBA has failed. This status usually means that a large
+         * portion of the disks are no longer accessible from this host.
+         * Oracle uses this as an indication that the disk should not be taken
+         * offline. The database instance will go down rather than take the
+         * disk offline. Either OSM_ERROR or OSM_WARN will be set when
+         * OSM_LOCAL_ERROR is set.*/
 
   ub2     flags_osm_ioc;   /* flags set by Oracle describing the i/o request */
   /* These flags give additional information about the request and/or
@@ -752,7 +782,7 @@ struct osm_ioc {                                        /* I/O control block */
         /* This flag indicates that this I/O request will be reaped in a 
          * batch and not as a single I/O request. The implementor can use this 
          * hint to determine how they wait for this I/O completion. */
-#define OSM_ABNCHK   0x0008     /* request includes application block number */
+#define OSM_ABNCHK      0x0008  /* request includes application block number */
         /* If this flag is set then the application block number fields
          * (abs_osm_ioc, abn_offset_osm_ioc, abn_osm_ioc, abn_mask_osm_ioc)
          * can be used by the storage device to verify that the correct data
@@ -838,19 +868,6 @@ struct osm_ioc {                                        /* I/O control block */
          * the two writes contain the same data. (Two readers simultaneously
          * repairing the same corrupt block.) Thus mixing the data from the
          * two writes would not be a problem. */
-#define OSM_COPY        0x03       /* copy data from one location to another */
-        /* Copy blocks from one disk location to others. The data does not
-         * appear in a buffer so this is a serverless copy. This I/O control
-         * block describes the data to read. The link_osm_ioc field points at
-         * a list of osm_ioc structures to define the writes. The list is only
-         * used to get the parameters for doing the writes.  They are not
-         * treated as independent I/O's. They do not have their status updated
-         * except for a key mismatch. They must have an opcode of OSM_WRITE
-         * and a null buffer pointers. The last write command in the list has
-         * a null link pointer. If a write is to the same disk as the read
-         * then OSM_ICOPY must have been set in interface_osm_name.  If a
-         * write is to a different disk then OSM_XCOPY must have been set in
-         * interface_osm_name for both disks. */
 #define OSM_GETKEY      0x04           /* get value of one or more disk keys */
         /* Transfer disk key values to memory from disk key storage. The
          * number of the first key to be gotten is in first_osm_ioc. The data
@@ -954,96 +971,12 @@ struct osm_ioc {                                        /* I/O control block */
    * depends heavily on the size of the cache relative to the size of the
    * disks. It is not expected that storage vendors understand all the
    * subtleties of Oracle I/O. It is sufficient to provide a set of caching
-   * policies and a means of associating a policy with a hint value. Note that
-   * in the future there may be additional reasons added to the ones currently
-   * defined. Thus it must not be an error for this hint field to have an
-   * undefined value. Ideally the cache in the disk should have a means of
+   * policies and a means of associating a policy with a hint value. The
+   * values for the specific hints are documented in a seperate release
+   * specific document. The set of hints may change from one release to the
+   * next. Thus it must not be an error for this hint field to have an
+   * unexpected value. Ideally the cache in the disk should have a means of
    * assigning a policy to the new hint values. */
-#define OSM_HINT_UNKNOWN     0                /* reason for I/O is not known */
-        /* The code issuing this I/O has not provided a hint. */
-#define OSM_HINT_LOG         1                   /* normal online log access */
-        /* This is a write of the online redo log to commit a transaction or
-         * a read of the log for archiving. It may also be a write of the log
-         * header during a log switch. This is also used when a standby
-         * database is accessing a standby log. */
-#define OSM_HINT_LOG_OTHER   2                /* unusual online log accesses */
-        /* On a write this is initializing an online log for later use. On a
-         * read the online log is being read for recovery to apply it. */
-#define OSM_HINT_DATA_CACHE  3       /* Normal datafile I/O to buffer cache  */
-        /* The block will remain in the Oracle buffer cache after the I/O. If
-         * this is a write then the write is to advance the checkpoint. If this
-         * is a read then a buffer is being created in the cache for this
-         * block. */
-#define OSM_HINT_DATA_FLUSH  4           /* Block will be flushed from cache */
-        /* The I/O is for a buffer in the cache, but the buffer will be 
-         * discarded shortly after the I/O. If this is a write then the
-         * buffer has aged out of the cache and is still dirty, or the block
-         * is being taken offline. On a read, this hint means that as soon as
-         * the buffer is used it will be quickly aged out of the cache, unless
-         * it is used again. This happens on table scans into the cache. */
-#define OSM_HINT_DATA_SEQ    5                   /* datafile sequential scan */
-        /* The I/O is to a large process private buffer. For a write this is
-         * a direct path operation to create or bulk load a table. For a read
-         * this is a parallel query. This is *NOT* a hint that the next I/O
-         * is going to go to the next location on disk. */
-#define OSM_HINT_DATA_BACKUP 6            /* Backup or restore of a datafile */
-        /* If this is a read then the data is going to be written to another 
-         * file or tape to become a backup. If this is a write then the
-         * datafile is being restored from a backup. This hint is also used
-         * when initializing space in a datafile before it is used. */
-#define OSM_HINT_DATA_HEADER 7                            /* Datafile header */
-        /* This is a read or write of a datafile header. All file headers of
-         * a database are read then written at database open. All file headers 
-         * are read and rewritten on a regular basis while the database is
-         * open. This happens roughly every log switch. */
-#define OSM_HINT_SORT        8                     /* intermediate sort data */
-        /* This is writing or reading of intermediate results during a sort.
-         * Note that the data must be persistent even after it is read. A
-         * subsequent read must return the same data even though this data is
-         * usually not reread. */
-#define OSM_HINT_CONTROL     9            /* Control file or other misc file */
-        /* This is an access to either the database controlfile or some other
-         * small file used to keep control information. This is used when
-         * accessing the persistent parameters file (spfile). */
-#define OSM_HINT_STATUS      10                     /* Instance status block */
-        /* Every database instance writes out its instance status block
-         * about every three seconds. It is read if it is necessary to recover
-         * the instance after it fails. */
-#define OSM_HINT_ARCHIVE     11                               /* Archive log */
-        /* If this is a write then an archive log is being created from an
-         * online log. If this is a read then the archive log is being read
-         * for recovery to apply its redo. */
-#define OSM_HINT_ARCH_BACKUP 12             /* Backup/restore of archive log */
-        /* This hint is for copying an archive log to or from tape. If this is
-         * a write then it is likely that this restore will soon be followed
-         * by a read to apply the log during a recovery. */
-#define OSM_HINT_BACKUP      13                           /* RMAN backup set */
-        /* This is either a creation of a backup set or reading a backup set
-         * for restoring its contents to the database. The backup set may be
-         * a full or incremental backup of one or more datafiles. It may also
-         * contain multiple archive logs, but this is not likely since there
-         * is no point in copying archive logs to a backup set on disk. This
-         * hint is also passed when a backup set is copied to or from tape. */
-#define OSM_HINT_METADATA    14                              /* OSM metadata */
-        /* This is a read or write of the metadata that OSM maintains to find
-         * files within a disk group. If the offset into the disk is zero then
-         * this is the disk header. Since OSM never caches the disk header,
-         * it is advantageous if the storage can cache it. */
-#define OSM_HINT_RELOCATE    15                 /* Relocation of data by OSM */
-        /* This indicates that the I/O is for the purpose of relocating an
-         * extent from one disk to another. The data being transfered is the
-         * data that is being relocated. */
-#define OSM_HINT_DUMPSET     16              /* dumpsets created by DataPump */
-        /* Dumpsets are the equivalent of export files. They are read and
-         * written by the DataPump feature in the Oracle kernel. */
-#define OSM_HINT_FTP         17           /* FTP into or out of a disk group */
-        /* This hint indicates that the data will be sent out an FTP connection
-         * or was just read in from an FTP connection. */
-#define OSM_HINT_REWIND      18                                /* Rewind log */
-        /* This is an I/O to a rewind log. If the rewind feature is enabled,
-         * this will be set when writing before images to the rewind log as
-         * part of normal database operation. The rewind log is read for
-         * unusual recovery situations. */
 
   osm_handle disk_osm_ioc;                                 /* disk to access */
   /* This is a handle returned by osm_open for the disk to be accessed by this
@@ -1066,14 +999,13 @@ struct osm_ioc {                                        /* I/O control block */
    * error if the first plus rcount is greater than the number of blocks, keys,
    * fences, or partitions. */
 
-  ub2     xor_osm_ioc;                 /* 16 bit XOR of entire data transfer */
-  /* If OSM_XOR is set in operation_osm_ioc then this contains the 16 bit wide
-   * XOR of the data in each application block. If the write is larger than
-   * one block then each application block will XOR to this value. If
+  ub2     xor_osm_ioc;              /* 16 bit XOR of every application block */
+  /* If OSM_XORCHK is set in operation_osm_ioc then this contains the 16 bit
+   * wide XOR of the data in each application block. If the write is larger
+   * than one block then each application block will XOR to this value. If
    * abs_osm_ioc is equal to rcount_osm_ioc then this is the XOR of all the
    * data in the write. This may be used by the storage device to reject a
    * write of data that has been damaged on its way to the disk. */
-
   
   ub2     abs_osm_ioc;          /* application block size in physical blocks */
   /* If this is not zero, then it is the block size, in physical blocks, used
@@ -1112,8 +1044,8 @@ struct osm_ioc {                                        /* I/O control block */
    * ub4 with the most significant byte first than for one that stores least
    * significant byte first. This is not in the interface since the library
    * should already know the byte order. */
-  
-  ub4    reserved2_osm_ioc;          /* align next ub8 */
+
+  ub4    spare1_osm_ioc;                                /* pad for alignment */
   
   ub8    tag_osm_ioc;                /* expected tag if this is a disk write */
   /* If the OSM_TAGVALID flag was set for this disk and this is a write
@@ -1124,30 +1056,30 @@ struct osm_ioc {                                        /* I/O control block */
    * sectors outside of all tagged partitions must not have OSM_TAGCHK set. */
 
   ub8    reserved_osm_ioc;                                       /* Reserved */
-  /* This is an 8 byte field which is never modified by Oracle.  It may be
-   * used by osmlib to find its internal data structure associated with this
-   * control block.  */
+  /* This is an 8 byte field which is not modified by Oracle from the time the
+   * I/O request is submitted until after OSM_FREE is set.  It may be used by
+   * osmlib to find its internal data structure associated with this control
+   * block.  */
+
+/*
+ * Pointer section. All the pointers are at the end of this structure. This is
+ * to facilitate running a 32 bit Oracle executable on a 64 bit operating
+ * system. Only the offsets to the pointers will be affected by the size of a
+ * pointer. A 64 bit OS can allocate a structure with 64 bit pointers and
+ * expand the 32 bit pointers to 64 bits after copying the user structure into
+ * the OS.
+ */
 
   void   *buffer_osm_ioc;                 /* buffer address for the transfer */
   /* This is the address of the memory buffer for this I/O operation.  The
    * buffer may be in either shared memory or execution thread private
    * memory. It will be aligned to the platform specific alignment required to
-   * do DMA directly to the buffer from a storage device. If the opcode is
-   * OSM_COPY then this will be null. */
-
+   * do DMA directly to the buffer from a storage device. */
+  
   osm_check *check_osm_ioc;                 /* pointer to check data/results */
   /* If OSM_KEYCHK is set in operation_osm_ioc then this will point to an
    * osm_check structure that describes the check to be done, and receives the
    * actual keys if the check fails. */
-
-  osm_ioc *link_osm_ioc;     /* pointer to destination osm_ioc list for copy */
-  /* If the opcode is OSM_COPY then this field points to a list of osm_ioc's
-   * to describe the destination disks and offsets. The destinations can also
-   * have a disk key and fence key to validate. The destination control block
-   * must have an opcode of OSM_WRITE. Its link_osm_ioc field could point to
-   * another write osm_ioc. If this field is null then there are no more
-   * destinations for the data. */
-  
 };
 
 
@@ -1160,8 +1092,7 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
                     uword *interface_mask );
 
 /* osmlib API version bits supported */
-#define    OSM_API_STUB  0x1                                 /* stub version */
-#define    OSM_API_V1    0x2                                /* API version 1 */
+#define    OSM_API_V1    0x1                                /* API version 1 */
 
 /* return values */
 #define OSM_INIT_SUCCESS   0                    /* successful initialization */
@@ -1188,12 +1119,9 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
      osm_version() is the first call to the osmlib library when an Oracle
      instance is starting. It determines which version of the osmlib library
      is linked with Oracle and if the operating system is correctly configured
-     to use the library. By default Oracle ships with an osmlib library that
-     only supports the stub protocol. That protocol allows osm_version() to
-     return the stub version as the supported version. All other osmlib entry
-     points for the stub protocol report an internal error if called. Other
-     vendors may supply osmlib libraries that fully support the version one
-     protocol defined in this header file.
+     to use the library. By default Oracle ships without an osmlib
+     library. Other vendors may supply osmlib libraries that support the
+     version one protocol defined in this header file.
 
      The version variable allows Oracle to negotiate with the library to
      decide which version of the osmlib API is to be used. This allows both
@@ -1202,8 +1130,8 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
      call succeeds then osm_version() will have cleared all but one of the
      version flags. This is the version that will be used. Oracle can decide
      on calling different osmlib interface routines depending on this return
-     value. The initial release supports two versions - stub and version 1,
-     described in this file.
+     value. The initial release only supports version 1, described in this
+     file.
 
      If the versioning is successful then an instance id may be returned by
      osm_version(). Oracle does not interpret this value. It is simply passed
@@ -1219,7 +1147,7 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
 
      A name for the library is returned to help administrators know that the
      correct osmlib library has been installed. This string will be printed on
-     one line in the alert log no matter what the outcome of the osm_discover()
+     one line in the alert log no matter what the outcome of the osm_version()
      call. It must fit in len bytes including a terminating null. If len is
      not long enough then the string must be truncated. The string should
      include the name of the vendor and the release number of the library.
@@ -1236,10 +1164,9 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
      code. It returns one of the constants defined above to indicate the
      success of the versioning. This is necessary because there is no context
      for calling osm_error() to report an error. If the return value is
-     anything other than OSM_INIT_SUCCESS then the Oracle instance will fail
-     to start. In any case the name of the library and the results of the call
-     will appear in the alert log. Note that the stub version of the library
-     always is successful.
+     anything other than OSM_INIT_SUCCESS then Oracle will ignore the library
+     and not call it again. In any case the name of the library and the
+     results of the call will appear in the alert log.
 
    NOTE:
 
@@ -1313,7 +1240,7 @@ osm_erc  osm_init( osm_iid iid, osm_ctx *ctxp );
      holding an osmlib golbal resource. It is presumed that osmlib shared
      state is maintained inside the operating system. The osmlib code must
      continue to function correctly when any thread of execution suddenly
-     terminates between any two instruction in osmlib.
+     terminates between any two instructions in osmlib.
 */
 
 
@@ -1455,9 +1382,10 @@ osm_erc osm_discover( osm_ctx ctx, oratext *setdesc );
      If a fetch from a previous discovery returned a unique disk id string, or
      an access path name string, then those strings must be valid discovery
      strings that will discover exactly the one disk that was previously
-     fetched. The access path name will only be used on the same node that
-     previously fetched the osm_name, but the unique disk id must be a valid
-     discovery string from any node in the cluster.
+     fetched. This must work even if the access path name is a valid operating
+     system path name. The access path name will only be used on the same node
+     that previously fetched the osm_name, but the unique disk id must be a
+     valid discovery string from any node in the cluster.
 
      Oracle gets discovery strings from initialization parameters, string
      arguments in commands, or from osm_name structures returned by
@@ -1468,6 +1396,20 @@ osm_erc osm_discover( osm_ctx ctx, oratext *setdesc );
      to the osmlib implementation. For example the name of a storage array
      could be interpreted as discovering all LUNs on the array that are
      enabled for OSM access.
+
+     There could be multiple osmlib implementations simultaneously linked to
+     the same Oracle kernel. The same discovery strings are passed to all
+     libraries, so a library should ignore discovery strings intended for
+     another library. This can be accomplished by requiring the discovery
+     string start with the name or stock symbol of the vendor that implemented
+     it followed by a colon. For example Oracle could require a discovery
+     string to start with "ORCL:". This implies that the unique disk id string
+     must also start with the vendor name. The access path name does not start
+     with the vendor name if it is a valid operating system name, but it may
+     start with a vendor name to ensure it is only recognized by this
+     library. Note that osm_discover() must not return an error when passed a
+     discovery string for another vendor. Instead it should not discover any
+     disks.
 
      If disks are added to or dropped from the disk set immediately after
      osm_discover() returns, they might or might not be returned by
@@ -1651,7 +1593,7 @@ osm_erc  osm_io( osm_ctx ctx,
                  osm_ioc *requests[], uword reqlen, 
                  osm_ioc *waitreqs[], uword waitlen, 
                  osm_ioc *completions[], uword complen,
-                 ub4 intr, ub4 timeout, uword *statusp );
+                 ub4 timeout, uword *statusp );
 
 /* special timeout values */
 #define    OSM_NOWAIT    0x0                   /* return as soon as possible */
@@ -1676,8 +1618,7 @@ osm_erc  osm_io( osm_ctx ctx,
      waitlen(IN)     -  number of elements in the waitreq array
      completions(OUT)-  array of completed osmlib i/o requests
      complen(IN)     -  completion array length
-     intr(IN)        -  i/o wait is interruptible
-     timeout(IN)     -  timeout in microseconds
+     timeout(IN)     -  completions timeout in microseconds
      statusp(OUT)    -  status pointer
 
    DESCRIPTION:
@@ -1717,17 +1658,18 @@ osm_erc  osm_io( osm_ctx ctx,
      having passed the request to the library.
 
      waitreqs points to a list of I/O control blocks for which the call should
-     wait.  waitlen is the count of entries in the array.  If waitlen is zero,
-     the waitreqs pointer can be null.  The caller can only wait for requests
-     submitted by the same thread of execution with the same osmlib context.
-     osm_io() will return when the OSM_FREE flag has been set on every request
-     in the wait list. A control block can be in both the requests list and
-     the wait list. This accomplishes synchronous I/O. If it is not possible
-     to queue the request then its wait is over. If the I/O control block is
-     not in the requests list it must have been successfully submitted by a
-     prior call to osm_io() and not yet returned. In other words OSM_SUBMITTED
-     must be set and OSM_FREE must not be set. osm_io() may consider a request
-     as completed if asked to wait for a control block it does not have
+     wait.  waitlen is the count of entries in the array. If waitlen is not
+     zero then timeout must be OSM_WAIT.  If waitlen is zero, the waitreqs
+     pointer can be null.  The caller can only wait for requests submitted by
+     the same thread of execution with the same osmlib context.  osm_io() will
+     return when the OSM_FREE flag has been set on every request in the wait
+     list. A control block can be in both the requests list and the wait
+     list. This accomplishes synchronous I/O. If it is not possible to queue
+     the request then its wait is over. If the I/O control block is not in the
+     requests list it must have been successfully submitted by a prior call to
+     osm_io() and not yet returned. In other words OSM_SUBMITTED must be set
+     and OSM_FREE must not be set. osm_io() may consider a request as
+     completed if asked to wait for a control block it does not have
      queued. Thus a bad pointer or a pointer to a request submitted by another
      thread of execution may be considered as a completed request which does
      not need to be waited for. This implementation ignores invalid pointers
@@ -1738,16 +1680,16 @@ osm_erc  osm_io( osm_ctx ctx,
      that caused a garbage pointer in the waitreqs list.
 
      osm_io() may return before all the requests in the waitreqs list are
-     complete.  This can be the result of reaching the timeout or due to a
-     post from the operating system. For example on Unix a signal may be
-     received.  The caller must examine the status of the control block for
-     the value OSM_FREE to determine whether the I/O has in fact completed.
-     An early return from osm_io() does not terminate the I/O request. It may
-     be waited for with another osm_io() call or it may be reaped
-     asynchronously via the completions list of another osm_io() call.  If the
-     status is OSM_FREE when the call returns, then the control block will
-     never appear in a completion list. Waiting for a request and having it
-     complete is all the notification needed.
+     complete.  This can be the result of a post from the operating
+     system. For example on Unix a signal may be received.  The caller must
+     examine the status of the control block for the value OSM_FREE to
+     determine whether the I/O has in fact completed.  An early return from
+     osm_io() does not terminate the I/O request. It may be waited for with
+     another osm_io() call or it may be reaped asynchronously via the
+     completions list of another osm_io() call.  If the status is OSM_FREE
+     when the call returns, then the control block will never appear in a
+     completion list. Waiting for a request and having it complete is all the
+     notification needed.
 
      completions points to a zeroed array of pointers to I/O control blocks.
      complen is a count of the entries in the array. When osm_io() returns,
@@ -1801,22 +1743,22 @@ osm_erc  osm_io( osm_ctx ctx,
      more control blocks, a null completions list, a waitreqs pointing to the 
      requested control blocks, and a timeout value of OSM_WAIT.
 
-     The timeout value, in microseconds, determines how long the call will
-     wait for I/O to complete before returning.  It is also possible to return
-     before the timeout time due to a post from the operating system. A
-     timeout value of OSM_NOWAIT does not wait at all. I/O control blocks in
-     the waitreqs list will have their OSM_FREE status set if they have
-     already completed. The completions list will only contain requests that
-     are already completed when osm_io() finishes processing the requests
-     list. A timeout value of OSM_WAIT will never timeout. osm_io() will have
-     to return for some other reason. An infinite wait will always return when
-     all I/O's have completed so it is not really infinite. A timeout is
-     usually used in conjunction with a completions list to gather a group of
-     completions for efficiency, but to avoid sleeping too long before
-     processing I/O's that are complete. If a timeout value is specified, but
-     there is no completion list and no waitreqs list, the timeout has no
-     meaning for processing I/O requests, and the timeout value will be
-     ignored.  The call will return without setting OSM_IO_TIMEOUT.
+     The timeout value, in microseconds, limits how long the call will wait to
+     fill completions before returning.  It is also possible to return before
+     the timeout time due to a post from the operating system. A timeout value
+     of OSM_NOWAIT does not wait at all. The completions list will only
+     contain requests that are already completed when osm_io() finishes
+     processing the requests list. A timeout value of OSM_WAIT will never
+     timeout. osm_io() will have to return for some other reason.  If the
+     waitlen is not zero then timeout will be OSM_WAIT to implement a
+     synchronous I/O. An infinite wait will always return when all I/O's have
+     completed so it is not really infinite. A timeout is usually used in
+     conjunction with a completions list to gather a group of completions for
+     efficiency, but to avoid sleeping too long before processing I/O's that
+     are complete. If a timeout value is specified, but there is no completion
+     list, the timeout has no meaning for processing I/O requests, and the
+     timeout value will be ignored.  The call will return without setting
+     OSM_IO_TIMEOUT.
 
      The operating system can post an execution thread that is blocked in
      osm_io() and have the call return immediately. If there is a waitreqs
@@ -1824,24 +1766,8 @@ osm_erc  osm_io( osm_ctx ctx,
      completions list, it may have pointers to completed requests. If there is
      a requests list all the requests will be marked as either submitted or
      busy when osm_io() returns. A Unix signal is an operating system
-     post. Similar mechanisms exist on other operating systems. Another Oracle
-     thread can post an execution thread through the operating system while it
-     is in osm_io() to wake it up to receive a message.
+     post. Similar mechanisms exist on other operating systems.
 
-     The intr parameter specifies whether the osm_io() call can be posted by
-     the operating system. When it is set to TRUE it means that this I/O wait
-     must be interruptible. Another Oracle execution thread must be able to
-     cause a routine in Oracle to run even if this thread is blocked. For
-     example, on Unix this would mean that a signal handler could run while
-     waiting for I/O to complete. If the asynchronously called Oracle routine
-     needs to have osm_io() return, then it will call osm_posted() to notify
-     the library that it was woken up in order to force a return from
-     osm_io(). For example, on Unix the signal handler will call osm_posted()
-     and return. If intr is set to FALSE, osmlib library may wait for I/O in
-     such a manner that it would be impossible to post the execution thread
-     out of the I/O wait. However it is acceptable for osm_io() to always
-     return when interrupted.
-     
      statusp is a pointer to a variable that is is set to indicate why osm_io()
      returned. Since it is possible to have multiple completion conditions at
      the same time, the values are bit masks which can be ORed together to
@@ -1860,8 +1786,8 @@ osm_erc  osm_io( osm_ctx ctx,
 
      OSM_IO_TIMEOUT - The timeout expired. This will always be set when the
      timeout value is OSM_NOWAIT and never set when the timeout value is
-     OSM_WAIT. The timeout value will have no effect if the waitreqs and 
-     completions array are passed in as NULL.
+     OSM_WAIT. The timeout value will have no effect if the completions array
+     is NULL, so this will not be set in that case.
 
      OSM_IO_WAITED - All the I/O control blocks in the waitreqs list have the
      OSM_FREE status bit set. This cannot be set if waitlen is zero.
@@ -1959,6 +1885,8 @@ osm_erc  osm_io( osm_ctx ctx,
      waitreqs contains a pointer that does not point to an active request or a
      request in the requests list.
 
+     there are entries in waitreqs but timeout is not OSM_WAIT.
+     
      completions contains a list entry that is non-zero.
 
      status_osm_ioc of one of the i/o control blocks in requests is not 
@@ -2161,62 +2089,18 @@ osm_erc  osm_cancel( osm_ctx ctx, osm_ioc *ioc );
 */
 
 
-/*----------------------------- osm_posted  ---------------------------------*/
-void  osm_posted( osm_ctx ctx );
-/*
-   NAME:
-     osm_posted - Thread is posted out of its I/O wait
-
-   PARAMETERS:
-     ctx(IN  )     -  osmlib context pointer returned by osm_init()
-
-   REQUIRES:
-
-     osm_io() called to wait for I/O completion in an interruptible way
-
-   DESCRIPTION:
-    
-     When a thread waiting for I/O completions gets posted by the operating 
-     system, osm_posted() is called in the waiting threads context. This
-     tells osm_io() that it should return immediately rather than continue to
-     wait for I/O completions. This will only be called if the intr flag to
-     osm_io() was true.
-
-     Note that there are some race conditions possible. The asynchronous call
-     may happen before osm_io() gets around to waiting or after it wakes up.
-     It is acceptable for such a post to occasionally get lost, but there may
-     be performance problems if it happens very often.
-
-     This mechanism is most useful on operating systems where there is no
-     indication of why an execution thread has woken up. This provides
-     notification that the execution thread was woken up to end its wait on
-     I/O.
-     
-     
-   RETURNS:
-
-     Nothing
-
-   EXAMPLES:
-   
-     On Unix Oracle uses a signal to post a process that is waiting on I/O.
-     The signal handler will call osm_posted() and return. The library could
-     implement osm_posted() to simply set a flag in the osmlib context. When
-     osm_io() is called it would first clear the flag. If it receives an EINTR
-     error when it waits for I/O, it would check to see if the flag is set. If
-     it is set then osm_io() returns, otherwise it waits again for I/O
-     completion. It would also be acceptable to return on any EINTR return
-     code.
-
-     On NT Oracle makes an asynchronous procedure call to wake up an execution
-     thread that is blocked on I/O. If called the procedure calls osm_posted()
-     and returns.  The library could implement osm_posted() to set a flag in
-     the osmlib context. When osm_io() is called it would first clear the
-     flag. When called with intr TRUE, osm_io() would wait for I/O
-     interruptibly. If the flag is set when it wakes then osm_io() returns
-     without waiting for any more I/O completions.
-
-*/
-
-
 #endif                                                      /* OSMLIB_ORACLE */
+
+
+
+
+
+
+
+
+
+
+
+
+
+

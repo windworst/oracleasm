@@ -42,6 +42,7 @@
 #define OSM_PARTIAL      0x0080 /* only a partial transfer */
 #define OSM_BADKEY       0x0100 /* disk key mismatch */
 #define OSM_FENCED       0x0200 /* I/O was not allowed by the fence key */
+#define OSM_LOCAL_ERROR  0x0400 /* error is local to this host */
 
 /* special timeout values */
 #define    OSM_NOWAIT    0x0            /* return as soon as possible */
@@ -58,6 +59,7 @@
 #define OSM_NOOP        0x00    /* no-op to key check or pass a hint */
 #define OSM_READ        0x01    /* Read data from disk */
 #define OSM_WRITE       0x02    /* write data to disk */
+/* 0x03 is unused */
 #define OSM_COPY        0x03    /* copy data from one location to another */
 #define OSM_GETKEY      0x04    /* get value of one or more disk keys */
 #define OSM_SETKEY      0x05    /* set value of one or more disk keys */
@@ -76,8 +78,8 @@ struct _osm_check
 {
 	__u32		fence_num_osm_check;
 	__u32		fence_value_osm_check;
-	__u32		key_num_osm_check;
 	__u32		error_fence_osm_check;
+	__u32		key_num_osm_check;
 	__u64		key_mask_osm_check;
 	__u64		key_value_osm_check;
 	__u64		error_key_osm_check;
@@ -106,12 +108,11 @@ struct _osm_ioc32 {
 	__u32		abn_offset_osm_ioc;
 	__u32		abn_osm_ioc;
 	__u32		abn_mask_osm_ioc;
-	__u32		reserved2_osm_ioc;
+	__u32		spare1_osm_ioc;
 	__u64		tag_osm_ioc;
 	__u64		reserved_osm_ioc;
 	__u32		buffer_osm_ioc;
 	__u32		check_osm_ioc;
-	__u32		link_osm_ioc;
 };
 
 #if BITS_PER_LONG == 32
@@ -138,12 +139,11 @@ struct _osm_ioc64 {
 	__u32		abn_offset_osm_ioc;
 	__u32		abn_osm_ioc;
 	__u32		abn_mask_osm_ioc;
-	__u32		reserved2_osm_ioc;
+	__u32		spare1_osm_ioc;
 	__u64		tag_osm_ioc;
 	__u64		reserved_osm_ioc;
 	__u64		buffer_osm_ioc;
 	__u64		check_osm_ioc;
-	__u64		link_osm_ioc;
 };
 # else
 #  error Invalid bits per long (BITS_PER_LONG)

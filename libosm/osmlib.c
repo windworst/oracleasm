@@ -72,7 +72,6 @@ struct _osm_ctx_private
     int fd;
     int discover_index;
     void *discover_cache;
-    char posted;
 };
 
 
@@ -446,7 +445,7 @@ osm_erc osm_io(osm_ctx ctx,
                osm_ioc *requests[], uword reqlen,
                osm_ioc *waitreqs[], uword waitlen,
                osm_ioc *completions[], uword complen,
-               ub4 intr, ub4 timeout, uword *statusp)
+               ub4 timeout, uword *statusp)
 {
     osm_erc err;
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
@@ -467,9 +466,10 @@ osm_erc osm_io(osm_ctx ctx,
     io.oi_waitlen = waitlen;
     io.oi_completions = (__u64)(unsigned long)completions;
     io.oi_complen = complen;
-    io.oi_intr = intr;
     if (timeout == OSM_WAIT)
         io.oi_timeout = (__u64)(unsigned long)NULL;
+    else if (waitlen)
+        return OSM_ERR_INVAL;
     else
     {
         if (timeout == OSM_NOWAIT)
@@ -608,16 +608,6 @@ osm_erc osm_cancel(osm_ctx ctx, osm_ioc *ioc)
     return 0;
 }  /* osm_cancel() */
 
-
-void osm_posted(osm_ctx ctx)
-{
-    osm_ctx_private *priv = (osm_ctx_private *)ctx;
-
-    if (!priv)
-        return;
-
-    priv->posted++;
-}  /* osm_posted() */
 
 #if 1
 /* Debugging */

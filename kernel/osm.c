@@ -1830,15 +1830,12 @@ static inline void osm_promote_64(osm_ioc64 *ioc)
 	 *
 	 * Promotion must be done from the tail backwards.
 	 */
-	LOG("Promoting (0x%X, 0x%X, 0x%X) to ",
-	    ioc_32->link_osm_ioc,
+	LOG("Promoting (0x%X, 0x%X) to ",
 	    ioc_32->check_osm_ioc,
 	    ioc_32->buffer_osm_ioc);
-	ioc->link_osm_ioc = (u64)ioc_32->link_osm_ioc;
 	ioc->check_osm_ioc = (u64)ioc_32->check_osm_ioc;
 	ioc->buffer_osm_ioc = (u64)ioc_32->buffer_osm_ioc;
-	LOG("(0x%lX, 0x%lX, 0x%lX)\n",
-	    ioc->link_osm_ioc,
+	LOG("(0x%lX, 0x%lX)\n",
 	    ioc->check_osm_ioc,
 	    ioc->buffer_osm_ioc);
 
@@ -2173,6 +2170,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 
 	switch (cmd) {
 		default:
+			LOG("OSM: Invalid ioctl 0x%lu\n", cmd);
 			return -ENOTTY;
 			break;
 

@@ -26,7 +26,7 @@
  * Error codes.  Positive means runtime error, negative means software
  * error.  See osmlib.c for the description strings.
  */
-enum _OsmErrors
+enum _OSMErrors
 {
     OSM_ERR_FAULT       = -4,   /* Invalid address */
     OSM_ERR_NODEV       = -3,   /* Invalid device */
