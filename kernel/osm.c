@@ -306,6 +306,8 @@ static int osm_validate_disk(kdev_t dev)
  * dropping four).  This is intended to see SCSI disks, ignoring
  * partition minors.  Come up with a better one.  Come up with a better
  * search.  This isn't set in stone, it's just a start.
+ * FIXME: Since we can, in theory, have non-SCSI disks, this needs
+ * imporvement.
  */
 #define OSM_HASH_DISK(dev) (((dev)>>4) & 0x3FF)
 
@@ -2201,9 +2203,11 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			kdv = to_kdev_t(dq.dq_rdev);
 			LOG("OSM: Checking disk %d,%d\n", MAJOR(kdv),
 			    MINOR(kdv));
+#if 0
 			/* Right now we trust only SCSI ->request_fn */
 			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
 				return -EINVAL;
+#endif
 
 			ret = osm_validate_disk(kdv);
 			if (ret)

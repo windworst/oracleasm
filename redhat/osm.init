@@ -10,13 +10,20 @@
 #
 #
 
+
+# Force LC_ALL=C
+export LC_ALL=C
+
+
 # Source init.d functions
 . /etc/init.d/functions
+
 
 KVER="`uname -r`"
 case "$KVER" in
 2.4.9-e.*)
     BASE_VER=2.4.9-e
+    BASE_STR=2.4.9-e
     ;;
 2.4.18-e.*)
     echo -n "Checking for Red Hat enterprise kernel: "
@@ -24,8 +31,9 @@ case "$KVER" in
     echo
     exit 1
     ;;
-2.4.21-ent.*)
-    BASE_VER=2.4.21-ent
+2.4.21-*.EL*)
+    BASE_VER=2.4.21-
+    BASE_STR=2.4.21-EL
     ;;
 *)
     echo -n "Checking for Red Hat enterprise kernel: "
@@ -59,6 +67,10 @@ case "$EVER" in
 *[0-9])
     ETYPE=up
     ;;
+*[0-9].EL)
+    # UP on RHEL 3
+    ETYPE=up
+    ;;
 esac
 
 if test -z "$ETYPE"
@@ -69,30 +81,83 @@ then
     exit 1
 fi
 
-EVER="${EVER%${ETYPE}}"
-EVER="${EVER#.}"
 case "$EVER" in
-[1-9])
-    ;;
-[1-9][0-9])
-    ;;
-[1-9][0-9][0-9])
+*.EL)
+    EVER="${EVER%.EL}"
     ;;
 *)
+    ;;
+esac
+
+if test "$ETYPE" = "up"
+then
+    ETYPE=""
+fi
+case "$BASE_STR" in
+2.4.21-EL)
+    EVER="${EVER%.EL${ETYPE}}"
+    ;;
+*)
+    EVER="${EVER%${ETYPE}}"
+    ;;
+esac
+
+check_ver()
+{
+    VERNUM="$1"
+    case "$VERNUM" in
+    [0-9])
+        ;;
+    [1-9][0-9])
+        ;;
+    [1-9][0-9][0-9])
+        ;;
+    *)
+        echo -n "Checking for Red Hat enterprise kernel: "
+        failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
+        echo
+        exit 1
+        ;;
+    esac
+}
+
+EMAJOR=0
+EMINOR=0
+EMICRO=0
+EVER="${EVER#.}"
+EMAJOR="${EVER%%.*}"
+check_ver $EMAJOR
+ETMP="${EVER#${EMAJOR}}"
+ETMP="${ETMP#.}"
+if test -n "$ETMP"
+then
+    EMINOR="${ETMP%%.*}"
+    check_ver $EMINOR
+    ETMP="${ETMP#${EMINOR}.}"
+    ETMP="${ETMP#.}"
+fi
+if test -n "$ETMP"
+then
+    EMICRO="${ETMP%%.*}"
+    check_ver $EMICRO
+    ETMP="${ETMP#${EMICRO}.}"
+    ETMP="${ETMP#.}"
+fi
+if test -z "$ETMP"
+then
     echo -n "Checking for Red Hat enterprise kernel: "
     failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
     echo
     exit 1
-    ;;
-esac
+fi
 
 # This is for path happiness...
-if test "$ETYPE" != "up"
+if test "$ETYPE" != ""
 then
     ETYPE="${ETYPE}-"
 fi
 MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
-OBJPATH="/lib/modules/${BASE_VER}-${ETYPE}ABI/osm"
+OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/osm"
 
 test -r "$OBJPATH/osm.o" || exit 0
 

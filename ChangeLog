@@ -1,6 +1,16 @@
 
 2003-08-25	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: Start the TOOLS/MODULEARCH stuff.
+	* Config.make.in: Add TOOLS/MODULEARCH stuff.
+	* redhat/osm.init: Some more distro portability.
+	* test/Makefile: osmbad added.
+	* test/osmbad.c: Added.
+	* test/osmtest-multi: Fix the -bin junk.
+	* kernel/osm.c: Remove the SCSI-only limitation.
+	
+2003-08-25	Joel Becker <joel.becker@oracle.com>
+
 	* Makefile: Add rhel3 targets.
 	* configure.in: Add rhel3 specfile.
 	* kernel/Makefile: Add hugemem target.

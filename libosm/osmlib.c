@@ -175,9 +175,6 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
         goto out_free_ctx;
 
     priv->iid = iid;
-#if 0 /* wither app? */
-    priv->app = app;
-#endif
     priv->discover_cache = NULL;
 
     *ctxp = (osm_ctx *)priv;
@@ -275,7 +272,7 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     {
         path = globbuf->gl_pathv[priv->discover_index];
 
-        fd = open(path, O_RDWR);
+        fd = open(path, O_RDONLY);
         if (fd >= 0)
         {
             rc = fstat(fd, &stat_buf);
@@ -356,7 +353,7 @@ osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
         goto out;
 
 
-    fd = open(name->path_osm_name, O_RDWR);
+    fd = open(name->path_osm_name, O_RDONLY);
     if (fd < 0)
     {
         switch (errno)
