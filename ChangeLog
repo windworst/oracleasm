@@ -1,5 +1,11 @@
 
-2003-08-20	Joel Becker <joel.becker@oracle.com>
+2003-08-22	Joel Becker <joel.becker@oracle.com>
+
+	* redhat/Makefile: Added.
+	* Makefile: Add redhat subdir.
+	* include/linux/Makefile: Add osmcompat32.h.
+
+2003-08-22	Joel Becker <joel.becker@oracle.com>
 
 	* include/osmlib.h: Latest drop from 10g.
 	* include/osmabi.h: Pad struct osmio to 64bit size.
