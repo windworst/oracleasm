@@ -9,7 +9,7 @@
 
 /*
 	NAME
-	  osmkernel.h - Oracle Storage Manager structures in the kernel.
+	asmkernel.h - Oracle Automatic Storage Management library structures in the kernel.
 	  
 	DESCRIPTION
 	
@@ -22,13 +22,13 @@
 */
 
 
-#ifndef _OSMKERNEL_H
-#define _OSMKERNEL_H
+#ifndef _ASMKERNEL_H
+#define _ASMKERNEL_H
 
 #ifdef __KERNEL__
 
 /*
- * OSM Defines
+ * ASM Defines
  */
 
 /* i/o status bits */
@@ -152,6 +152,6 @@ struct _asm_ioc64 {
 
 #endif  /* __KERNEL__ */
 
-#endif  /* _OSMKERNEL */
+#endif  /* _ASMKERNEL */
 
 

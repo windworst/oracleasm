@@ -1,6 +1,13 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* include/linux/{osm,asm}kernel.h: Rename osmkernel.h to
+		asmkernel.h.
+	* kernel/oracleasm.c: Reference asmkernel.h.
+	* include/linux/Makefile: Reference asmkernel.h.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* include/Makefile: Reference asmerror.h. (oops)
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
