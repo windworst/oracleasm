@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/statfs.h>
+#include <sys/wait.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -361,7 +362,7 @@ out_free:
 
 
 static int collect_asmtool(pid_t pid,
-                           int out_pipe[], int err_pipe[],
+                           int out_fd[], int err_fd[],
                            char *output, int outlen,
                            char *errput, int errlen)
 {
@@ -371,16 +372,16 @@ static int collect_asmtool(pid_t pid,
     while ((wait_pid = wait(&status)) != pid)
         ;
 
-    close(out_pipe[1]); close(err_pipe[1]);
+    close(out_fd[1]); close(err_fd[1]);
 
 
 out:
-    close(out_pipe[0]); close(err_pipe[0]);
+    close(out_fd[0]); close(err_fd[0]);
     return rc;
 }  /* collect_asmtool() */
 
 
-static int run_asmtool(const char **args[],
+static int run_asmtool(const char *args[],
                        char **output, int *outlen,
                        char **errput, int *errlen)
 {
@@ -415,11 +416,11 @@ static int run_asmtool(const char **args[],
         return -errno;
     }
 
-    rc = pipe(err_pipe);
+    rc = pipe(err_fd);
     if (rc)
     {
         free(*output); free(*errput);
-        close(out_pipe[0]); close(out_pipe[1]);
+        close(out_fd[0]); close(out_fd[1]);
         return -errno;
     }
 
@@ -428,18 +429,18 @@ static int run_asmtool(const char **args[],
     {
         rc = -errno;
         free(*output); free(*errput);
-        close(out_pipe[0]); close(out_pipe[1]);
-        close(err_pipe[0]); close(err_pipe[1]);
+        close(out_fd[0]); close(out_fd[1]);
+        close(err_fd[0]); close(err_fd[1]);
         return rc;
     }
 
     /* These calls close the pipes */
     if (pid)
-        rc = collect_asmtool(pid, out_pipe, err_pipe,
+        rc = collect_asmtool(pid, out_fd, err_fd,
                              *output, *outlen,
                              *errput, *errlen);
     else
-        rc = exec_asmtool(args, out_pipe, err_pipe);
+        rc = exec_asmtool(args, out_fd, err_fd);
 
     return rc;
 }  /* run_asmtool() */

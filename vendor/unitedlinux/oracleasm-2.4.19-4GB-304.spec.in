@@ -85,7 +85,7 @@ cd kernel
 make
 make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}/kernel/drivers/addon/oracleasm" install 
 
-cd ../libosm
+cd ../libasm
 make
 cd ../tools
 make
@@ -111,7 +111,7 @@ else
     BPL=32
 fi
 mkdir -p ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1
-cp libosm/libosm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
+cp libasm/libasm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
 
 cd tools
 make DESTDIR="$RPM_BUILD_ROOT" install

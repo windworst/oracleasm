@@ -64,7 +64,7 @@ Tools to manage the Oracle Automatic Storage Management library
 %build
 %configure --sbindir=/usr/sbin --with-kernel=/usr/src/linux
 
-cd libosm
+cd libasm
 make
 cd ../tools
 make
@@ -90,7 +90,7 @@ else
     BPL=32
 fi
 mkdir -p ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1
-cp libosm/libosm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
+cp libasm/libasm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
 
 cd tools
 make DESTDIR="$RPM_BUILD_ROOT" install
