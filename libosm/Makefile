@@ -16,7 +16,7 @@ HEADERS =					\
 	$(TOPDIR)/include/osmlib.h		\
 	$(TOPDIR)/include/asmerror.h		\
 	$(TOPDIR)/include/linux/asmcompat32.h	\
-	$(TOPDIR)/include/linux/osmabi.h
+	$(TOPDIR)/include/linux/asmabi.h
 
 OBJECTS = $(subst .c,.o,$(SOURCES))
 

@@ -48,7 +48,7 @@ OBJECTS = $(subst .c,.o,$(SOURCES))
 HEADERS =					\
 	$(TOPDIR)/include/linux/asmkernel.h	\
 	$(TOPDIR)/include/linux/asmcompat32.h	\
-	$(TOPDIR)/include/linux/osmabi.h	\
+	$(TOPDIR)/include/linux/asmabi.h	\
 	$(TOPDIR)/include/linux/asmdisk.h	\
 	$(TOPDIR)/include/asmerror.h
 

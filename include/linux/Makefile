@@ -15,7 +15,7 @@ include $(TOPDIR)/Preamble.make
 SUBDIRS = 
 
 HEADERS =		\
-	osmabi.h	\
+	asmabi.h	\
 	asmdisk.h	\
 	asmkernel.h	\
 	asmcompat32.h

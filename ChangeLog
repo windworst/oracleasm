@@ -1,6 +1,19 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* include/linux/{osm,asm}abi.h: Rename osmdisk.h to asmabi.h.
+	* include/linux/Makefile: Reference asmabi.h.
+	* kernel/oracleasm.c: Reference asmabi.h.
+	* kernel/Makefile: Reference asmabi.h.
+	* libosm/asmlib.c: Reference asmabi.h.
+	* libosm/Makefile: Reference asmabi.h.
+	* test/asmbad.c: Reference asmabi.h.
+	* test/sizes.c: Reference asmabi.h.
+	* test/Makefile: Reference asmabi.h.
+	* tools/Makefile: Drop useless reference to osmabi.h.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* include/linux/{osm,asm}disk.h: Rename osmdisk.h to asmdisk.h.
 	* include/linux/Makefile: Reference asmdisk.h.
 	* kernel/oracleasm.c: Reference asmdisk.h.

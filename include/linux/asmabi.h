@@ -9,18 +9,18 @@
 
 /*
   NAME
-    osmabi.h - Oracle Storage Manager kernel<->user ABI
+    asmabi.h - Oracle Automatic Storage Management library kernel<->user ABI
     
   DESCRIPTION
   
-  This file is an internal header to the osmlib implementation on Linux.
+  This file is an internal header to the asmlib implementation on Linux.
 
   This file presumes the definitions in osmlib.h and oratypes.h
 */
 
 
-#ifndef _OSMABI_H
-#define _OSMABI_H
+#ifndef _ASMABI_H
+#define _ASMABI_H
 
 
 /*
@@ -64,11 +64,11 @@ struct oracleasm_get_iid
  */
 #define ASM_IOCTL_BASE          0xFD
 
-/* ioctls on /dev/osm */
+/* ioctls on /dev/oracleasm */
 #define ASMIOC_GETIID           _IOR(ASM_IOCTL_BASE, 0, struct oracleasm_get_iid)
 #define ASMIOC_CHECKIID         _IOWR(ASM_IOCTL_BASE, 1, struct oracleasm_get_iid)
 
-/* ioctls on /dev/osm/<iid> */
+/* ioctls on /dev/oracleasm/<iid> */
 #define ASMIOC_QUERYDISK        _IOWR(ASM_IOCTL_BASE, 2, struct oracleasm_disk_query)
 #define ASMIOC_OPENDISK		_IOWR(ASM_IOCTL_BASE, 3, struct oracleasm_disk_query)
 #define ASMIOC_CLOSEDISK	_IOW(ASM_IOCTL_BASE, 4, struct oracleasm_disk_query)
@@ -98,5 +98,5 @@ struct oracleasm_get_iid
 #define ASMIOC_DUMP             _IO(ASM_IOCTL_BASE, 16)
 
 
-#endif  /* _OSMABI_H */
+#endif  /* _ASMABI_H */
 
