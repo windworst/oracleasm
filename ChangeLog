@@ -1,4 +1,8 @@
 
+2003-12-11	Joel Becker <joel.becker@oracle.com>
+
+	* tools/asmtool.c: New query code.  Ugly, but enough.
+
 2003-12-10	Joel Becker <joel.becker@oracle.com>
 
 	* libosm/asmlib.c: Added manager code, and handle new

@@ -60,8 +60,10 @@ typedef enum
 /*
  * Typedefs
  */
-typedef struct _OptionAttr OptionAttr;
-typedef struct _ASMToolAttrs ASMToolAttrs;
+typedef struct _OptionAttr      OptionAttr;
+typedef struct _ASMToolAttrs    ASMToolAttrs;
+typedef struct _ASMDisk         ASMDisk;
+typedef struct _ASMDevice       ASMDevice;
 
 
 
@@ -76,12 +78,28 @@ struct _OptionAttr
     char *oa_value;
 };
 
-
 struct _ASMToolAttrs
 {
-    char *label;
+    /* Booleans */
     int force;
     int mark;
+    /* All textual attrs */
+    struct list_head attr_list;
+};
+
+struct _ASMDisk
+{
+    char *di_name;
+    dev_t di_dev;
+    ASMDevice *di_device;
+};
+
+struct _ASMDevice
+{
+    char *de_name;
+    char *de_label;
+    dev_t de_dev;
+    ASMDisk *de_disk;
 };
 
 
@@ -113,16 +131,32 @@ static int create_disk(const char *manager, const char *disk,
                        const char *target, ASMToolAttrs *attrs);
 static int delete_disk(const char *manager, const char *object,
                        ASMToolAttrs *attrs);
+static int get_info_asmdisk_by_device(const char *manager,
+                                      const char *target,
+                                      ASMToolAttrs *attrs);
+static int get_info_asmdisk_by_name(const char *manager,
+                                    const char *disk,
+                                    ASMToolAttrs *attrs);
+static int get_info_asmdisk(const char *manager, const char *object,
+                            ASMToolAttrs *attrs);
+static int get_info(const char *manager, const char *object,
+                    const char *stype, ASMToolAttrs *attrs);
 static int is_manager(const char *filename);
 static int list_managers();
 static int parse_options(int argc, char *argv[], ASMToolOperation *op,
                          char **manager, char **object, char **target,
-                         struct list_head *prog_attrs);
+                         char **stype, struct list_head *prog_attrs);
 static int prepare_attrs(char **attr_names, int num_names,
                          struct list_head *l);
 static void clear_attrs(struct list_head *l);
-static int attr_boolean(const char *attr_value);
-static int fill_attrs(ASMToolAttrs *attrs, struct list_head *attr_list);
+static int attr_set(struct list_head *attr_list, const char *attr_name);
+static const char *attr_string(struct list_head *attr_list,
+                               const char *attr_name,
+                               const char *def_value);
+static int attr_boolean(struct list_head *attr_list,
+                        const char *attr_name,
+                        int def_value);
+static int fill_attrs(ASMToolAttrs *attrs);
 
 
 
@@ -149,7 +183,7 @@ static void print_usage(int rc)
             "Usage: asmtool -M\n"
             "       asmtool -C -l <manager> -n <object> -s <device> [-a <attribute> ...]\n"
             "       asmtool -D -l <manager> -n <object>\n"
-            "       asmtool -I -l <manager> -n <object> [-a <attribute>] ...\n"
+            "       asmtool -I -l <manager> [-n <object>] [-t <type>] [-a <attribute>] ...\n"
             "       asmtool -h\n"
             "       asmtool -V\n");
     exit(rc);
@@ -791,6 +825,207 @@ static int delete_disk(const char *manager, const char *object,
 }  /* delete_disk() */
 
 
+static int get_info_asmdisk_by_name(const char *manager,
+                                    const char *disk,
+                                    ASMToolAttrs *attrs)
+{
+    int rc, fd;
+    char *label, *asm_disk;
+    struct asm_disk_label adl;
+
+    rc = -EINVAL;
+    label = (char *)attr_string(&attrs->attr_list, "label", NULL);
+    if (label && strcmp(disk, label))
+    {
+        fprintf(stderr,
+                "asmtool: Looking for disk \"%s\" with label \"%s\" makes no sense\n",
+                disk, label);
+        goto out;
+    }
+
+    rc = -ENOMEM;
+    asm_disk = asm_disk_path(manager, disk);
+    if (!asm_disk)
+    {
+        fprintf(stderr, "asmtool: Unable to query ASM disk \"%s\": %s\n",
+                disk, strerror(-rc));
+        goto out;
+    }
+
+    rc = open_disk(asm_disk);
+    if (rc < 0)
+    {
+        fprintf(stderr, "asmtool: Unable to open ASM disk \"%s\": %s\n",
+                disk, strerror(-rc));
+        goto out;
+    }
+    fd = rc;
+
+    rc = read_disk(fd, &adl);
+    if (rc)
+    {
+        fprintf(stderr, "asmtool: Unable to read ASM disk \"%s\": %s\n",
+                disk, strerror(-rc));
+        goto out_close;
+    }
+
+    rc = check_disk(&adl, disk);
+    if (rc)
+    {
+        if (rc == -ENXIO)
+        {
+            fprintf(stderr,
+                    "asmtool: ASM disk \"%s\" defines an unmarked device\n",
+                    disk);
+        }
+        else if (rc == -ESRCH)
+        {
+            label = asm_disk_id(&adl);
+            fprintf(stderr,
+                    "asmtool: ASM disk \"%s\" is labeled for ASM disk \"%s\"\n",
+                    disk, label ? label : "<unknown>");
+            if (label)
+                free(label);
+        }
+        else
+        {
+            fprintf(stderr,
+                    "asmtool: Error querying ASM disk \"%s\": %s\n",
+                    disk, strerror(-rc));
+        }
+    }
+    else
+    {
+        fprintf(stdout,
+                "asmtool: Disk \"%s\" is a valid ASM disk\n",
+                disk);
+    }
+
+out_close:
+    close (fd);
+
+out:
+    return rc;
+}  /* get_info_asmdisk_by_name() */
+
+
+static int get_info_asmdisk_by_device(const char *manager,
+                                      const char *target,
+                                      ASMToolAttrs *attrs)
+{
+    int rc, fd;
+    char *id;
+    struct asm_disk_label adl;
+
+    rc = open_disk(target);
+    if (rc < 0)
+    {
+        fprintf(stderr, "asmtool: Unable to open device \"%s\": %s\n",
+                target, strerror(-rc));
+        goto out;
+    }
+    fd = rc;
+
+    rc = read_disk(fd, &adl);
+    if (rc)
+    {
+        fprintf(stdout,
+                "asmtool: Unable to read device \"%s\": %s\n",
+                target, strerror(-rc));
+        goto out_close;
+    }
+
+    rc = check_disk(&adl, NULL);
+    if (!rc)
+    {
+        if (attr_set(&attrs->attr_list, "label"))
+        {
+            if (attr_string(&attrs->attr_list, "label", NULL))
+            {
+                rc = -EINVAL;
+                fprintf(stderr,
+                        "asmtool: Cannot set attribute \"label\"\n");
+                goto out_close;
+            }
+            id = asm_disk_id(&adl);
+            if (!id)
+            {
+                fprintf(stderr,
+                        "asmtool: Unable to allocate memory\n");
+                goto out_close;
+            }
+
+            fprintf(stdout,
+                    "asmtool: Disk \"%s\" is marked an ASM disk with the label \"%s\"\n",
+                    target, id);
+            free(id);
+        }
+        else
+        {
+            fprintf(stdout,
+                    "asmtool: Disk \"%s\" is marked an ASM disk\n",
+                    target);
+        }
+    }
+    else if (rc == -ENXIO)
+    {
+        fprintf(stdout,
+                "asmtool: Disk \"%s\" is not marked an ASM disk\n",
+                target);
+    }
+    else
+    {
+        fprintf(stderr, "asmtool: Unable to check disk \"%s\": %s\n",
+                target, strerror(-rc));
+    }
+
+out_close:
+    close(fd);
+
+out:
+    return rc;
+}  /* get_info_asmdisk_by_device() */
+
+
+static int get_info_asmdisk(const char *manager, const char *object,
+                            ASMToolAttrs *attrs)
+{
+    if (strchr(object, '/'))
+        return get_info_asmdisk_by_device(manager, object, attrs);
+    else
+        return get_info_asmdisk_by_name(manager, object, attrs);
+}  /* get_info_asmdisk() */
+
+
+static int get_info(const char *manager, const char *object,
+                    const char *stype, ASMToolAttrs *attrs)
+{
+    int rc;
+
+    rc = -ENOSYS;
+    if (!object || !*object)
+    {
+        fprintf(stderr, "asmtool: No object specified: %s\n",
+                strerror(-rc));
+        goto out;
+    }
+
+    /* So far, we only support one query */
+    if (stype && (!strcmp(stype, "asmdisk")))
+    {
+        fprintf(stderr,
+                "asmtool: Unsupported or invalid object type: %s\n",
+                stype);
+        goto out;
+    }
+
+    rc = get_info_asmdisk(manager, object, attrs);
+
+out:
+    return rc;
+}  /* get_info() */
+
+
 static int is_manager(const char *filename)
 {
     int rc;
@@ -834,7 +1069,7 @@ extern int optopt;
 extern int opterr;
 static int parse_options(int argc, char *argv[], ASMToolOperation *op,
                          char **manager, char **object, char **target,
-                         struct list_head *prog_attrs)
+                         char **stype, struct list_head *prog_attrs)
 {
     int c;
     char *attr_name, *attr_value;
@@ -842,7 +1077,7 @@ static int parse_options(int argc, char *argv[], ASMToolOperation *op,
     OptionAttr *attr;
 
     opterr = 0;
-    while((c = getopt(argc, argv, ":hVMCDIl:n:s:a:")) != EOF)
+    while((c = getopt(argc, argv, ":hVMCDIl:n:s:t:a:")) != EOF)
     {
         switch(c)
         {
@@ -894,6 +1129,12 @@ static int parse_options(int argc, char *argv[], ASMToolOperation *op,
                 if (!optarg || !*optarg)
                     return -EINVAL;
                 *target = optarg;
+                break;
+
+            case 't':
+                if (!optarg || !*optarg)
+                    return -EINVAL;
+                *stype = optarg;
                 break;
 
             case 'a':
@@ -992,9 +1233,51 @@ static void clear_attrs(struct list_head *l)
 }  /* clear_attrs() */
 
 
-static int attr_boolean(const char *attr_value)
+static int attr_set(struct list_head *attr_list, const char *attr_name)
+{
+    OptionAttr *attr;
+    struct list_head *pos;
+
+    list_for_each(pos, attr_list) {
+        attr = list_entry(pos, OptionAttr, oa_list);
+        if (!strcmp(attr->oa_name, attr_name))
+        {
+            return attr->oa_set;
+        }
+    }
+
+    return 0;
+}  /* attr_set() */
+
+
+static const char *attr_string(struct list_head *attr_list,
+                               const char *attr_name,
+                               const char *def_value)
+{
+    OptionAttr *attr;
+    struct list_head *pos;
+
+    list_for_each(pos, attr_list) {
+        attr = list_entry(pos, OptionAttr, oa_list);
+        if (!strcmp(attr->oa_name, attr_name))
+        {
+            if (!attr->oa_set)
+                return def_value;
+            return attr->oa_value;
+        }
+    }
+
+    return def_value;
+}  /* attr_string() */
+  
+
+static int attr_boolean(struct list_head *attr_list,
+                        const char *attr_name,
+                        int def_value)
 {
     int i;
+    struct list_head *pos;
+    OptionAttr *attr;
     struct b_table
     {
         char *match;
@@ -1008,52 +1291,36 @@ static int attr_boolean(const char *attr_value)
         {"off", 0}, {"on", 1}
     };
 
-    if (!attr_value || !*attr_value)
-        return -EINVAL;
-
-    for (i = 0; i < (sizeof(bt) / sizeof(*bt)); i++)
-    {
-        if (!strcmp(bt[i].match, attr_value))
-            return bt[i].value;
+    list_for_each(pos, attr_list) {
+        attr = list_entry(pos, OptionAttr, oa_list);
+        if (!strcmp(attr->oa_name, attr_name))
+        {
+            if (!attr->oa_set || !attr->oa_value || !*(attr->oa_value))
+                return 1;
+            for (i = 0; i < (sizeof(bt) / sizeof(*bt)); i++)
+            {
+                if (!strcmp(bt[i].match, attr->oa_value))
+                    return bt[i].value;
+            }
+            fprintf(stderr,
+                    "asmtool: Invalid value for attribute \"%s\": %s\n",
+                    attr_name, attr->oa_value);
+            return -EINVAL;
+        }
     }
 
-    return -EINVAL;
+    return def_value;
 }  /* attr_boolean() */
 
 
-static int fill_attrs(ASMToolAttrs *attrs, struct list_head *attr_list)
+static int fill_attrs(ASMToolAttrs *attrs)
 {
-    struct list_head *pos;
-    OptionAttr *attr;
-
-    list_for_each(pos, attr_list) {
-        attr = list_entry(pos, OptionAttr, oa_list);
-        if (!strcmp(attr->oa_name, "label"))
-        {
-            if (attr->oa_set)
-                attrs->label = attr->oa_value ? attr->oa_value : "";
-            break;
-        }
-        else if (!strcmp(attr->oa_name, "force"))
-        {
-            if (attr->oa_set)
-            {
-                attrs->force = attr_boolean(attr->oa_value);
-                if (attrs->force < 0)
-                    return attrs->force;
-            }
-        }
-        else if (!strcmp(attr->oa_name, "mark"))
-        {
-            if (attr->oa_set)
-            {
-                attrs->mark = attr_boolean(attr->oa_value);
-                if (attrs->mark < 0)
-                    return attrs->mark;
-            }
-        }
-    }
-
+    attrs->force = attr_boolean(&attrs->attr_list, "force", 0);
+    if (attrs->force < 0)
+        return attrs->force;
+    attrs->mark = attr_boolean(&attrs->attr_list, "mark", 1);
+    if (attrs->mark < 0)
+        return attrs->mark;
     return 0;
 }  /* fill_attrs() */
 
@@ -1063,24 +1330,20 @@ static int fill_attrs(ASMToolAttrs *attrs, struct list_head *attr_list)
  */
 int main(int argc, char *argv[])
 {
-    int fd, rc;
-    char *manager = NULL, *object = NULL, *target = NULL;
-    char *id;
-    struct asm_disk_label adl;
+    int rc;
+    char *manager = NULL, *object = NULL, *target = NULL, *stype = NULL;
     ASMToolOperation op = ASMTOOL_NOOP;
-    struct list_head def_attrs;
     char *attr_names[] = { "label", "mark", "force" };
     ASMToolAttrs attrs = {
-        .label = NULL,
         .force = FALSE,
         .mark = TRUE
     };
 
-    INIT_LIST_HEAD(&def_attrs);
+    INIT_LIST_HEAD(&attrs.attr_list);
 
     rc = prepare_attrs(attr_names,
                        sizeof(attr_names)/sizeof(*attr_names),
-                       &def_attrs);
+                       &attrs.attr_list);
     if (rc)
     {
         fprintf(stderr, "asmtool: Unable to initialize: %s\n",
@@ -1089,7 +1352,7 @@ int main(int argc, char *argv[])
     }
 
     rc = parse_options(argc, argv, &op, &manager, &object,
-                       &target, &def_attrs);
+                       &target, &stype, &attrs.attr_list);
     if (rc)
         print_usage(rc);
 
@@ -1107,13 +1370,9 @@ int main(int argc, char *argv[])
         goto out;
     }
 
-    rc = fill_attrs(&attrs, &def_attrs);
+    rc = fill_attrs(&attrs);
     if (rc)
-    {
-        fprintf(stderr, "asmtool: Unable to process attributes: %s\n",
-                strerror(-rc));
         goto out;
-    }
 
     if (op == ASMTOOL_LIST_MANAGERS)
     {
@@ -1153,64 +1412,7 @@ int main(int argc, char *argv[])
             break;
 
         case ASMTOOL_INFO:
-            fd = open_disk(object);
-            if (fd < 0)
-            {
-                fprintf(stderr, "asmtool: Unable to open \"%s\": %s\n",
-                        object, strerror(-fd));
-                goto out;
-            }
-    
-            rc = read_disk(fd, &adl);
-            if (rc)
-            {
-                fprintf(stdout,
-                        "asmtool: Unable to read disk \"%s\": %s\n",
-                        object, strerror(-rc));
-                goto out_close;
-            }
-            rc = check_disk(&adl, attrs.label);
-            if (!rc)
-            {
-                fprintf(stdout,
-                        "asmtool: Disk \"%s\" is marked an ASM disk\n",
-                        object);
-            }
-            else if (rc == -ENXIO)
-            {
-                fprintf(stdout,
-                        "asmtool: Disk \"%s\" is not marked an ASM disk\n",
-                        object);
-            }
-            else if (rc == -ESRCH)
-            {
-                if (*(attrs.label))
-                {
-                    fprintf(stdout,
-                            "asmtool: Disk \"%s\" is marked an ASM disk, but does not match the label \"%s\"\n",
-                            object, attrs.label);
-                }
-                else
-                {
-                    id = asm_disk_id(&adl);
-                    if (!id)
-                    {
-                        fprintf(stderr,
-                                "asmtool: Unable to allocate memory\n");
-                        goto out_close;
-                    }
-
-                    fprintf(stdout,
-                            "asmtool: Disk \"%s\" is marked an ASM disk with the label \"%s\"\n",
-                            object, id);
-                    free(id);
-                }
-            }
-            else
-            {
-                fprintf(stderr, "asmtool: Unable to check disk \"%s\": %s\n",
-                        object, strerror(-rc));
-            }
+            rc = get_info(manager, object, stype, &attrs);
             break;
 
         case ASMTOOL_LIST_MANAGERS:
@@ -1222,11 +1424,8 @@ int main(int argc, char *argv[])
             break;
     }
 
-out_close:
-    close(fd);
-
 out:
-    clear_attrs(&def_attrs);
+    clear_attrs(&attrs.attr_list);
 
     return 0;
 }  /* main() */
