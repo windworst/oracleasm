@@ -857,7 +857,7 @@ static int get_info_asmdisk_by_name(const char *manager,
     }
 
     label = (char *)attr_string(&attrs->attr_list, "label", NULL);
-    if (label && strcmp(disk, label))
+    if (label && strcasecmp(disk, label))
     {
         fprintf(stderr,
                 "asmtool: Looking for disk \"%s\" with label \"%s\" makes no sense\n",
@@ -903,17 +903,11 @@ static int get_info_asmdisk_by_name(const char *manager,
         else if (rc == -ESRCH)
         {
             label = asm_disk_id(&adl);
-            fprintf(stdout,
+            fprintf(stderr,
                     "asmtool: ASM disk \"%s\" is labeled for ASM disk \"%s\"\n",
                     disk, label ? label : "<unknown>");
             if (label)
                 free(label);
-        }
-        else
-        {
-            fprintf(stderr,
-                    "asmtool: Error querying ASM disk \"%s\": %s\n",
-                    disk, strerror(-rc));
         }
     }
     else
@@ -1047,10 +1041,209 @@ out:
     return rc;
 }  /* get_info() */
 
-
+static int change_attr_asmdisk_by_name(const char *manager, char *disk,
+                                       ASMToolAttrs *attrs);
 static int change_attr_asmdisk_by_device(const char *manager,
                                          const char *target,
                                          ASMToolAttrs *attrs);
+
+static int change_attr_asmdisk_by_name(const char *manager, char *disk,
+                                       ASMToolAttrs *attrs)
+{
+    int c, rc, fd = -1;
+    char *asm_disk, *label, *label_disk;
+    struct asm_disk_label adl;
+    struct stat stat_buf;
+
+    rc = -EINVAL;
+    c = asmdisk_toupper(disk, -1, 0);
+    if (c)
+    {
+        fprintf(stderr,
+                "asmtool: ASM disk name contains an invalid character: \"%c\"\n",
+                c);
+        goto out;
+    }
+
+    label = (char *)attr_string(&attrs->attr_list, "label", NULL);
+    if (!label)
+    {
+        fprintf(stderr,
+                "asmtool: New ASM disk name is required\n");
+        goto out;
+    }
+    if (!*label)
+    {
+        fprintf(stderr,
+                "asmtool: New ASM disk name is required\n");
+        goto out;
+    }
+
+    rc = -ENOMEM;
+    label = strdup(label);
+    if (!label)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to normalize new ASM disk name: %s\n",
+                strerror(-rc));
+        goto out;
+    }
+
+    rc = -EINVAL;
+    c = asmdisk_toupper(label, -1, 0);
+    if (c)
+    {
+        fprintf(stderr,
+                "asmtool: New ASM disk name contains an invalid character: \"%c\"\n",
+                c);
+        goto out_free_label;
+    }
+
+    rc = 0;
+    if (!strcmp(disk, label))
+        goto out_free_label;  /* Nothing to do */
+
+    rc = -ENOMEM;
+    asm_disk = asm_disk_path(manager, disk);
+    if (!asm_disk)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to determine ASM disk: %s\n",
+                strerror(-rc));
+        goto out_free_label;
+    }
+
+    label_disk = asm_disk_path(manager, label);
+    if (!label_disk)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to determine new ASM disk: %s\n",
+                strerror(-rc));
+        goto out_free_disk;
+    }
+
+    rc = open_disk(asm_disk);
+    if (rc < 0)
+    {
+        switch (rc)
+        {
+            /* Things that mean we know it's bad */
+            case -ENXIO:
+            case -ENODEV:
+                fprintf(stderr,
+                        "asmtool: Unable to open ASM disk \"%s\": %s\n",
+                        disk, strerror(-rc));
+                rc = unlink_disk(manager, disk);
+                goto out_free_label_disk;
+
+            default:
+                fprintf(stderr,
+                        "asmtool: Unable to open ASM disk \"%s\": %s\n",
+                        disk, strerror(-rc));
+                goto out_free_label_disk;
+        }
+    }
+    fd = rc;
+
+    rc = fstat(fd, &stat_buf);
+    if (rc)
+    {
+        rc = -errno;
+        fprintf(stderr,
+                "asmtool: Unable to query ASM disk \"%s\": %s\n",
+                disk, strerror(-rc));
+        goto out_close;
+    }
+
+    rc = read_disk(fd, &adl);
+    if (rc)
+    {
+        switch (rc)
+        {
+            /* Again, bad disk */
+            case -EINVAL:
+            case -EBADF:
+                fprintf(stderr,
+                        "asmtool: Unable to query ASM disk \"%s\": %s\n",
+                        disk, strerror(-rc));
+                goto out_unlink;
+
+            default:
+                fprintf(stderr,
+                        "asmtool: Unable to query ASM disk \"%s\": %s\n",
+                        disk, strerror(-rc));
+                goto out_close;
+        }
+    }
+
+    rc = check_disk(&adl, disk);
+    switch (rc)
+    {
+
+        case -ESRCH:
+            /* Check to see if it already has the new label */
+            rc = check_disk(&adl, label);
+            if (!rc)
+                break;
+            /* FALL THROUGH */
+
+        case -ENXIO:
+            fprintf(stderr,
+                    "asmtool: Invalid ASM disk: \"%s\"\n",
+                    disk);
+            goto out_unlink;
+            break;
+
+        case 0:
+            /* Success */
+            break;
+
+        default:
+            abort();
+    }
+
+    rc = mknod(label_disk, 0660 | S_IFBLK, stat_buf.st_rdev);
+    if (rc)
+    {
+        rc = -errno;
+        fprintf(stderr,
+                "asmtool: Unable to make new disk \"%s\": %s\n",
+                label, strerror(-rc));
+        goto out_close;
+    }
+
+    rc = mark_disk(fd, &adl, label);
+    if (rc)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to mark disk \"%s\": %s\n",
+                label, strerror(-rc));
+        rc = unlink_disk(manager, label);
+        goto out_close;
+    }
+
+out_unlink:
+    rc = unlink_disk(manager, disk);
+
+out_close:
+    if (fd > -1)
+        close(fd);
+
+out_free_label_disk:
+    free(label_disk);
+
+out_free_disk:
+    free(asm_disk);
+
+out_free_label:
+    free(label);
+
+out:
+    return rc;
+}  /* change_attr_asmdisk_by_name() */
+
+
+
 static int change_attr_asmdisk_by_device(const char *manager,
                                          const char *target,
                                          ASMToolAttrs *attrs)
@@ -1061,11 +1254,21 @@ static int change_attr_asmdisk_by_device(const char *manager,
     struct stat dev_stat_buf, disk_stat_buf;
 
     rc = -EINVAL;
-    label = attr_string(&attrs->attr_list, "label", NULL);
+    label = (char *)attr_string(&attrs->attr_list, "label", NULL);
     if (!label)
         goto out;
     if (!*label)
-        goto out_free_label;
+        goto out;
+
+    rc = -ENOMEM;
+    label = strdup(label);
+    if (!label)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to normalize new ASM disk name: \"%s\"\n",
+                strerror(-rc));
+        goto out;
+    }
 
     rc = asmdisk_toupper(label, -1, 0);
     if (rc)
@@ -1267,7 +1470,7 @@ static int change_attr(const char *manager, char *object,
             goto out;
         }
 
-        /*rc = change_attr_asmdisk_by_name(manager, object, attrs);*/
+        rc = change_attr_asmdisk_by_name(manager, object, attrs);
     }
 
 out:

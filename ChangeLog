@@ -1,4 +1,8 @@
 
+2004-04-14	Joel Becker <joel.becker@oracle.com>
+
+	* tools/asmtool.c: Add rename by name.
+	
 2004-04-13	Joel Becker <joel.becker@oracle.com>
 
 	* kernel/oracleasm.c: Add a FIXME.
