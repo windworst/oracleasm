@@ -2,6 +2,13 @@ README.bugs
 
 Bugs fixed by release.
 
+oracleasm 1.0.3
+---------------
+3843206: ASM_INIT_INSTALL while trying to load generic Linux ASMLib
+3797446: Linux 10103 patch TC3, ASM RBAL process hanging, ASMLib
+3843975: ASMLib Linux, can't run querydisk on disk devices
+3843989: ASMLib Linux, unable to discover cciss disks, unable to discover md disks
+
 oracleasm 1.0.2
 ---------------
 ######: Unable to change a raw device ASM disk to use ASMLib

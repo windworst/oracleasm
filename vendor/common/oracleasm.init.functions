@@ -641,8 +641,18 @@ scan_disks()
     echo -n "Scanning system for ASM disks "
     RC=0
 
-    # FIXME Add ordering
-    OUTPUT="`asmscan -l "${ORACLE_ASMMANAGER}" 2>/dev/null`"
+    SCANARGS=
+    for d in ${ORACLEASM_SCANORDER}
+    do
+        SCANARGS="${SCANARGS} -s $d"
+    done
+
+    for d in ${ORACLEASM_SCANEXCLUDE}
+    do
+        SCANARGS="${SCANARGS} -x $d"
+    done
+
+    OUTPUT="`asmscan -l "${ORACLE_ASMMANAGER}" ${SCANARGS} 2>/dev/null`"
     if [ $? != 0 ]
     then
         return 1
