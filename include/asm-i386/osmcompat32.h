@@ -9,7 +9,7 @@
 
 /*
   NAME
-    osmids.h - Oracle Storage Manager ID macros
+    osmcompat32.h - Oracle Storage Manager ID macros
     
   DESCRIPTION
   
@@ -19,8 +19,8 @@
 */
 
 
-#ifndef _OSMIDS_H
-#define _OSMIDS_H
+#ifndef _OSMCOMPAT32_H
+#define _OSMCOMPAT32_H
 
 /*
  * Handle the ID sizes
@@ -28,4 +28,4 @@
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
 
-#endif  /* _OSMIDS_H */
+#endif  /* _OSMCOMPAT32_H */

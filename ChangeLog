@@ -1,4 +1,13 @@
 
+2003-06-03	Joel Becker <joel.becker@oracle.com>
+
+	* include/asm-i386/osmcompat32.h: Renamed from bad osmids.h
+		name.
+	* kernel/osm.c: osmcompat32.h
+	* libosm/osmlib.c: osmcompat32.h
+	* kernel/Makefile: Added header deps for osm.o.
+	* libosm/Makefile: osmcompat32.h
+
 2003-05-30	Joel Becker <joel.becker@oracle.com>
 
 	* include/linux/osmkernel.h: Remove request_key_osm_ioc.

@@ -34,7 +34,7 @@
 #include "oratypes.h"
 #include "osmlib.h"
 #include "osmerror.h"
-#include "asm/osmids.h"
+#include "asm/osmcompat32.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
 

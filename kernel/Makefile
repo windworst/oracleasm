@@ -36,6 +36,15 @@ MODULES = osm.o
 SOURCES = osm.c
 OBJECTS = $(subst .c,.o,$(SOURCES))
 
+HEADERS =					\
+	$(TOPDIR)/include/linux/osmkernel.h	\
+	$(TOPDIR)/include/asm/osmcompat32.h	\
+	$(TOPDIR)/include/linux/osmabi.h	\
+	$(TOPDIR)/include/linux/osmdisk.h	\
+	$(TOPDIR)/include/osmerror.h
+
+osm.o: $(HEADERS)
+
 INSTALL_RULES = install-osm
 
 install-ocfs: osm.o

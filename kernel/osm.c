@@ -35,7 +35,7 @@
 #include <linux/spinlock.h>
 
 #include "linux/osmkernel.h"
-#include "asm/osmids.h"
+#include "asm/osmcompat32.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
 #include "osmerror.h"
@@ -59,7 +59,7 @@
  */
 #define OSM_MAX_IOSIZE          (1024 * 64)
 
-/* Debugging is on */
+/* Turn debugging on */
 #undef DEBUG 
 #undef DEBUG1
 #undef DEBUG_BROKEN

@@ -15,7 +15,7 @@ HEADERS =					\
 	$(TOPDIR)/include/oratypes.h		\
 	$(TOPDIR)/include/osmlib.h		\
 	$(TOPDIR)/include/osmerror.h		\
-	$(TOPDIR)/include/asm/osmids.h		\
+	$(TOPDIR)/include/asm/osmcompat32.h	\
 	$(TOPDIR)/include/linux/osmabi.h	\
 	$(TOPDIR)/include/linux/osmdisk.h
 
