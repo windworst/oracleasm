@@ -1,6 +1,12 @@
 
 2003-11-19	Joel Becker <joel.becker@oracle.com>
 
+	* Makefile: deflt, not dflt.
+	* vendor/unitedlinux/oracleasm-2.4.19-4GB-304.spec.in: deflt,
+		not dflt.
+
+2003-11-19	Joel Becker <joel.becker@oracle.com>
+
 	* Makefile: Add UL10SP3 magic target.
 	* configure.in: Add UL10SP3-111 specfile.
 	* vendor/unitedlinux/oracleasm-2.4.21-111.spec.in: Added.

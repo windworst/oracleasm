@@ -55,11 +55,11 @@ ul10_%_psmp_srpm: dist
 ul10_%_psmp_rpm: ul10_%_psmp_srpm
 	rpm --rebuild --target i586 "oracleasm-2.4.19-4GB-SMP-$(patsubst ul10_%_psmp_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
-ul10_%_dflt_srpm: dist
-	rpm -bs --define "_sourcedir `realpath $(TOPDIR)`" --define "_srcrpmdir `realpath $(TOPDIR)`" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-4GB-$(patsubst ul10_%_dflt_srpm,%,$@).spec
+ul10_%_deflt_srpm: dist
+	rpm -bs --define "_sourcedir `realpath $(TOPDIR)`" --define "_srcrpmdir `realpath $(TOPDIR)`" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-4GB-$(patsubst ul10_%_deflt_srpm,%,$@).spec
 
-ul10_%_dflt_rpm: ul10_%_dflt_srpm
-	rpm --rebuild --target i586 "oracleasm-2.4.19-4GB-$(patsubst ul10_%_dflt_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+ul10_%_deflt_rpm: ul10_%_deflt_srpm
+	rpm --rebuild --target i586 "oracleasm-2.4.19-4GB-$(patsubst ul10_%_deflt_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
 ul10sp3_%_srpm: dist
 	rpm -bs --define "_sourcedir `pwd`" --define "_srcrpmdir `pwd`" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21-$(patsubst ul10sp3_%_srpm,%,$@).spec
