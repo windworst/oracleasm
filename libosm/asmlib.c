@@ -38,13 +38,15 @@
 #include "asmerror.h"
 #include "linux/asmcompat32.h"
 #include "linux/asmabi.h"
+#include "linux/asmdisk.h"
+#include "linux/asmmanager.h"
 
 
 /*
  * Defines
  */
-#define OSMLIB_NAME     "OSM Library - Generic Linux"
-#define DEVASM          "/dev/oracleasm"
+#define OSMLIB_NAME             "OSM Library - Generic Linux"
+#define OSMLIB_DISCOVER_PREFIX  "ORCL:"
 
 
 
@@ -69,6 +71,7 @@ typedef struct _osm_ctx_private osm_ctx_private;
 struct _osm_ctx_private
 {
     osm_iid iid;
+    char *manager;
     int fd;
     int discover_index;
     void *discover_cache;
@@ -87,6 +90,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
     uword ret;
     int fd, rc;
     struct oracleasm_get_iid new_iid;
+    char *osm_file, *manager;
 
     if (len)
         snprintf(name, len, "%s, version %s", OSMLIB_NAME, VERSION);
@@ -97,13 +101,22 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
     else
         goto out;
 
+    manager = getenv("ORACLE_ASMMANAGER");
+    if (!manager)
+        manager = ASM_MANAGER_DEFAULT;
+
+    ret = OSM_INIT_OTHER;
+    osm_file = asm_manage_path(manager);
+    if (!osm_file)
+        goto out;
+
     /*
      * The initial assumption is that root has properly loaded the
-     * osm module and mounted /dev/oracleasm.  We might have osmlib do
-     * this trick later.
+     * osm module and mounted /dev/oracleasm.
      */
     ret = OSM_INIT_INSTALL;
-    fd = open(DEVASM, O_RDONLY);
+    fd = open(osm_file, O_RDONLY);
+    free(osm_file);
     if (fd < 0)
         goto out;
 
@@ -114,7 +127,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
         goto out;
 
     ret = OSM_INIT_OTHER;
-        *iid = (osm_iid)new_iid.gi_iid;
+    *iid = (osm_iid)new_iid.gi_iid;
 
     *interface_mask = OSM_IO | OSM_UDID | OSM_FGROUP | OSM_OSNAME;
 
@@ -132,14 +145,24 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
     osm_ctx_private *priv;
     struct oracleasm_get_iid real_iid;
     int fd, rc;
-    char *osm_file;
+    char *osm_file, *manager;
 
     err = ASM_ERR_INVAL;
     if (*ctxp)
         goto out;
 
+    manager = getenv("ORACLE_ASMMANAGER");
+    if (!manager)
+        manager = ASM_MANAGER_DEFAULT;
+
+    err = ASM_ERR_NOMEM;
+    osm_file = asm_manage_path(manager);
+    if (!osm_file)
+        goto out;
+
     err = ASM_ERR_PERM;
-    fd = open(DEVASM, O_RDONLY);
+    fd = open(osm_file, O_RDONLY);
+    free(osm_file);
     if (fd < 0)
         goto out;
 
@@ -160,14 +183,12 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
     if (!priv)
         goto out;
 
-    /* 16 chars for 64 bits + 1 for \0 */
-    osm_file = (char *)malloc(sizeof(char) * (strlen(DEVASM) + 17));
+    priv->manager = manager;
+
+    osm_file = asm_iid_path(priv->manager, HIGH_UB4(real_iid.gi_iid),
+                            LOW_UB4(real_iid.gi_iid));
     if (!osm_file)
         goto out_free_ctx;
-
-    sprintf(osm_file, "%s/%.8lX%.8lX", DEVASM,
-            HIGH_UB4(real_iid.gi_iid),
-            LOW_UB4(real_iid.gi_iid));
 
     err = ASM_ERR_PERM;
     priv->fd = open(osm_file, O_RDWR | O_CREAT, 0700);
@@ -206,12 +227,16 @@ osm_erc osm_fini(osm_ctx ctx)
 }  /* osm_fini() */
 
 
-/* First cut: glob() string.  NULL is invalid; empty string is valid. */
+/*
+ * All disk names are in the manager disk path.  Glob will find them.
+ * Discovery strings must have the ORCL: prefix.
+ */
 osm_erc osm_discover(osm_ctx ctx, oratext *setdesc)
 {
     osm_erc err;
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
     glob_t *globbuf;
+    char *discover_path;
     int rc;
 
     err = ASM_ERR_INVAL;
@@ -222,14 +247,29 @@ osm_erc osm_discover(osm_ctx ctx, oratext *setdesc)
 
     /* Orahack - someone decided "" == "*" */
     if (*setdesc == '\0')
-        setdesc = "*";
+        setdesc = OSMLIB_DISCOVER_PREFIX "*";
 
-    err = ASM_ERR_NOMEM;
-    globbuf = (glob_t *)malloc(sizeof(*globbuf));
-    if (!globbuf)
+    err = ASM_ERR_NONE;
+    if (strncmp(OSMLIB_DISCOVER_PREFIX, setdesc,
+                strlen(OSMLIB_DISCOVER_PREFIX)))
         goto out;
 
-    rc = glob(setdesc, 0, NULL, globbuf);
+    err = ASM_ERR_NOMEM;
+    discover_path = asm_disk_path(priv->manager,
+                                  setdesc +
+                                  strlen(OSMLIB_DISCOVER_PREFIX));
+    if (!discover_path)
+        goto out;
+
+    globbuf = (glob_t *)malloc(sizeof(*globbuf));
+    if (!globbuf)
+    {
+        free(discover_path);
+        goto out;
+    }
+
+    rc = glob(discover_path, 0, NULL, globbuf);
+    free(discover_path);
 
     if (rc)
     {

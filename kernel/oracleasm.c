@@ -41,6 +41,7 @@
 #include "linux/asmkernel.h"
 #include "linux/asmabi.h"
 #include "linux/asmdisk.h"
+#include "linux/asmmanager.h"
 #include "asmerror.h"
 
 
@@ -108,6 +109,8 @@ static struct super_operations asmfs_ops;
 static struct address_space_operations asmfs_aops;
 static struct file_operations asmfs_dir_operations;
 static struct file_operations asmfs_file_operations;
+static struct inode_operations asmfs_disk_dir_inode_operations;
+static struct inode_operations asmfs_iid_dir_inode_operations;
 static struct inode_operations asmfs_dir_inode_operations;
 
 static kmem_cache_t	*asm_request_cachep;
@@ -669,11 +672,6 @@ static int asmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int d
 	}
 
 	return error;
-}
-
-static int asmfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
-{
-	return asmfs_mknod(dir, dentry, mode | S_IFDIR, 0);
 }
 
 static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode)
@@ -1320,30 +1318,6 @@ static int asm_build_io(int rw, struct asm_request *r,
 			clear_bit(BH_Dirty, &tmp->b_state);
 		}
 
-#if 0 /* delete later */
-		/* Make tmp a bounce buffer if needed */
-		iobh = blk_queue_bounce(q, rw, tmp);
-		if (iobh != tmp) {
-			iobh->b_reqnext = NULL;
-			init_waitqueue_head(&iobh->b_wait);
-		}
-
-		if (r->r_bh) {
-			if (!BH_CONTIG(r->r_bhtail, iobh) ||
-			    !BH_PHYS_4G(r->r_bhtail, iobh)) {
-				r->r_seg_count++;
-			}
-
-			r->r_bhtail->b_reqnext = iobh;
-			r->r_bhtail = iobh;
-		} else {
-			r->r_bh = r->r_bhtail = iobh;
-			r->r_seg_count = 1;
-		}
-		/* Keep a list of original buffers */
-		tmp->b_next = r->r_buffers;
-#else
-
 		if (r->r_bh)
 		{
 			r->r_bhtail->b_next = tmp;
@@ -1359,7 +1333,6 @@ static int asm_build_io(int rw, struct asm_request *r,
 			r->r_bh = tmp;
 
 		r->r_bhtail = tmp;
-#endif /* 0 */
 		r->r_bh_count++;
 	} /* End of page loop */		
 
@@ -2371,12 +2344,18 @@ static struct file_operations asmfs_file_operations = {
 /*  See init_asmfs_dir_operations() */
 static struct file_operations asmfs_dir_operations = {0, };
 
-static struct inode_operations asmfs_dir_inode_operations = {
+static struct inode_operations asmfs_disk_dir_inode_operations = {
+	.lookup		= asmfs_lookup,
+	.unlink		= asmfs_unlink,
+	.mknod		= asmfs_mknod,
+};
+static struct inode_operations asmfs_iid_dir_inode_operations = {
 	.create		= asmfs_create,
 	.lookup		= asmfs_lookup,
 	.unlink		= asmfs_unlink,
-	.mkdir		= asmfs_mkdir,
-	.mknod		= asmfs_mknod,
+};
+static struct inode_operations asmfs_dir_inode_operations = {
+	.lookup		= asmfs_lookup,
 };
 
 static struct super_operations asmfs_ops = {
@@ -2392,12 +2371,48 @@ static struct super_operations asmfs_ops = {
  * Initialisation
  */
 
+/*
+ * Because it isn't exported in 2.4
+ * It is the same function in 2.4.9 thru 2.6.0, so this should be safe.
+ */
+static void asmfs_d_genocide(struct dentry *root)
+{
+	struct dentry *this_parent = root;
+	struct list_head *next;
+
+	spin_lock(&dcache_lock);
+repeat:
+	next = this_parent->d_subdirs.next;
+resume:
+	while (next != &this_parent->d_subdirs) {
+		struct list_head *tmp = next;
+		struct dentry *dentry = list_entry(tmp, struct dentry, d_child);
+		next = tmp->next;
+		if (d_unhashed(dentry)||!dentry->d_inode)
+			continue;
+		if (!list_empty(&dentry->d_subdirs)) {
+			this_parent = dentry;
+			goto repeat;
+		}
+		atomic_dec(&dentry->d_count);
+	}
+	if (this_parent != root) {
+		next = this_parent->d_child.next; 
+		atomic_dec(&this_parent->d_count);
+		this_parent = this_parent->d_parent;
+		goto resume;
+	}
+	spin_unlock(&dcache_lock);
+}
+
+
 static struct super_block *asmfs_read_super(struct super_block * sb, void * data, int silent)
 {
 	struct inode * inode;
-	struct dentry * root;
+	struct dentry * root, * dentry;
 	struct asmfs_sb_info * asb;
 	struct asmfs_params params;
+	struct qstr name;
 
 	sb->s_blocksize = PAGE_CACHE_SIZE;
 	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
@@ -2415,30 +2430,66 @@ static struct super_block *asmfs_read_super(struct super_block * sb, void * data
 	spin_lock_init(&asb->asmfs_lock);
 
 	if (parse_options((char *)data, &params) != 0)
-		return NULL;
+		goto out_free_asb;
 
 	init_limits(asb, &params);
 
 	inode = asmfs_get_inode(sb, S_IFDIR | 0755, 0);
 	if (!inode)
-		return NULL;
+		goto out_free_asb;;
 
 	/* Set root owner */
-	inode->i_uid = params.uid;
-	inode->i_gid = params.gid;
+	inode->i_uid = inode->i_gid = 0;
+
+	root = d_alloc_root(inode);
+	if (!root) {
+		iput(inode);
+		goto out_free_asb;
+	}
+
+	name.name = ASM_MANAGER_DISKS;
+	name.len = strlen(ASM_MANAGER_DISKS);
+	name.hash = full_name_hash(name.name, name.len);
+	dentry = d_alloc(root, &name);
+	if (!dentry)
+		goto out_genocide;
+	inode = new_inode(sb);
+	if (!inode)
+		goto out_genocide;
+	inode->i_mode = S_IFDIR | 0755;
+	inode->i_uid = inode->i_gid = 0;
+	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	inode->i_fop = &asmfs_dir_operations;
+	inode->i_op = &asmfs_disk_dir_inode_operations;
+	inode->i_ino = (unsigned long)inode;
+	d_add(dentry, inode);
+
+	name.name = ASM_MANAGER_INSTANCES;
+	name.len = strlen(ASM_MANAGER_INSTANCES);
+	name.hash = full_name_hash(name.name, name.len);
+	dentry = d_alloc(root, &name);
+	if (!dentry)
+		goto out_genocide;
+	inode = new_inode(sb);
+	if (!inode)
+		goto out_genocide;
 	if (params.mode) {
 		inode->i_mode = (inode->i_mode & 077000) | params.mode;
 	} else {
 		inode->i_mode |= 0770; /* user + group write */
 		inode->i_mode &= 077770; /* squash world perms */
 	}
+	inode->i_mode |= S_IFDIR;
+	inode->i_uid = params.uid;
+	inode->i_gid = params.gid;
+	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	inode->i_fop = &asmfs_dir_operations;
+	inode->i_op = &asmfs_iid_dir_inode_operations;
+	inode->i_ino = (unsigned long)inode;
+	d_add(dentry, inode);
 
-	root = d_alloc_root(inode);
-	if (!root) {
-		iput(inode);
-		return NULL;
-	}
 	sb->s_root = root;
+
 
 	printk(KERN_DEBUG "ASM: oracleasmfs mounted with options: %s\n", 
 	       data ? (char *)data : "<defaults>" );
@@ -2446,6 +2497,15 @@ static struct super_block *asmfs_read_super(struct super_block * sb, void * data
 	       params.uid, params.gid, params.mode,
 	       asb->max_inodes);
 	return sb;
+
+out_genocide:
+	asmfs_d_genocide(root);  /* See comment */
+	dput(root);
+
+out_free_asb:
+	kfree(asb);
+
+	return NULL;
 }
 
 

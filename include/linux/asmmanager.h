@@ -52,6 +52,26 @@ static inline char *asm_disk_path(const char *manager, const char *disk)
 	return asm_disk;
 }
 
+
+static inline char *asm_manage_path(const char *manager)
+{
+	size_t len;
+	char *asm_manage;
+
+	if (!manager || !*manager)
+		return NULL;
+	len = strlen(manager) + strlen("/") +
+		strlen(ASM_MANAGER_INSTANCES);
+	asm_manage = (char *)malloc(sizeof(char) * (len + 1));
+	if (!asm_manage)
+		return NULL;
+	snprintf(asm_manage, len + 1, "%s/%s", manager,
+		 ASM_MANAGER_INSTANCES);
+
+	return asm_manage;
+}
+
+
 #define ASM_MANAGER_IID_FORMAT		"%.8lX%.8lX"
 static inline char *asm_iid_path(const char *manager,
 				 unsigned long iid_high,

@@ -1,6 +1,13 @@
 
 2003-12-10	Joel Becker <joel.becker@oracle.com>
 
+	* libosm/asmlib.c: Added manager code, and handle new
+		discovery strings.
+	* include/linux/asmmanager.h: Add asm_manage_path().
+	* kernel/oracleasm.c: New kernel driver filesystem structure.
+
+2003-12-10	Joel Becker <joel.becker@oracle.com>
+
 	* tools/asmtool.c: Use asmmanager.h.
 	* include/linux/asmdisk.h: Comment tweak.
 	* include/linux/asmmanager.h: Added.
