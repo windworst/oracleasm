@@ -28,7 +28,7 @@ INCLUDES = -I. -I$(TOPDIR)/include -I$(KERNELINC) -I$(GCCINC)
 WARNINGS = -Wall -Wstrict-prototypes
 
 CPPFLAGS = -nostdinc $(MODVERSIONS)
-CFLAGS = -O2 -g -fomit-frame-pointer $(WARNINGS)
+CFLAGS = -O2 -g -fomit-frame-pointer $(WARNINGS) $(MCMODEL)
 LDADD = -nostdlib
 
 MODULES = osm.o

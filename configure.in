@@ -45,6 +45,17 @@ AC_PATH_PROG(AR, ar)
 AC_HEADER_STDC
 AC_C_CONST
 
+case "$host_cpu" in
+x86_64)
+    MCMODEL="-mcmodel=kernel"
+    ;;
+*)
+    MCMODEL=""
+    ;;
+esac
+
+AC_SUBST(MCMODEL)
+
 if test "x$GCC" != "xyes"; then
   AC_MSG_ERROR(GCC is required)
 fi

@@ -1,6 +1,12 @@
 
 2003-06-24	Joel Becker <joel.becker@oracle.com>
 
+	* Config.make.in: Add MCMODEL
+	* kernel/Makefile: Add MCMODEL
+	* configure.in: Add MCMODEL
+
+2003-06-24	Joel Becker <joel.becker@oracle.com>
+
 	* kernel/osm.c: Some LOG() bits, it works now, and some
 		whitespace cleanup.
 	* test/Makefile: Remove libosm.so dep, silly Makebo.
