@@ -539,3 +539,12 @@ void osm_dump(osm_ctx ctx)
     ioctl(priv->fd, OSMIOC_DUMP, 0);
 }  /* osm_dump() */
 #endif
+
+osm_erc osm_register(void *mem, size_t len, boolean shared)
+{
+    return 0;
+}
+osm_erc osm_deregister(void *mem, size_t len, boolean shared)
+{
+    return 0;
+}
