@@ -109,7 +109,7 @@ start()
     dev_create "${ORACLE_ASMMANAGER}"
     if_fail "$?" "Unable to create ${ORACLE_ASMMANAGER}"
 
-    if [ "$ORACLEASM_ENABLED" != "true" -o ! -r "${OBJPATH}/${MODNAME}.o" ]
+    if [ "$ORACLEASM_ENABLED" != "true" -o ! -r "${MODPATH}/${MODNAME}.o" ]
     then
         return
     fi
@@ -192,8 +192,11 @@ case "$1" in
             echo "Action \"createdisk\" requires two arguments" >&2
             exit 1
         fi
-        mark_disk "$2" "$3"
-        if_fail $? "Unable to create disk \"$2\""
+        make_disk "$2" "$3"
+        if [ $? = 1 ]
+        then
+            if_fail 1 "Unable to create disk \"$2\""
+        fi
         perm_disk "${ORACLE_ASMMANAGER}/disks/$2"
         if_fail $? "Unable to change ownership of disk \"$2\""
         ;;
@@ -235,7 +238,7 @@ case "$1" in
 	;;
 
     *)
-	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|markdisk|unmarkdisk|checkdisk|scandisks|status}"
+	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|createdisk|deletedisk|querydisk|listdisks|scandisks|status}"
         exit 1
 esac
 

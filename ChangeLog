@@ -1,6 +1,18 @@
 
 2003-12-23	Joel Becker <joel.becker@oracle.com>
 
+	* *.[ch]: GPL and LGPL copyright headers.
+	* tools/asmscan.c: Some execution cleanups.
+	* vendor/redhat/oracleasm.init.in: Fix createdisk and deletedisk
+		and don't symlink against a missing module.
+	* vendor/unitedlinux/*.spec.in: Add depmod.
+	* vendor/unitedlinux/oracleasm.init.in: Fix createdisk, symlink
+		against MODPATH.
+	* vendor/common/oracleasm.init.functions: Fix /dev/oracleasm/iid
+		permissions.
+
+2003-12-23	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: Bump to 0.10.1.
 	* vendor/redhat/Makefile: Add oracleasm-userspace.spec.in to
 		DIST_FILES.

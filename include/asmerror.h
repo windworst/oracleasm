@@ -1,22 +1,35 @@
-
-/* Copyright (c) 2001, 2002, Oracle Corporation.  All rights reserved.  */
-
 /*
- * The document contains proprietary information about Oracle Corporation.
- * It is provided under an agreement containing restrictions on use and
- * disclosure and is also protected by copyright law.
- * The information in this document is subject to change.
+ * NAME
+ *	asmerror.h - Oracle ASM library internal error header.
+ *
+ * AUTHOR
+ * 	Joel Becker <joel.becker@oracle.com>
+ *
+ * DESCRIPTION
+ *      This file contains the internal error code mappings for the
+ *      Oracle Automatic Storage Managment userspace library.
+ *
+ * MODIFIED   (YYYY/MM/DD)
+ *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
+ *              Initial LGPL header.
+ *
+ * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License, version 2 as published by the Free Software Foundation.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have recieved a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 021110-1307, USA.
  */
 
-/*
-  NAME
-    asmerror.h - Oracle Automatic Storage Management library internal error header
-    
-  DESCRIPTION
-  
-  This file defines the error codes and descriptions for the ASM
-  library on Linux.
-*/
 
 
 #ifndef _ASMERROR_H

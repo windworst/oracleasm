@@ -1,20 +1,36 @@
-/* Copyright (c) 2003 Oracle Corporation.  All rights reserved.  */
-
 /*
- * The document contains proprietary information about Oracle Corporation.
- * It is provided under an agreement containing restrictions on use and
- * disclosure and is also protected by copyright law.
- * The information in this document is subject to change.
+ * NAME
+ *	asmscan.c - Scan system for existing ASM disks.
+ *
+ * AUTHOR
+ * 	Joel Becker <joel.becker@oracle.com>
+ *
+ * DESCRIPTION
+ *      This tool scans existing block devices to determine which
+ *      ones are already tagged for the Oracle Automatic Storage
+ *      Management library.
+ *
+ * MODIFIED   (YYYY/MM/DD)
+ *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
+ *              Initial LGPL header.
+ *
+ * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public
+ * License, version 2 as published by the Free Software Foundation.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ * 
+ * You should have recieved a copy of the GNU General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 021110-1307, USA.
  */
 
-/*
-  NAME
-    asmscan.c - Scan for Oracle Advanced Storage Management disks.
-    
-  DESCRIPTION
-  
-  This is the main source file for the ASM scan tool.
- */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,7 +118,7 @@ static int collect_asmtool(pid_t pid,
                            int out_fd[], int err_fd[],
                            char *output, int *outlen,
                            char *errput, int *errlen);
-static int exec_asmtool(char *args[], int out_fd[], int err_fd[]);
+static void exec_asmtool(char *args[], int out_fd[], int err_fd[]);
 static int run_asmtool(char *args[],
                        char **output, int *outlen,
                        char **errput, int *errlen);
@@ -472,7 +488,7 @@ out:
 }  /* collect_asmtool() */
 
 
-static int exec_asmtool(char *args[], int out_fd[], int err_fd[])
+static void exec_asmtool(char *args[], int out_fd[], int err_fd[])
 {
     int rc;
 
@@ -499,7 +515,7 @@ static int exec_asmtool(char *args[], int out_fd[], int err_fd[])
     rc = execvp(args[0], args);
     /* Shouldn't get here */
 
-    return rc;
+    _exit(-errno);
 }  /* exec_asmtool() */
 
 
@@ -560,7 +576,7 @@ static int run_asmtool(char *args[],
                              *output, outlen,
                              *errput, errlen);
     else
-        rc = exec_asmtool(args, out_fd, err_fd);
+        exec_asmtool(args, out_fd, err_fd);
 
     return rc;
 }  /* run_asmtool() */

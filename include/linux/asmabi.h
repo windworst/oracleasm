@@ -1,22 +1,42 @@
-/* Copyright (c) 2001, 2002, Oracle Corporation.  All rights reserved.  */
-
 /*
- * The document contains proprietary information about Oracle Corporation.
- * It is provided under an agreement containing restrictions on use and
- * disclosure and is also protected by copyright law.
- * The information in this document is subject to change.
+ * NAME
+ *	asmabi.h - ASM library userspace to kernelspace ABI.
+ *
+ * AUTHOR
+ * 	Joel Becker <joel.becker@oracle.com>
+ *
+ * DESCRIPTION
+ * 	This file describes the ABI used by the Oracle Automatic
+ * 	Storage Management library to communicate with the associated
+ * 	kernel driver.
+ *
+ * MODIFIED   (YYYY/MM/DD)
+ *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
+ *              Initial LGPL header.
+ *
+ * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License, version 2 as published by the Free Software Foundation.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ * 
+ * You should have recieved a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 021110-1307, USA.
  */
 
-/*
-  NAME
-    asmabi.h - Oracle Automatic Storage Management library kernel<->user ABI
-    
-  DESCRIPTION
-  
-  This file is an internal header to the asmlib implementation on Linux.
 
-  This file presumes the definitions in asmlib.h and oratypes.h
-*/
+/*
+ * This file is internal to the implementation of the Oracle ASM
+ * library on Linux.  This file presumes the definitions in asmlib.h
+ * and oratypes.h
+ */
 
 
 #ifndef _ASMABI_H

@@ -1,12 +1,39 @@
 /*
- * oracleasm - Kernel driver for the Oracle Automatic Storage
- *              Management library.
+ * NAME
+ *	oracleasm.c - ASM library kernel driver.
  *
- * Copyright (C) 2002,2003 Oracle Corporation.  All rights reserved.
+ * AUTHOR
+ * 	Joel Becker <joel.becker@oracle.com>
  *
+ * DESCRIPTION
+ *      This file contains the kernel driver of the Oracle Automatic
+ *      Storage Managment userspace library.  It provides the routines
+ *      required to support the userspace library.
+ *
+ * MODIFIED   (YYYY/MM/DD)
+ *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
+ *              Initial GPL header.
+ *
+ * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public
+ * License, version 2 as published by the Free Software Foundation.
+ * 
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ * 
+ * You should have recieved a copy of the GNU General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 021110-1307, USA.
+ */
+
+/*
  * This driver's filesystem code is based on the ramfs filesystem.
- * Copyright information for the original source appears below.  This
- * file is released under the GNU General Public License.
+ * Copyright information for the original source appears below.
  */
 
 /* Simple VFS hooks based on: */

@@ -129,6 +129,9 @@ chkconfig --add oracleasm
 %defattr(-,root,root)
 /lib/modules/%{kver}/kernel/drivers/addon/oracleasm
 
+%post
+depmod -a
+
 
 %files -n oracleasm-lib
 %defattr(-,root,root)

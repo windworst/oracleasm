@@ -64,6 +64,8 @@ module_link()
 
     # Assume any symlink is OK - caveat emptor for non-RPM users
     test -L "${TARGETPATH}/${MODULENAME}" && return 2
+    # If the source module isn't there, this is a first install
+    test -f "${SRCPATH}/${MODULENAME}" || return 2
 
     echo -n "Linking module ${MODULENAME} into the module path "
 
@@ -223,6 +225,14 @@ mount_device()
         echo "Unable to fix ASM driver permissions" >&2
         return 1
     fi
+
+    chmod 0770 ${ORACLE_ASMMANAGER}/iid
+    if [ $? = 1 ]
+    then
+        echo "Unable to fix ASM driver permissions" >&2
+        return 1
+    fi
+
 
     return 0
 }
