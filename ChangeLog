@@ -1,5 +1,10 @@
 
-2003-11-20	Joel Becker <joel.becker@oracle.com>
+2003-12-03	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Fix no-module
+		exit.
+
+2003-12-03	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/common/oracleasm.init.functions: Added disk marking.
 	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Add disk

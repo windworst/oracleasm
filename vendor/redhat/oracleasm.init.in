@@ -170,7 +170,6 @@ OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/oracleasm"
 MODNAME="oracleasm"
 DEVASM="/dev/oracleasm"
 
-test -r "${OBJPATH}/${MODNAME}.o" || exit 0
 
 
 if_fail()
@@ -213,7 +212,7 @@ start()
     dev_create "${DEVASM}"
     if_fail "$?" "Unable to create ${DEVASM}"
 
-    if [ "$ORACLEASM_ENABLED" != "true" ]
+    if [ "$ORACLEASM_ENABLED" != "true" -o ! -r "${OBJPATH}/${MODNAME}.o" ]
     then
         exit 0
     fi
