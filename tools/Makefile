@@ -15,7 +15,7 @@ HEADERS =					\
 	$(TOPDIR)/include/oratypes.h		\
 	$(TOPDIR)/include/osmlib.h		\
 	$(TOPDIR)/include/linux/osmabi.h	\
-	$(TOPDIR)/include/linux/osmdisk.h
+	$(TOPDIR)/include/linux/asmdisk.h
 
 OBJECTS = $(subst .c,.o,$(SOURCES))
 

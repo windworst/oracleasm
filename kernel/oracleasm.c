@@ -39,7 +39,7 @@
 #include "linux/asmcompat32.h"
 #include "linux/asmkernel.h"
 #include "linux/osmabi.h"
-#include "linux/osmdisk.h"
+#include "linux/asmdisk.h"
 #include "asmerror.h"
 
 

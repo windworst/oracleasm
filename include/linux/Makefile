@@ -16,7 +16,7 @@ SUBDIRS =
 
 HEADERS =		\
 	osmabi.h	\
-	osmdisk.h	\
+	asmdisk.h	\
 	asmkernel.h	\
 	asmcompat32.h
 DIST_FILES = $(HEADERS)

@@ -49,7 +49,7 @@ HEADERS =					\
 	$(TOPDIR)/include/linux/asmkernel.h	\
 	$(TOPDIR)/include/linux/asmcompat32.h	\
 	$(TOPDIR)/include/linux/osmabi.h	\
-	$(TOPDIR)/include/linux/osmdisk.h	\
+	$(TOPDIR)/include/linux/asmdisk.h	\
 	$(TOPDIR)/include/asmerror.h
 
 osm.o: $(HEADERS)

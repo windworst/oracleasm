@@ -1,6 +1,18 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* include/linux/{osm,asm}disk.h: Rename osmdisk.h to asmdisk.h.
+	* include/linux/Makefile: Reference asmdisk.h.
+	* kernel/oracleasm.c: Reference asmdisk.h.
+	* kernel/Makefile: Reference asmdisk.h.
+	* libosm/asmlib.c: Drop useless reference to osmdisk.h.
+	* libosm/Makefile: Drop reference to osmdisk.h.
+	* test/asmbad.c: Reference asmdisk.h.
+	* tools/Makefile: Reference asmdisk.h.
+	* tools/asmtool.c: Reference asmdisk.h.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* include/linux/{osm,asm}compat32.h: Rename osmcompat32.h to
 		asmcompat32.h.
 	* include/linux/Makefile: Reference asmcompat32.h.

@@ -9,16 +9,16 @@
 
 /*
   NAME
-    osmdisk.h - Oracle Storage Manager disk defines.
+    asmdisk.h - Oracle Automatic Storage Management disk defines.
     
   DESCRIPTION
   
-  This file is an internal header to the osmlib implementation on Linux.
+  This file is an internal header to the asmlib implementation on Linux.
 */
 
 
-#ifndef _OSMDISK_H
-#define _OSMDISK_H
+#ifndef _ASMDISK_H
+#define _ASMDISK_H
 
 /*
  * Defines
@@ -34,4 +34,4 @@
 #define ASM_DISK_LABEL_SIZE     8
 #define ASM_DISK_LABEL_OFFSET   32
 
-#endif  /* _OSMDISK_H */
+#endif  /* _ASMDISK_H */

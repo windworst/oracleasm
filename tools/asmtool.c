@@ -29,7 +29,7 @@
 #include <linux/types.h>
 #include "oratypes.h"
 #include "osmlib.h"
-#include "linux/osmdisk.h"
+#include "linux/asmdisk.h"
 
 
 
