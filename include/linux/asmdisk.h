@@ -27,7 +27,7 @@
 /*
  * Disk label.  This is a 32 byte quantity at offset 32 (0x20) on the 
  * disk.  The first 8 bytes are "ORCLDISK".  The remaining 24 bytes
- * are reserved for future use.
+ * are a unique device label determined by the administrator.
  */
 #define ASM_DISK_LABEL_MARKED   "ORCLDISK"
 #define ASM_DISK_LABEL_CLEAR    "ORCLCLRD"

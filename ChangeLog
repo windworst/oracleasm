@@ -1,6 +1,13 @@
 
 2003-12-10	Joel Becker <joel.becker@oracle.com>
 
+	* tools/asmtool.c: Use asmmanager.h.
+	* include/linux/asmdisk.h: Comment tweak.
+	* include/linux/asmmanager.h: Added.
+	* include/linux/Makefile: Add asmmanager.h.
+
+2003-12-10	Joel Becker <joel.becker@oracle.com>
+
 	* tools/asmtool.c: Create and Delete seem to work.
 
 2003-12-08	Joel Becker <joel.becker@oracle.com>

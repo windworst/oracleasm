@@ -31,6 +31,7 @@
 #include "oratypes.h"
 #include "osmlib.h"
 #include "linux/asmdisk.h"
+#include "linux/asmmanager.h"
 
 #include "list.h"
 
@@ -99,7 +100,6 @@ static int mark_disk(int fd, struct asm_disk_label *adl,
                      const char *label);
 static int unmark_disk(int fd, struct asm_disk_label *adl);
 static char *asm_disk_id(struct asm_disk_label *adl);
-static char *asm_disk_path(const char *manager, const char *disk);
 static int delete_disk_by_name(const char *manager,
                                const char *disk,
                                ASMToolAttrs *attrs);
@@ -353,22 +353,6 @@ static char *asm_disk_id(struct asm_disk_label *adl)
 
     return id;
 }  /* asm_disk_id() */
-
-
-static char *asm_disk_path(const char *manager, const char *disk)
-{
-    int len;
-    char *asm_disk;
-    char *sub_path = "/disks/";
-
-    len = strlen(manager) + strlen(sub_path) + strlen(disk);
-    asm_disk = (char *)malloc(sizeof(char) * (len + 1));
-    if (!asm_disk)
-        return NULL;
-    snprintf(asm_disk, len + 1, "%s%s%s", manager, sub_path, disk);
-
-    return asm_disk;
-} /* asm_disk_path() */
 
 
 static int delete_disk_by_name(const char *manager, const char *disk,
