@@ -1,6 +1,15 @@
 
 2003-05-24	Joel Becker <joel.becker@oracle.com>
 
+	* include/asm-i386/osmstructures.h: Removed, no longer needed.
+	* include/asm-i386/osmids.h: Remove id munging.
+	* include/linux/osmabi.h: Define the ioctl ABI structures.
+	* libosm/osmlib.c: Removed _private structures.  Use new ioctl
+		ABI structures.
+	* kernel/osm.c: Use the new ioctl ABI structures.
+
+2003-05-24	Joel Becker <joel.becker@oracle.com>
+
 	* include/asm-i386/osmids.h: Moved the ID mangling
 	* kernel/osm.c: Updated ID mangling bits
 	* libosm/osmlib.c: Updated ID mangling bits

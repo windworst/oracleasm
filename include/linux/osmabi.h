@@ -33,13 +33,13 @@
  */
 struct osmio
 {
-    unsigned long        handle;
+    __u64               handle;
     osm_ioc             **requests;
-    unsigned int        reqlen;
+    __u32               reqlen;
     osm_ioc             **waitreqs;
-    unsigned int        waitlen;
+    __u32               waitlen;
     osm_ioc             **completions;
-    unsigned int        complen;
+    __u32               complen;
     __u32               intr;
     struct timespec     *timeout;
     unsigned int        *statusp;
@@ -47,8 +47,13 @@ struct osmio
 
 struct osm_disk_query
 {
-    int dq_rdev;
-    unsigned long dq_maxio;
+    __u64 dq_rdev;
+    __u32 dq_maxio;
+};
+
+struct osm_get_iid
+{
+    __u64 gi_iid;
 };
 
 
@@ -59,13 +64,13 @@ struct osm_disk_query
 #define OSM_IOCTL_BASE          0xFD
 
 /* ioctls on /dev/osm */
-#define OSMIOC_GETIID           _IOR(OSM_IOCTL_BASE, 0, unsigned long)
-#define OSMIOC_CHECKIID         _IOWR(OSM_IOCTL_BASE, 1, unsigned long)
+#define OSMIOC_GETIID           _IOR(OSM_IOCTL_BASE, 0, struct osm_get_iid)
+#define OSMIOC_CHECKIID         _IOWR(OSM_IOCTL_BASE, 1, struct osm_get_iid)
 
 /* ioctls on /dev/osm/<iid> */
 #define OSMIOC_QUERYDISK        _IOWR(OSM_IOCTL_BASE, 2, struct osm_disk_query)
-#define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, unsigned long)
-#define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, unsigned long)
+#define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, struct osm_disk_query)
+#define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, struct osm_disk_query)
 #define OSMIOC_IODISK           _IOWR(OSM_IOCTL_BASE, 5, struct osmio)
 
 /* ioctl for testing */

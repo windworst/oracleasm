@@ -27,7 +27,5 @@
  */
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
-#define REAL_IID(_iid)          (LOW_UB4((_iid)))
-#define REAL_HANDLE(_hand)      (LOW_UB4((_hand)))
 
 #endif  /* _OSMIDS_H */

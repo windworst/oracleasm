@@ -807,7 +807,7 @@ static int osmfs_remount(struct super_block * sb, int * flags, char * data)
 	return 0;
 }
 
-static unsigned long osm_disk_open(struct osmfs_file_info *ofi, struct osmfs_inode_info *oi, kdev_t dev)
+static int osm_disk_open(struct osmfs_file_info *ofi, struct osmfs_inode_info *oi, kdev_t dev)
 {
 	struct osm_disk_info *d;
 	struct osm_disk_head *h;
@@ -817,7 +817,7 @@ static unsigned long osm_disk_open(struct osmfs_file_info *ofi, struct osmfs_ino
 
 	h = kmalloc(sizeof(*h), GFP_KERNEL);
 	if (!h)
-		return 0UL;
+		return 0;
 
 	d = osm_find_disk(oi, dev);
 	if (!d) {
@@ -836,7 +836,7 @@ static unsigned long osm_disk_open(struct osmfs_file_info *ofi, struct osmfs_ino
 	list_add(&h->h_dlist, &d->d_open);
 	spin_unlock_irq(&oi->i_lock);
 
-	return d ? (unsigned long)dev : 0UL;
+	return !d;
 }  /* osm_disk_open() */
 
 
@@ -1332,6 +1332,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	osm_ioc tmp;
 	size_t count;
         struct buffer_head *bh;
+        kdev_t kdv;
 
 	if (!ioc)
 		return -EINVAL;
@@ -1354,7 +1355,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	spin_unlock_irq(&ofi->f_lock);
 
 	ret = -ENODEV;
-	d = osm_find_disk(oi, REAL_HANDLE(tmp.disk_osm_ioc));
+        kdv = tmp.disk_osm_ioc;
+	d = osm_find_disk(oi, kdv);
 	if (!d)
 		goto out_error;
 
@@ -1865,7 +1867,6 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
 	kdev_t kdv;
-	unsigned long handle;
 	struct osmfs_file_info *ofi = OSMFS_FILE(file);
 	struct osmfs_inode_info *oi = OSMFS_INODE(inode);
 	struct osmio ioc;
@@ -1898,25 +1899,31 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			break;
 
 		case OSMIOC_OPENDISK:
-			if (get_user(handle, (unsigned long *)arg))
+			if (copy_from_user(&dq, (struct osm_disk_query *)arg,
+                                           sizeof(dq)))
 				return -EFAULT;
-			kdv = to_kdev_t(handle);
+			kdv = to_kdev_t(dq.dq_rdev);
 
                         ret = osm_validate_disk(kdv);
 			if (ret)
 				return ret;
 
 			/* Userspace checks a 0UL return */
-			handle = osm_disk_open(ofi, oi, kdv);
-			dprintk("OSM: Opened handle 0x%.8lX\n", handle);
-			return put_user(handle, (unsigned long *)arg);
+			if (!osm_disk_open(ofi, oi, kdv))
+                            dq.dq_rdev = 0;
+			dprintk("OSM: Opened handle 0x%.8lX\n", dq.dq_rdev);
+			if (copy_to_user((struct osm_disk_query *)arg,
+                                         &dq, sizeof(dq)))
+                            return -EFAULT;
 			break;
 
 		case OSMIOC_CLOSEDISK:
-			if (get_user(handle, (unsigned long *)arg))
+			if (copy_from_user(&dq, (struct osm_disk_query *)arg,
+                                           sizeof(dq)))
 				return -EFAULT;
-			dprintk("OSM: Closing handle 0x%.8lX\n", handle);
-			return osm_disk_close(ofi, oi, handle);
+			dprintk("OSM: Closing handle 0x%.8lX\n", dq.dq_rdev);
+                        kdv = to_kdev_t(dq.dq_rdev);
+			return osm_disk_close(ofi, oi, kdv);
 			break;
 
 		case OSMIOC_IODISK:
@@ -1940,7 +1947,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 
 static int osmfs_dir_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
-	unsigned long new_iid;
+	struct osm_get_iid new_iid;
 	struct osmfs_sb_info *osb = OSMFS_SB(inode->i_sb);
 
 	switch (cmd) {
@@ -1950,21 +1957,29 @@ static int osmfs_dir_ioctl(struct inode * inode, struct file * file, unsigned in
 
 		case OSMIOC_GETIID:
 			lock_osb(osb);
-			new_iid = osb->next_iid;
+			new_iid.gi_iid = (u64)osb->next_iid;
 			osb->next_iid++;
 			unlock_osb(osb);
-			return put_user(new_iid, (unsigned long *)arg);
+			if (copy_to_user((struct osm_get_iid *)arg,
+                                         &new_iid, sizeof(new_iid)))
+                            return -EFAULT;
 			break;
 
                 case OSMIOC_CHECKIID:
-                        if (get_user(new_iid, (long *)arg))
+                        if (copy_from_user(&new_iid,
+                                           (struct osm_get_iid *)arg,
+                                           sizeof(new_iid)))
                             return -EFAULT;
                         lock_osb(osb);
-                        if (new_iid >= osb->next_iid)
-                            new_iid = 0;
+                        if (new_iid.gi_iid >= (u64)osb->next_iid)
+                            new_iid.gi_iid = 0;
                         unlock_osb(osb);
-                        if (!new_iid)
-                            return put_user(new_iid, (long *)arg);
+                        if (!new_iid.gi_iid)
+                        {
+                            if (copy_to_user((struct osm_get_iid *)arg,
+                                             &new_iid, sizeof(new_iid)))
+                                return -EFAULT;
+                        }
                         break;
 	}
 

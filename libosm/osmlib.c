@@ -28,13 +28,13 @@
 #include <errno.h>
 
 /* BLKGETSIZE etc */
+#include <linux/types.h>
 #include <linux/fs.h>
 
-#include <oratypes.h>
-#include <osmlib.h>
+#include "oratypes.h"
+#include "osmlib.h"
 #include "osmerror.h"
 #include "asm/osmids.h"
-#include "asm/osmstructures.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
 
@@ -48,6 +48,36 @@
 #define OSMLIB_MICRO 0
 
 
+
+/*
+ * Typedefs
+ */
+typedef struct _osm_ctx_private osm_ctx_private;
+
+
+
+/*
+ * Structures
+ */
+
+
+/*
+ * Private context pointer
+ *
+ * This is the internal representation of a context.  It will be casted
+ * from the osm_ctx exposed to the user of osmlib.
+ */
+struct _osm_ctx_private
+{
+    osm_iid iid;
+    int fd;
+    int discover_index;
+    void *discover_cache;
+    char posted;
+};
+
+
+
 /*
  * Functions
  */
@@ -58,7 +88,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
 {
     uword ret;
     int fd, rc;
-    long new_iid;
+    struct osm_get_iid new_iid;
 
     if (len)
         snprintf(name, len, "%s, version %d.%d.%d", OSMLIB_NAME,
@@ -87,7 +117,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
         goto out;
 
     ret = OSM_INIT_OTHER;
-        *iid = (osm_iid)new_iid;
+        *iid = (osm_iid)new_iid.gi_iid;
 
     *interface_mask = OSM_IO | OSM_UDID | OSM_FGROUP | OSM_OSNAME;
 
@@ -103,7 +133,7 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
 {
     osm_erc err;
     osm_ctx_private *priv;
-    unsigned long real_iid = REAL_IID(iid);
+    struct osm_get_iid real_iid = {iid};
     int fd, rc;
     char *osm_file;
 
@@ -123,7 +153,7 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
 
     /* real_iid will be set to zero if it was invalid */
     err = OSM_ERR_BADIID;
-    if (!real_iid)
+    if (!real_iid.gi_iid)
         goto out;
 
     err = OSM_ERR_NOMEM;
@@ -136,7 +166,8 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
     if (!osm_file)
         goto out_free_ctx;
 
-    sprintf(osm_file, "/dev/osm/%.8lX%.8lX", 0L, real_iid);
+    sprintf(osm_file, "/dev/osm/%.8lX%.8lX", HIGH_UB4(real_iid.gi_iid),
+            LOW_UB4(real_iid.gi_iid));
 
     err = OSM_ERR_PERM;
     priv->fd = open(osm_file, O_RDWR | O_CREAT, 0700);
@@ -225,7 +256,6 @@ out:
 osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
 {
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
-    osm_name_private *pname = (osm_name_private *)name;
     osm_erc err;
     glob_t *globbuf;
     char *path = NULL;
@@ -253,7 +283,7 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
             rc = fstat(fd, &stat_buf);
             if (!rc && S_ISBLK(stat_buf.st_mode)) 
             {
-                dq.dq_rdev = stat_buf.st_rdev;
+                dq.dq_rdev = (__u64)stat_buf.st_rdev;
                 dq.dq_maxio = 0;
                 rc = ioctl(priv->fd, OSMIOC_QUERYDISK, &dq);
                 if (!rc)
@@ -262,9 +292,9 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
                     rc = ioctl(fd, BLKGETSIZE, &size);
                     if (!rc)
                     {
-                        pname->size_osm_name = size;
+                        name->size_osm_name = size;
                         rc = ioctl(fd, BLKSSZGET,
-                                   &(pname->blksz_osm_name));
+                                   &(name->blksz_osm_name));
                         if (!rc)
                         {
                             close(fd);
@@ -287,13 +317,13 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     len = strlen(path);
     if (len >= OSM_MAXPATH)
         len = OSM_MAXPATH -1;
-    memmove(pname->path_osm_name,
+    memmove(name->path_osm_name,
             globbuf->gl_pathv[priv->discover_index], len);
-    pname->path_osm_name[len] = '\0';
-    pname->label_osm_name[0] = '\0';
-    pname->interface_osm_name = (OSM_IO | OSM_OSNAME);
-    pname->reserved_osm_name_low = stat_buf.st_rdev;
-    pname->maxio_osm_name = dq.dq_maxio / pname->blksz_osm_name;
+    name->path_osm_name[len] = '\0';
+    name->label_osm_name[0] = '\0';
+    name->interface_osm_name = (OSM_IO | OSM_OSNAME);
+    name->reserved_osm_name = dq.dq_rdev;
+    name->maxio_osm_name = dq.dq_maxio / name->blksz_osm_name;
 
     priv->discover_index++;
 end_glob:
@@ -306,7 +336,7 @@ end_glob:
 
 clear_name:
     if (to_clear)
-        memset(pname, 0, sizeof(*pname));
+        memset(name, 0, sizeof(*name));
 
     err = OSM_ERR_NONE;
 
@@ -318,28 +348,27 @@ out:
 osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
 {
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
-    osm_name_private *pname = (osm_name_private *)name;
     osm_erc err;
     int rc;
-    unsigned long handle;
+    struct osm_disk_query handle;
 
     err = OSM_ERR_INVAL;
-    if (!priv || !pname || !hand ||
-        !pname->blksz_osm_name || !(pname->interface_osm_name & OSM_IO))
+    if (!priv || !name || !hand ||
+        !name->blksz_osm_name || !(name->interface_osm_name & OSM_IO))
         goto out;
 
     /* FIXME: need to handle fatal errors when the kernel can tell */
     err = OSM_ERR_PERM;
-    handle = pname->reserved_osm_name_low;
+    handle.dq_rdev = name->reserved_osm_name;
     rc = ioctl(priv->fd, OSMIOC_OPENDISK, &handle);
     if (rc)
         goto out;
 
     err = OSM_ERR_NOMEM;
-    if (!handle)
+    if (!handle.dq_rdev)
         goto out;
 
-    *hand = handle;
+    *hand = handle.dq_rdev;
 
     err = OSM_ERR_NONE;
 
@@ -353,14 +382,13 @@ osm_erc osm_close(osm_ctx ctx, osm_handle hand)
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
     osm_erc err;
     int rc;
-    unsigned long handle;
+    struct osm_disk_query handle = {hand, 0};
 
     err = OSM_ERR_INVAL;
     if (!priv || !hand)
         goto out;
 
     /* FIXME: need to handle fatal errors when the kernel can tell */
-    handle = REAL_HANDLE(hand);
     err = OSM_ERR_INVAL;
     rc = ioctl(priv->fd, OSMIOC_CLOSEDISK, &handle);
     if (rc)
