@@ -10,7 +10,7 @@ CFLAGS = -Wall -g -O2 -fPIC
 
 INCLUDES = -I. -I$(TOPDIR)/include
 
-SOURCES = osmlib.c
+SOURCES = asmlib.c
 HEADERS =					\
 	$(TOPDIR)/include/oratypes.h		\
 	$(TOPDIR)/include/osmlib.h		\
@@ -23,7 +23,7 @@ OBJECTS = $(subst .c,.o,$(SOURCES))
 
 DIST_FILES = $(SOURCES)
 
-osmlib.o: $(HEADERS)
+asmlib.o: $(HEADERS)
 
 libosm.so: $(OBJECTS)
 	$(LINK) -shared

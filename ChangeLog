@@ -1,6 +1,11 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* libosm/{osm,asm}lib.c: Rename osmlib.c to asmlib.c.
+	* libosm/Makefile: Handle the rename.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* test/{osmbad,asmbad}.c: Rename osmbad.c to asmbad.c.
 	* test/{osmtest,asmtest}.c: Rename osmtest.c to asmtest.c.
 	* test/{osmtest-multi,asmtest-multi}.c: Rename osmtest-multi.c
