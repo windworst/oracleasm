@@ -37,7 +37,7 @@ INCLUDES = -I. -I$(TOPDIR)/include -I$(KERNELINC) -I$(GCCINC)
 WARNINGS = -Wall -Wstrict-prototypes
 
 CPPFLAGS = -nostdinc $(MODVERSIONS)
-CFLAGS += -fomit-frame-pointer $(WARNINGS) $(MCMODEL)
+CFLAGS += -fomit-frame-pointer $(WARNINGS) $(MCMODEL) $(M64)
 LDADD = -nostdlib
 
 MODULES = oracleasm.o

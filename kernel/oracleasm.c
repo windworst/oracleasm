@@ -2464,6 +2464,8 @@ static int compat_ioctls [] = {
  * This is because 2.4 sys32_ioctl() will *OOPS* if you have a NULL
  * handler for register_ioctl32_conversion().
  */
+extern long sys_ioctl(unsigned int fd, unsigned int cmd,
+                      unsigned long arg);
 static int sys_ioctl_wrapper(unsigned int fd, unsigned int cmd,
                              unsigned long arg, struct file *filp) {
     return sys_ioctl(fd, cmd, arg);
