@@ -2068,6 +2068,7 @@ static int asmfs_file_release(struct inode * inode, struct file * file)
 		       afi);
 		schedule();
 	} while (1);
+	set_task_state(tsk, TASK_RUNNING);
 	remove_wait_queue(&afi->f_wait, &wait);
 	
 	/* I don't *think* we need the lock here anymore, but... */
