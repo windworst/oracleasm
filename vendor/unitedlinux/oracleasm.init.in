@@ -140,6 +140,10 @@ case "$1" in
         start
 	;;
 	
+    link)
+        : # NOOP on UL/SuSE
+        ;;
+
     status)
         echo -n $"Checking if ASM is loaded: "
 	if grep '^oracleasm ' /proc/modules >/dev/null 2>&1

@@ -1,6 +1,13 @@
 
 2004-01-21	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/unitedlinux/oracleasm.init.in: NOOP the 'link' method.
+	* kernel/oracleasm.c: Add BH_Atomic.  Thanks for telling me,
+		guys.  Also, a couple BUG() checks.  Oh, and make
+		ASM_SUBMITTED have a proper lifetime.
+
+2004-01-21	Joel Becker <joel.becker@oracle.com>
+
 	* include/linux/asmmanager.h: Add asm_disk_name().
 
 2004-01-16	Joel Becker <joel.becker@oracle.com>

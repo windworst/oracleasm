@@ -252,7 +252,7 @@ struct asm_request {
 };
 
 
-#ifdef CONFIG_UNITEDLINUX_KERNEL
+#ifndef CONFIG_UNITEDLINUX_KERNEL
 # if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 #  include <linux/kernel_stat.h>
 void submit_bh_blknr(int rw, struct buffer_head * bh)
@@ -286,8 +286,6 @@ void submit_bh_blknr(int rw, struct buffer_head * bh)
 	}
 	conditional_schedule();
 }
-# elif LINUX_VERSION_CODE < KERNEL_VERSION(2,4,21)
-#  error Invalid United Linux kernel
 # endif  /* LINUX_VERSION_CODE */
 #endif  /* CONFIG_UNITEDLINUX_KERNEL */
 
@@ -556,53 +554,6 @@ static void asmfs_dealloc_inode(struct super_block *sb)
 }
 
 
-/* If the given page can be added to the give inode for asmfs, return
- * true and update the filesystem's free page count and the inode's
- * i_blocks field. Always returns true if the file is already used by
- * asmfs (ie. PageDirty(page) is true)  */
-int asmfs_alloc_page(struct inode *inode, struct page *page)
-{
-	struct asmfs_sb_info *asb = ASMFS_SB(inode->i_sb);
-	int ret = 1;
-
-	lock_asb(asb);
-		
-	if ( (asb->free_pages > 0) &&
-	     ( !asb->max_file_pages ||
-	       (inode->i_data.nrpages <= asb->max_file_pages) ) ) {
-		inode->i_blocks += IBLOCKS_PER_PAGE;
-		asb->free_pages--;
-	} else
-		ret = 0;
-	
-	unlock_asb(asb);
-
-	return ret;
-}
-
-void asmfs_dealloc_page(struct inode *inode, struct page *page)
-{
-	struct asmfs_sb_info *asb = ASMFS_SB(inode->i_sb);
-
-	if (! Page_Uptodate(page))
-		return;
-
-	lock_asb(asb);
-
-	ClearPageDirty(page);
-	
-	asb->free_pages++;
-	inode->i_blocks -= IBLOCKS_PER_PAGE;
-	
-	if (asb->free_pages > asb->max_pages) {
-		dprintk(KERN_ERR "ASM: Error in page allocation, free_pages (%ld) > max_pages (%ld)\n", asb->free_pages, asb->max_pages);
-	}
-
-	unlock_asb(asb);
-}
-
-
-
 static int asmfs_statfs(struct super_block *sb, struct statfs *buf)
 {
 	buf->f_type = ASMFS_MAGIC;
@@ -622,7 +573,7 @@ static struct dentry * asmfs_lookup(struct inode *dir, struct dentry *dentry)
 	return NULL;
 }
 
-struct inode *asmfs_get_inode(struct super_block *sb, int mode, int dev)
+static struct inode *asmfs_get_inode(struct super_block *sb, int mode, int dev)
 {
 	int i;
 	struct inode * inode;
@@ -1092,7 +1043,7 @@ static struct asm_request *asm_request_alloc(void)
 	r = kmem_cache_alloc(asm_request_cachep, GFP_KERNEL);
 	
 	if (r) {
-		r->r_status = 0;
+		r->r_status = ASM_SUBMITTED;
 		r->r_error = 0;
 		r->r_buffers = NULL;
 		r->r_bh = NULL;
@@ -1156,6 +1107,9 @@ static void asm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 	
 	LOG_ENTRY();
 	if (!r)
+		BUG();
+
+	if (!(r->r_status & ASM_SUBMITTED))
 		BUG();
 
 	LOG("ASM: Releasing kvec for request at 0x%p\n", r);
@@ -1335,6 +1289,7 @@ static int asm_build_io(int rw, struct asm_request *r,
 #ifdef CONFIG_UNITEDLINUX_KERNEL
 # if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 		bh_elv_seq(tmp) = atomic_seq;
+		set_bit(BH_Atomic, &tmp->b_state);
 # else
 #  error Invalid United Linux kernel
 # endif  /* LINUX_VERSION_CODE */
@@ -1509,7 +1464,15 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 
 	r->r_elapsed = jiffies;  /* Set start time */
 
+        if (!r->r_cb.vec) {
+		printk("No vec!\n");
+		BUG();
+	}
 	bh = r->r_bh;
+	/* if (!bh) {
+		printk("No bh 1!\n");
+		BUG();
+	} */
 #ifdef RED_HAT_LINUX_KERNEL
 # if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 	submit_bh_linked(rw, bh);
@@ -1519,10 +1482,26 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 #else
 # ifdef CONFIG_UNITEDLINUX_KERNEL
 #  if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
+	/*if (!bh) {
+		printk("No bh 2!\n");
+		BUG();
+	}*/
+	if (r->r_status & ASM_COMPLETED) {
+		printk("Already completed request 0x%p!\n", r);
+		BUG();
+	}
 	while (bh)
 	{
-	    submit_bh_blknr(rw, bh);
-	    bh = bh->b_next;
+		if (!test_bit(BH_Atomic, &bh->b_state))
+			BUG();
+		/*if (!test_bit(BH_Lock, &bh->b_state))
+			BUG();*/
+		submit_bh_blknr(rw, bh);
+		bh = bh->b_next;
+	}
+	if (!r->r_bh) {
+		printk("No r_bh on request 0x%p!\n", r);
+		BUG();
 	}
 	blk_refile_atomic_queue(bh_elv_seq(r->r_bh));
 #  else
@@ -1533,8 +1512,6 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 # endif  /* CONFIG_UNITEDLINUX_KERNEL */
 #endif  /* RED_HAT_LINUX_KERNEL */
 
-	r->r_status |= ASM_SUBMITTED;
-
 out:
 	ret = asm_update_user_ioc(r);
 
@@ -1542,6 +1519,7 @@ out:
 	return ret;
 
 out_error:
+	/* printk("out_error on request 0x%p\n", r); */
 	asm_end_kvec_io(r, r->r_cb.vec, ret);
 	goto out;
 }  /* asm_submit_io() */
@@ -1573,7 +1551,7 @@ static int asm_maybe_wait_io(struct asmfs_file_info *afi,
 	spin_lock_irq(&afi->f_lock);
 	/* Is it valid? It's surely ugly */
 	if (!r->r_file || (r->r_file != afi) ||
-	    list_empty(&r->r_list)) {
+	    list_empty(&r->r_list) || !(r->r_status & ASM_SUBMITTED)) {
 		spin_unlock_irq(&afi->f_lock);
 		return -EINVAL;
 	}
@@ -1615,8 +1593,8 @@ static int asm_maybe_wait_io(struct asmfs_file_info *afi,
 
 	/* Somebody got here first */
 	if (r->r_status & ASM_FREE)
-	if (list_empty(&afi->f_complete))
-		BUG();
+		if (list_empty(&afi->f_complete))
+			BUG();
 #ifdef DEBUG
 	{
 		/* Check that the request is on afi->f_complete */
