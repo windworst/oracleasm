@@ -71,23 +71,9 @@ module_link()
 
     # Same deal for modules that are physically there
     if test -f "${TARGETPATH}/${MODULENAME}" ; then
-        EXISTVER="`modinfo "${TARGETPATH}/${MODULENAME}" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
-        if test -n "${EXISTVER}" ; then
-            ABIVER="`modinfo "${SRCPATH}/${MODULENAME}" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
-
-            echo
-            echo "Leaving existing module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
-            return 2
-        else
-            # The existing module is too old - pre-ABI packaging
-            echo
-            echo "Warning: Moving ancient ${MODULENAME} out of the way"
-            mv -f "${TARGETPATH}/${MODULENAME}" "${TARGETPATH}/${MODULENAME}.preABI" >/dev/null 2>&1
-            if test "$?" != 0 ; then
-                echo "Unable to move ancient module out of the way" >&2
-                return 1
-            fi
-        fi
+        echo
+        echo "Leaving existing module in place"
+        return 2
     fi
 
     if test ! -d "$TARGETPATH" ; then
