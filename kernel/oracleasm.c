@@ -430,80 +430,6 @@ static inline void asm_put_disk(struct asm_disk_info *d)
 }  /* asm_put_disk() */
 
 
-#ifdef DEBUG_BROKEN
-/* Debugging code */
-static void asmdump_file(struct asmfs_file_info *afi)
-{
-	struct list_head *p;
-	struct asm_disk_head *h;
-	struct asm_disk_info *d;
-	struct asm_request *r;
-
-	dprintk("ASM: Dumping asmfs_file_info 0x%p\n", afi);
-	dprintk("ASM: Opened disks:\n");
-	list_for_each(p, &afi->f_disks) {
-		h = list_entry(p, struct asm_disk_head, h_flist);
-		d = h->h_disk;
-		dprintk("ASM: 	0x%p [0x%02X, 0x%02X]\n",
-		       d, MAJOR(d->d_dev), MINOR(d->d_dev));
-	}
-	spin_lock_irq(&afi->f_lock);
-	dprintk("ASM: Pending I/Os:\n");
-	list_for_each(p, &afi->f_ios) {
-		r = list_entry(p, struct asm_request, r_list);
-		d = r->r_disk;
-		dprintk("ASM:	0x%p (against [0x%02X, 0x%02X])\n",
-		       r, MAJOR(d->d_dev), MINOR(d->d_dev));
-	}
-
-	dprintk("ASM: Complete I/Os:\n");
-	list_for_each(p, &afi->f_complete) {
-		r = list_entry(p, struct asm_request, r_list);
-		dprintk("ASM:	0x%p\n", r);
-	}
-
-	spin_unlock_irq(&afi->f_lock);
-}  /* asmdump_file() */
-
-static void asmdump_inode(struct asmfs_inode_info *aii)
-{
-	int i;
-	struct list_head *p, *q, *hash;
-	struct asm_disk_info *d;
-	struct asm_disk_head *h;
-	struct asmfs_file_info *f;
-
-	spin_lock_irq(&aii->i_lock);
-	dprintk("ASM: Dumping asmfs_inode_info 0x%p\n", aii);
-	dprintk("ASM: Open threads:\n");
-	list_for_each(p, &aii->i_threads) {
-		f = list_entry(p, struct asmfs_file_info, f_ctx);
-		dprintk("ASM:	0x%p\n", f);
-	}
-
-	dprintk("ASM: Known disks:\n");
-	for (i = 0; i < ASM_HASH_BUCKETS; i++) {
-		hash = &(aii->disk_hash[i]);
-		if (list_empty(hash))
-			continue;
-		list_for_each(p, hash) {
-			d = list_entry(p, struct asm_disk_info, d_hash);
-			dprintk("ASM: 	0x%p, [0x%02X, 0x%02X]\n",
-			       d, MAJOR(d->d_dev), MINOR(d->d_dev));
-			dprintk("ASM:	Owners:\n");
-			list_for_each(q, &d->d_open) {
-				h = list_entry(q, struct asm_disk_head,
-					       h_dlist);
-				f = h->h_file;
-				dprintk("ASM:		0x%p\n", f);
-			}
-		}
-	}
-	spin_unlock_irq(&aii->i_lock);
-}  /* asmdump_inode() */
-#endif  /* DEBUG_BROKEN */
-
-
 
 /*
  * Resource limit helper functions
@@ -2268,10 +2194,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case ASMIOC_DUMP:
 			LOG("ASM: Operation is ASMIOC_DUMP\n");
 			/* Dump data */
-#ifdef DEBUG_BROKEN
-			asmdump_file(afi);
-			asmdump_inode(aii);
-#endif /* DEBUG_BROKEN */
+                        /* Currently unimplemented */
 			break;
 	}
 

@@ -15,9 +15,19 @@
 %define buildhugemem	1
 %define builddebug	0
 
+# From the EL3 kernel specfile
+%ifnarch i686
+%define buildhugemem 0
+%endif
+
+%ifarch s390 s390x
+%define buildsmp 0
+%endif
+%ifarch ppc64pseries ppc64iseries
+%define buildsmp 0
+%endif
 %ifarch ia64
 %define buildsmp	0
-%define buildhugemem	0
 %endif
 
 
