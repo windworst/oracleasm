@@ -1,0 +1,100 @@
+
+[ Installing ASMLib ]
+
+This document describes the steps required to install the Linux specific
+ASM library and its assocated driver.  This library is provide to enable
+ASM I/O to Linux disks without the limitations of the standard Unix I/O
+API.  The steps below are steps that the system administrator must
+follow.
+
+[ Locating the ASMLib Packages ]
+
+The ASMLib software is on the Oracle RDBMS CDs.  Mount CD <insert CD
+number here> as /mnt/cdrom.  If your CD-ROM drive is /dev/hdc, you can
+mount it with the command:
+
+	mount -t iso9660 /dev/hdc /mnt/cdrom
+
+If you do not have the directory /mnt/cdrom, create it first.
+
+Once you have mounted the CD, change into the ASM software directory.
+This is <insert path on CD here>.  You can use the command:
+
+	cd <insert path on CD here>
+
+You now must choose the path for your appropriate Linux distribution and
+hardware architecture.  Change into the correct directory:
+
+	cd <insert dist+arch path here>
+
+You will see 4-6 packages in this directory.  The 'asm-lib' package
+provides the actual ASM library.  The 'asm-support' package provides the
+utilities used to get the ASM driver up and running.  Both of these
+packages need to be installed.
+
+The remaining packages provide the kernel driver for the ASM library.
+Each package provides the driver for a different kernel.  You must
+install the appropriate package for the kernel you are running.  For
+example, if you were running Red Hat Advanced Server 2.1, and the kernel
+you were using was the 2.4.9-e.27enterprise kernel, you would choose the
+asm-2.4.9-e-enterprise package.  So, to installing these packages on Red
+Hat Advanced Server 2.1 on an Intel x86 machine, you would use the
+command:
+
+	rpm -Uvh osm-support-1.0.0-1.i686.rpm osm-lib-1.0.0-1.i686.rpm osm-2.4.9-e-enterprise-1.0.0-1.i686.rpm
+
+If you were on a different machine, the package names would be slightly
+different, replacing 'i686' with the appropriate architecture.
+
+Once the command completes, ASMLib is now installed on the system.
+
+[ Configuring ASMLib ]
+
+Now that the ASMLib software is installed, a few steps have to be taken
+by the system administrator to make the ASM driver available.  The
+ASM driver needs to be loaded, and the driver filesystem needs to be
+mounted.
+
+First, the ASM driver needs to be loaded.  It is loaded via the standard
+Linux module loading program, insmod(8).  Load the module with the
+command:
+
+	insmod oracleasm
+
+This should load the oracleasm.o driver module.  The ASM driver
+filesystem must now be mounted.  This filesystem is not a normal
+filesystem.  It only provides the interface for the ASM library to
+communicate with the ASM driver.  Mounting the filesystem needs two
+options.  The 'uid' and 'gid' options specify the user id and group
+id that default to owning the ASM driver access.  If the 'oracle' user
+has a user id of 1001, and the 'dba' group has a group id of 1005, the
+filesystem is mounted as such:
+
+	mount -o uid=1001,gid=1005 -t oracleasmfs oracleasmfs /dev/oracleasm
+
+The ASM library can now communicate with the ASM driver.
+
+[ Making Disks Available to ASMLib ]
+
+The system administrator has one last task.  Every disk that ASMLib is
+going to be accessing needs to be made available.  This is accomplished
+via two things.  The permissions of the disk device file must be such
+that the database user or group ('oracle' and 'dba', in the above
+example) can read the device file.  This can often be accomplished via
+adding the database user to the 'disk' group or changing the ownership
+of the disk device file to the database group.  To change the
+group ownership of the SCSI disk /dev/sdg:
+
+	chgrp dba /dev/sdg
+	chmod g+r /dev/sdg
+
+Finally, the disk must be 'marked' as an ASM disk.  The tool asmtool(8)
+is used to mark the disk.  The '-m' option marks a disk, the '-u' option
+unmarks a disk, and the '-c' option checks to see if a disk is marked.
+To mark the disks /dev/sdg and /dev/sdh as ASM disks, use the command:
+
+	asmtool -m /dev/sdg /dev/sdh
+
+The ASM instance will now be able to load ASMLib and see the disks
+/dev/sdg and /dev/sdh to access them via the library.
+
