@@ -844,7 +844,7 @@ static int instantiate_disk(const char *manager,
             {
                 fprintf(stderr,
                         "asmscan: Unable to create disk \"%s\": %s\n",
-                        disk_name, strerror(-rc));
+                        disk_name, strerror(-(char)rc));
             }
             else
                 rc = 0;

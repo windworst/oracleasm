@@ -1143,31 +1143,46 @@ static int parse_options(int argc, char *argv[], ASMToolOperation *op,
 
             case 'l':
                 if (!optarg || !*optarg)
+                {
+                    fprintf(stderr, "asmtool: Argument to \'-l\' cannot be \"\"\n");
                     return -EINVAL;
+                }
                 *manager = optarg;
                 break;
 
             case 'n':
                 if (!optarg || !*optarg)
+                {
+                    fprintf(stderr, "asmtool: Argument to \'-n\' cannot be \"\"\n");
                     return -EINVAL;
+                }
                 *object = optarg;
                 break;
 
             case 's':
                 if (!optarg || !*optarg)
+                {
+                    fprintf(stderr, "asmtool: Argument to \'-s\' cannot be \"\"\n");
                     return -EINVAL;
+                }
                 *target = optarg;
                 break;
 
             case 't':
                 if (!optarg || !*optarg)
+                {
+                    fprintf(stderr, "asmtool: Argument to \'-t\' cannot be \"\"\n");
                     return -EINVAL;
+                }
                 *stype = optarg;
                 break;
 
             case 'a':
                 if (!optarg || !*optarg)
+                {
+                    fprintf(stderr, "asmtool: Argument to \'-a\' cannot be \"\"\n");
                     return -EINVAL;
+                }
                 attr_name = optarg;
                 attr_value = strchr(attr_name, '=');
                 if (attr_value)
