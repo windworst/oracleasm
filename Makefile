@@ -28,21 +28,23 @@ ARCH_X86_HEADERS =				\
 	include/arch-i386/osmkernel.h		\
 	include/arch-i386/osmstructures.h
 
+OSMTOOL_SRCS = tools/osmtool.c
+OSMTOOL_OBJS = tools/osmtool.o
+OSMTOOL_CPPFLAGS =
+OSMTOOL_LDFLAGS =
+
 OSMTEST_SRCS = test/osmtest.c
 OSMTEST_OBJS = test/osmtest.o
-OSMTEST_INCLUDES = $(OSMLIB_INCLUDES)
 OSMTEST_CPPFLAGS = -DLINUX $(OSMTEST_INCLUDES)
 OSMTEST_LDFLAGS = libosm/libosm.a # -L libosm -losm
 
 OSMTEST_MULTI_SRCS = test/osmtest-multi.c
 OSMTEST_MULTI_OBJS = test/osmtest-multi.o
-OSMTEST_MULTI_INCLUDES = $(OSMLIB_INCLUDES)
 OSMTEST_MULTI_CPPFLAGS = -DLINUX $(OSMTEST_INCLUDES)
 OSMTEST_MULTI_LDFLAGS = libosm/libosm.a # -L libosm -losm
 
 OSMPROFILE_SRCS = test/osmprofile.c
 OSMPROFILE_OBJS = test/osmprofile.o
-OSMPROFILE_INCLUDES = $(OSMLIB_INCLUDES)
 OSMPROFILE_CPPFLAGS = -DLINUX $(OSMPROFILE_INCLUDES) \
 	-I ../aio/libaio-oracle
 OSMPROFILE_LDFLAGS = libosm/libosm.a \
@@ -80,6 +82,7 @@ DIST_FILES =			\
 all:				\
 	kernel/osm.o		\
 	libosm/libosm.so	\
+	tools/osmtool		\
 	test/osmtest-bin	\
 	test/osmtest-multi-bin	\
 	test/osmprofile-bin
@@ -127,6 +130,12 @@ libosm/libosm.so: $(OSMLIB_OBJS)
 
 libosm/libosm.a: $(OSMLIB_OBJS)
 	ar cru $@ $^
+
+tools/osmtool.o: tools/osmtool.c
+	$(CC) $(CPPFLAGS) $(OSMTOOL_CPPFLAGS) -c -o $@ $<
+
+tools/osmtool: $(OSMTOOL_OBJS)
+	$(CC) -o $@ $(OSMTOOL_OBJS) $(OSMTOOL_LDFLAGS)
 
 test/osmtest.o: test/osmtest.c
 	$(CC) $(CPPFLAGS) $(OSMTEST_CPPFLAGS) -c -o $@ $<
