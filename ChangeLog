@@ -1,6 +1,10 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* kernel/oracleasm.c: Last little 'osm' bits.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* include/linux/osmabi.h: Rename everything to ASM.
 	* include/linux/osmdisk.h: Rename everything to ASM.
 	* include/linux/osmkernel.h: Rename everything to ASM.

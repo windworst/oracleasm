@@ -1,5 +1,6 @@
 /*
- * osm - Kernel driver for the Oracle Storage Manager
+ * oracleasm - Kernel driver for the Oracle Automatic Storage
+ *              Management library.
  *
  * Copyright (C) 2002,2003 Oracle Corporation.  All rights reserved.
  *
@@ -110,7 +111,7 @@ static struct inode_operations asmfs_dir_inode_operations;
 static kmem_cache_t	*asm_request_cachep;
 
 /*
- * osmfs super-block data in memory
+ * asmfs super-block data in memory
  */
 struct asmfs_sb_info {
 	struct super_block *asmfs_super;
@@ -157,7 +158,7 @@ struct asmfs_file_info {
 
 #define ASM_HASH_BUCKETS 1024
 /*
- * osmfs inode data in memory
+ * asmfs inode data in memory
  *
  * Note that 'thread' here can mean 'process' too :-)
  */
@@ -173,7 +174,7 @@ struct asmfs_inode_info {
 
 
 /*
- * osm disk info
+ * asm disk info
  */
 struct asm_disk_info {
 	struct asmfs_inode_info *d_inode;
@@ -186,7 +187,7 @@ struct asm_disk_info {
 
 
 /*
- * osm disk info lists
+ * asm disk info lists
  *
  * Each file_info struct has a list of disks it has opened.  As this
  * is an M->N mapping, an intermediary structure is needed
@@ -405,7 +406,7 @@ static inline void asm_put_disk(struct asm_disk_info *d)
 
 #ifdef DEBUG_BROKEN
 /* Debugging code */
-static void osmdump_file(struct asmfs_file_info *afi)
+static void asmdump_file(struct asmfs_file_info *afi)
 {
 	struct list_head *p;
 	struct asm_disk_head *h;
@@ -436,9 +437,9 @@ static void osmdump_file(struct asmfs_file_info *afi)
 	}
 
 	spin_unlock_irq(&afi->f_lock);
-}  /* osmdump_file() */
+}  /* asmdump_file() */
 
-static void osmdump_inode(struct asmfs_inode_info *aii)
+static void asmdump_inode(struct asmfs_inode_info *aii)
 {
 	int i;
 	struct list_head *p, *q, *hash;
@@ -473,7 +474,7 @@ static void osmdump_inode(struct asmfs_inode_info *aii)
 		}
 	}
 	spin_unlock_irq(&aii->i_lock);
-}  /* osmdump_inode() */
+}  /* asmdump_inode() */
 #endif  /* DEBUG_BROKEN */
 
 
@@ -520,10 +521,10 @@ static void asmfs_dealloc_inode(struct super_block *sb)
 }
 
 
-/* If the given page can be added to the give inode for osmfs, return
+/* If the given page can be added to the give inode for asmfs, return
  * true and update the filesystem's free page count and the inode's
  * i_blocks field. Always returns true if the file is already used by
- * osmfs (ie. PageDirty(page) is true)  */
+ * asmfs (ie. PageDirty(page) is true)  */
 int asmfs_alloc_page(struct inode *inode, struct page *page)
 {
 	struct asmfs_sb_info *asb = ASMFS_SB(inode->i_sb);
@@ -831,7 +832,8 @@ static int asmfs_remount(struct super_block * sb, int * flags, char * data)
 
 	reset_limits(asb, &params);
 
-	printk(KERN_DEBUG "ASM: osmfs remounted with options: %s\n", 
+	printk(KERN_DEBUG
+               "ASM: oracleasmfs remounted with options: %s\n", 
 	       data ? (char *)data : "<defaults>" );
 	printk(KERN_DEBUG "ASM:	maxinstances=%ld\n",
 	       asb->max_inodes);
@@ -2281,8 +2283,8 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			LOG("ASM: Operation is ASMIOC_DUMP\n");
 			/* Dump data */
 #ifdef DEBUG_BROKEN
-			osmdump_file(afi);
-			osmdump_inode(aii);
+			asmdump_file(afi);
+			asmdump_inode(aii);
 #endif /* DEBUG_BROKEN */
 			break;
 	}
