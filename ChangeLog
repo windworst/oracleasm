@@ -1,4 +1,27 @@
 
+2003-12-23	Joel Becker <joel.becker@oracle.com>
+
+	* Makefile: Add documents subdir.
+	* documents/Makefile: Added.
+	* documents/asm-install.txt: Fix a couple names.
+	* include/Makefile: osmlib.h -> asmlib.h.
+	* include/linux/asmabi.h: osmlib.h -> asmlib.h.
+	* include/linux/asmcompat32.h: osmlib.h -> asmlib.h.
+	* include/linux/asmkernel.h: osmlib.h -> asmlib.h.
+	* vendor/common/oracleasm.init.functions: Move to asmscan.
+	* vendor/redhat/oracleasm-userspace.spec.in: Add asmscan.
+	* vendor/redhat/oracleasm-2.4.9-e.spec.in: Add asmscan.
+	* vendor/redhat/oracleasm-2.4.21-EL.spec.in: Add asmscan.
+	* vendor/unitedlinux/oracleasm-2.4.19-4GB-304.spec.in: Add
+		asmscan.
+	* vendor/unitedlinux/oracleasm-2.4.19-4GB-SMP-304.spec.in: Add
+		asmscan.
+	* vendor/unitedlinux/oracleasm-2.4.19-64GB-SMP-304.spec.in: Add
+		asmscan.
+	* vendor/unitedlinux/oracleasm-2.4.21-107.spec.in: Add asmscan.
+	* vendor/unitedlinux/oracleasm-2.4.21-111.spec.in: Add asmscan.
+	* vendor/unitedlinux/oracleasm-2.4.21-138.spec.in: Add asmscan.
+
 2003-12-17	Joel Becker <joel.becker@oracle.com>
 
 	* tools/asmscan.c: Scanning workie.

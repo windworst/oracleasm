@@ -15,7 +15,7 @@
   
   This file is an internal header to the asmlib implementation on Linux.
 
-  This file presumes the definitions in osmlib.h and oratypes.h
+  This file presumes the definitions in asmlib.h and oratypes.h
 */
 
 
@@ -32,10 +32,10 @@
  */
 struct oracleasm_io
 {
-    __u64               io_handle;	/* osm_ctx */
-    __u64               io_requests;	/* osm_ioc ** */
-    __u64               io_waitreqs;	/* osm_ioc ** */
-    __u64               io_completions;	/* osm_ioc ** */
+    __u64               io_handle;	/* asm_ctx */
+    __u64               io_requests;	/* asm_ioc ** */
+    __u64               io_waitreqs;	/* asm_ioc ** */
+    __u64               io_completions;	/* asm_ioc ** */
     __u64               io_timeout;	/* struct timespec * */
     __u64               io_statusp;	/* __u32 * */
     __u32               io_reqlen;

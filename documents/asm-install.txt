@@ -27,19 +27,19 @@ hardware architecture.  Change into the correct directory:
 
 	cd <insert dist+arch path here>
 
-You will see 4-6 packages in this directory.  The 'asm-lib' package
-provides the actual ASM library.  The 'asm-support' package provides the
-utilities used to get the ASM driver up and running.  Both of these
-packages need to be installed.
+You will see 4-6 packages in this directory.  The 'oracleasm-lib'
+package provides the actual ASM library.  The 'oracleasm-support'
+package provides the utilities used to get the ASM driver up and
+running.  Both of these packages need to be installed.
 
 The remaining packages provide the kernel driver for the ASM library.
 Each package provides the driver for a different kernel.  You must
 install the appropriate package for the kernel you are running.  For
 example, if you were running Red Hat Advanced Server 2.1, and the kernel
 you were using was the 2.4.9-e.27enterprise kernel, you would choose the
-asm-2.4.9-e-enterprise package.  So, to installing these packages on Red
-Hat Advanced Server 2.1 on an Intel x86 machine, you would use the
-command:
+oracleasm-2.4.9-e-enterprise package.  So, to installing these packages
+on Red Hat Advanced Server 2.1 on an Intel x86 machine, you would use
+the command:
 
 	rpm -Uvh oracleasm-support-1.0.0-1.i686.rpm oracleasm-lib-1.0.0-1.i686.rpm oracleasm-2.4.9-e-enterprise-1.0.0-1.i686.rpm
 
@@ -57,9 +57,9 @@ mounted.  This is taken care of by the initialization script,
 /etc/init.d/oracleasm.
 
 Run the /etc/init.d/oracleasm script with the 'configure' option.  It
-will ask for the user id and group id that default ot owning the ASM
-driver access point.  If the 'oracle' user has a user id of 1001 and the
-'dba' group has a groub id of 1005, the output would look like so:
+will ask for the user and group that default to owning the ASM
+driver access point.  If the database was running as the 'oracle' user
+and the 'dba' group, the output would look like this:
 
 	[root@ca-test1 /]# /etc/init.d/oracleasm configure
 	Configuring the Oracle ASM library driver.
@@ -70,13 +70,15 @@ driver access point.  If the 'oracle' user has a user id of 1001 and the
 	will be shown in brackets ('[]').  Hitting <ENTER> without typing an
 	answer will keep that current value.  Ctrl-C will abort.
 
-	Default UID to own the driver interface []: 1001
-	Default GID to own the driver interface []: 1005
+	Default user to own the driver interface []: oracle
+	Default group to own the driver interface []: dba
 	Start Oracle ASM library driver on boot (y/n) [n]: y
+	Fix permissions of Oracle ASM disks on boot (y/n) [y]: y
 	Writing Oracle ASM library driver configuration            [  OK  ]
 	Creating /dev/oracleasm mount point                        [  OK  ]
 	Loading module "oracleasm"                                 [  OK  ]
 	Mounting ASMlib driver filesystem                          [  OK  ]
+	Scanning system for ASM disks                              [  OK  ]
 
 
 This should load the oracleasm.o driver module and mount the ASM driver
@@ -95,6 +97,7 @@ The automatic start can be enabled or disabled with the 'enable' and
 	Writing Oracle ASM library driver configuration            [  OK  ]
 	Loading module "oracleasm"                                 [  OK  ]
 	Mounting ASMlib driver filesystem                          [  OK  ]
+	Scanning system for ASM disks                              [  OK  ]
 
 
 [ Making Disks Available to ASMLib ]
@@ -116,6 +119,8 @@ Any operating system disk can be queried to see if it is used by ASM:
 
 	[root@ca-test1 /]# /etc/init.d/oracleasm querydisk /dev/sdg
 	Checking if device "/dev/sdg" is an Oracle ASM disk        [  OK  ]
+	[root@ca-test1 /]# /etc/init.d/oracleasm querydisk /dev/sdh
+	Checking if device "/dev/sdh" is an Oracle ASM disk        [FAILED]
 
 Existing disks can be listed and queried:
 
@@ -131,5 +136,5 @@ about it.  Run the 'createdisk' command on one node, and then run
 'scandisks' on every other node:
 
 	[root@ca-test1 /]# /etc/init.d/oracleasm scandisks
-	Scanning for Oracle ASM disks                              [  OK  ]
+	Scanning system for ASM disks                              [  OK  ]
 

@@ -13,9 +13,9 @@
     
   DESCRIPTION
   
-  This file is an internal header to the osmlib implementation on Linux.
+  This file is an internal header to the asmlib implementation on Linux.
 
-  This file presumes the definitions in osmlib.h and oratypes.h
+  This file presumes the definitions in asmlib.h and oratypes.h
 */
 
 

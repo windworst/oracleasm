@@ -14,9 +14,9 @@
 	DESCRIPTION
 	
 	This file describes structures that are private to the Linux kernel
-	module for osmlib.  See osmlib.h for field descriptions.
+	module for asmlib.  See asmlib.h for field descriptions.
 
-        THESE STRUCTURS MUST BE ABI COMPATIBLE WITH THE osmlib.h
+        THESE STRUCTURS MUST BE ABI COMPATIBLE WITH THE asmlib.h
         DEFINITION!!!
 
 */

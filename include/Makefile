@@ -17,7 +17,7 @@ SUBDIRS = linux
 HEADERS =		\
 	oratypes.h	\
 	asmerror.h	\
-	osmlib.h
+	asmlib.h
 DIST_FILES = $(HEADERS)
 
 #

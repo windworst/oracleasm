@@ -38,7 +38,7 @@
 %define kver		%{base}-%{sver}
 
 # The minimum -support package required for the kernel bits.
-%define support_ver	0.9.1
+%define support_ver	0.10.0
 
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
@@ -352,6 +352,7 @@ depmod -a
 %files -n oracleasm-support
 %defattr(-,root,root)
 /usr/sbin/asmtool
+/usr/sbin/asmscan
 /usr/%{_lib}/oracleasm/oracleasm.init.functions
 %attr(0755,root,root) /etc/init.d/oracleasm
 %config /etc/sysconfig/oracleasm

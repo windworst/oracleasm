@@ -112,6 +112,7 @@ chkconfig oracleasm on
 %files -n oracleasm-support
 %defattr(-,root,root)
 /usr/sbin/asmtool
+/usr/sbin/asmscan
 /usr/%{_lib}/oracleasm/oracleasm.init.functions
 %attr(0755,root,root) /etc/init.d/oracleasm
 %config /etc/sysconfig/oracleasm
