@@ -1,5 +1,11 @@
 
-2003-12-16	Joel Becker <joel.becker@oracle.com>
+2003-12-17	Joel Becker <joel.becker@oracle.com>
+
+	* lib{osm,asm}: Move libosm to libasm.
+	* Makefile: Move libosm to libasm.
+	* libasm/Makefile: Move libosm to libasm.
+
+2003-12-17	Joel Becker <joel.becker@oracle.com>
 
 	* include/{osm,asm}lib.h: Move osmlib.h -> asmlib.h
 	* tools/asmscan.c: Finds disks.
