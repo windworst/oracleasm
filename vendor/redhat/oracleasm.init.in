@@ -222,8 +222,6 @@ start()
     dev_create "${ORACLE_ASMMANAGER}"
     if_fail "$?" "Unable to create ${ORACLE_ASMMANAGER}"
 
-    scandisks
-
     if [ "$ORACLEASM_ENABLED" != "true" -o ! -r "${OBJPATH}/${MODNAME}.o" ]
     then
         exit 0
@@ -234,6 +232,8 @@ start()
 
     mount_device
     if_fail "$?" "Unable to mount the ASMlib driver filesystem"
+
+    scandisks
 }
 
 
