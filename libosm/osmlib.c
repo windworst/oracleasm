@@ -239,6 +239,7 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
             if (!rc && S_ISBLK(stat_buf.st_mode)) 
             {
                 dq.dq_rdev = stat_buf.st_rdev;
+                dq.dq_maxio = 0;
                 rc = ioctl(priv->fd, OSMIOC_QUERYDISK, &dq);
                 if (!rc)
                 {

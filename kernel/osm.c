@@ -1251,10 +1251,12 @@ static int osm_build_io(request_queue_t *q, int rw,
 		}
 
 		if (r->r_bh) {
+#if 1
 			if (!BH_CONTIG(r->r_bhtail, iobh) ||
 			    !BH_PHYS_4G(r->r_bhtail, iobh)) {
 				r->r_seg_count++;
 			}
+#endif
 
 			r->r_bhtail->b_reqnext = iobh;
 			r->r_bhtail = iobh;
@@ -1608,7 +1610,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 
 	ret = 0;
 	if (ioc->requests) {
-		dprintk1("Has requests; reqlen %ld\n", ioc->reqlen);
+		dprintk1("Has requests; reqlen %d\n", ioc->reqlen);
 		for (i = 0; i < ioc->reqlen; i++) {
 			if (get_user(iocp, ioc->requests + i))
 				return -EFAULT;
@@ -1619,7 +1621,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	}
 
 	if (ioc->waitreqs) {
-		dprintk1("Has waits; waitlen %ld\n", ioc->waitlen);
+		dprintk1("Has waits; waitlen %d\n", ioc->waitlen);
 		for (i = 0; i < ioc->waitlen; i++) {
 			if (get_user(iocp, ioc->waitreqs + i))
 				return -EFAULT;
@@ -1632,7 +1634,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	}
 
 	if (ioc->completions) {
-		dprintk1("Has completes; complen %ld\n", ioc->complen);
+		dprintk1("Has completes; complen %d\n", ioc->complen);
 		for (i = 0; i < ioc->complen; i++) {
 			ret = osm_complete_io(ofi, oi, &iocp);
 			if (ret)
