@@ -30,21 +30,25 @@ ARCH_X86_HEADERS =				\
 
 OSMTOOL_SRCS = tools/osmtool.c
 OSMTOOL_OBJS = tools/osmtool.o
-OSMTOOL_CPPFLAGS =
+OSMTOOL_INCLUDES = $(OSMLIB_INCLUDES)
+OSMTOOL_CPPFLAGS = -D LINUX $(OSMTOOL_INCLUDES)
 OSMTOOL_LDFLAGS =
 
 OSMTEST_SRCS = test/osmtest.c
 OSMTEST_OBJS = test/osmtest.o
+OSMTEST_INCLUDES = $(OSMLIB_INCLUDES)
 OSMTEST_CPPFLAGS = -DLINUX $(OSMTEST_INCLUDES)
 OSMTEST_LDFLAGS = libosm/libosm.a # -L libosm -losm
 
 OSMTEST_MULTI_SRCS = test/osmtest-multi.c
 OSMTEST_MULTI_OBJS = test/osmtest-multi.o
+OSMTEST_MULTI_INCLUDES = $(OSMLIB_INCLUDES)
 OSMTEST_MULTI_CPPFLAGS = -DLINUX $(OSMTEST_INCLUDES)
 OSMTEST_MULTI_LDFLAGS = libosm/libosm.a # -L libosm -losm
 
 OSMPROFILE_SRCS = test/osmprofile.c
 OSMPROFILE_OBJS = test/osmprofile.o
+OSMPROFILE_INCLUDES = $(OSMLIB_INCLUDES)
 OSMPROFILE_CPPFLAGS = -DLINUX $(OSMPROFILE_INCLUDES) \
 	-I ../aio/libaio-oracle
 OSMPROFILE_LDFLAGS = libosm/libosm.a \
@@ -109,9 +113,11 @@ distclean: clean
 	rm -f osmlib-linux*.tar.gz
 
 clean:
-	rm -f $(OSMLIB_OBJS) $(OSMTEST_OBJS) \
+	rm -f $(OSMLIB_OBJS) $(OSMTEST_OBJS) $(OSMTEST_MULTI_OBJS) \
+		$(OSMPROFILE_OBJS) $(OSMTOOL_OBJS) \
 		libosm/libosm.so libosm/libosm.a kernel/osm.o \
 		test/osmtest-bin test/osmtest-multi-bin \
+		test/osmprofile tools/osmtool \
 		libosm-virtual-stamp
 
 $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
