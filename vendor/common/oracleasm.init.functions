@@ -1,298 +1,177 @@
-#! /bin/sh
-# init fragment for oracleasm
+# -*-Shell-script-*-
+# init functions for oracleasm
 #
-# chkconfig: 2345 26 20
-# description: ASM ABI link fixup.
-
+# Parent caller must have sourced init.d functions
+# . /etc/init.d/functions on Red Hat
+# . /etc/rc.status on UnitedLinux
 #
-# Note that the start priority is 26.  This is the same as raw devices.
-# It seemed appropriate.
-#
-#
-
 
 # Force LC_ALL=C
 export LC_ALL=C
 
 
-# Source init.d functions
-. /etc/init.d/functions
-
-
-KVER="`uname -r`"
-case "$KVER" in
-2.4.9-e.*)
-    BASE_VER=2.4.9-e
-    BASE_STR=2.4.9-e
-    ;;
-2.4.18-e.*)
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Red Hat Advanced Server 2.1 for IA-64 is not suppported;"
-    echo
-    exit 1
-    ;;
-2.4.21-*.EL*)
-    BASE_VER=2.4.21-
-    BASE_STR=2.4.21-EL
-    ;;
-*)
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
-    echo
-    exit 1
-    ;;
-esac
-    
-EVER="${KVER#${BASE_VER}}"
-ETYPE=""
-case "$EVER" in
-*hugemem)
-    ETYPE=hugemem
-    ;;
-*smp)
-    ETYPE=smp
-    ;;
-*enterprise)
-    if test "$BASE_VER" = "2.4.9-e"
-    then
-        ETYPE=enterprise
-    fi
-    ;;
-*summit)
-    if test "$BASE_VER" = "2.4.9-e"
-    then
-        ETYPE=summit
-    fi
-    ;;
-*[0-9])
-    ETYPE=up
-    ;;
-*[0-9].EL)
-    # UP on RHEL 3
-    ETYPE=up
-    ;;
-esac
-
-if test -z "$ETYPE"
-then
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Kernel ${KVER} is not a Red Hat enerprise release;"
-    echo
-    exit 1
-fi
-
-case "$EVER" in
-*.EL)
-    EVER="${EVER%.EL}"
-    ;;
-*)
-    ;;
-esac
-
-if test "$ETYPE" = "up"
-then
-    ETYPE=""
-fi
-case "$BASE_STR" in
-2.4.21-EL)
-    EVER="${EVER%.EL${ETYPE}}"
-    ;;
-*)
-    EVER="${EVER%${ETYPE}}"
-    ;;
-esac
-
-check_ver()
-{
-    VERNUM="$1"
-    case "$VERNUM" in
-    [0-9])
-        ;;
-    [1-9][0-9])
-        ;;
-    [1-9][0-9][0-9])
-        ;;
-    *)
-        echo -n "Checking for Red Hat enterprise kernel: "
-        failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
-        echo
-        exit 1
-        ;;
-    esac
-}
-
-EMAJOR=0
-EMINOR=0
-EMICRO=0
-EVER="${EVER#.}"
-EMAJOR="${EVER%%.*}"
-check_ver $EMAJOR
-ETMP="${EVER#${EMAJOR}}"
-ETMP="${ETMP#.}"
-if test -n "$ETMP"
-then
-    EMINOR="${ETMP%%.*}"
-    check_ver $EMINOR
-    ETMP="${ETMP#${EMINOR}}"
-    ETMP="${ETMP#.}"
-fi
-if test -n "$ETMP"
-then
-    EMICRO="${ETMP%%.*}"
-    check_ver $EMICRO
-    ETMP="${ETMP#${EMICRO}}"
-    ETMP="${ETMP#.}"
-fi
-if test -n "$ETMP"
-then
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
-    echo
-    exit 1
-fi
-
-# This is for path happiness...
-if test "$ETYPE" != ""
-then
-    ETYPE="${ETYPE}-"
-fi
-MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
-OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/oracleasm"
-DEVASM="/dev/oracleasm"
-
-test -r "$OBJPATH/oracleasm.o" || exit 0
-
-
+#
+# dev_create()
+#
+# Create $1
+# Returns 0 on success, 1 on error, 2 if it already exists.
+#
 dev_create()
 {
-    if [ -e "$DEVASM" ]
+    if [ "$#" -lt "1" -o -z "$1" ]
     then
-        if [ -d "$DEVASM" ]
+        echo "dev_create(): Requires an argument" >&2
+        return 1
+    fi
+    DEV="$1"
+    if [ -e "$DEV" ]
+    then
+        if [ -d "$DEV" ]
         then
-            return
+            return 2
         fi
-        echo -n "Checking for $DEVASM "
-        failure $"File $DEVASM is not a directory;"
-        echo
-        exit 1
+        echo "dev_create(): File $DEV is not a directory" >&2
+        return 1
     fi
 
-    echo -n "Creating $DEVASM mount point "
-    mkdir "$DEVASM" 2>/dev/null
+    echo -n "Creating $DEV mount point "
+    mkdir "$DEV" 2>/dev/null
     if [ $? != 0 ]
     then
-        failure $"Unable to create directory %DEVASM;"
-        echo
-        exit 1
+        echo "Unable to create mount point $DEV" >&2
+        return 1
     fi
-    success
-    echo
+    return 0
 }
 
 
+#
+# module_link()
+#
+# Link $1 from path $2 to $3
+# Returns 0 on success, 1 on error, 2 if it already exists.
+#
 module_link()
 {
-    # Assume any symlink is OK - caveat emptor for non-RPM users
-    test -L "${MODPATH}/oracleasm.o" && return
+    if [ "$#" -lt 3 -o -z "$1" -o -z "$2" -o -z "$3" ]
+    then
+        echo -n "module_link(): Requires 3 arguments" >&2
+        return 1
+    fi
+    MODULENAME="$1"
+    SRCPATH="$2"
+    TARGETPATH="$3"
 
-    echo -n "Linking ASM module into the module path "
+    # Assume any symlink is OK - caveat emptor for non-RPM users
+    test -L "${TARGETPATH}/${MODULENAME}" && return 2
+
+    echo -n "Linking module ${MODULENAME} into the module path "
 
     # Same deal for modules that are physically there
-    if test -f "${MODPATH}/oracleasm.o" ; then
-        EXISTVER="`modinfo "${MODPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
+    if test -f "${TARGETPATH}/${MODULENAME}" ; then
+        EXISTVER="`modinfo "${TARGETPATH}/${MODULENAME}" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
         if test -n "${EXISTVER}" ; then
-            ABIVER="`modinfo "${OBJPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
+            ABIVER="`modinfo "${SRCPATH}/${MODULENAME}" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
 
             echo
-            echo "Leaving existing ASM module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
-            success
-            echo
-            return
+            echo "Leaving existing module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
+            return 2
         else
             # The existing module is too old - pre-ABI packaging
             echo
-            echo "Warning: Moving ancient oracleasm.o out of the way"
-            mv -f "${MODPATH}/oracleasm.o" "${MODPATH}/oracleasm.o.preABI" >/dev/null 2>&1
+            echo "Warning: Moving ancient ${MODULENAME} out of the way"
+            mv -f "${TARGETPATH}/${MODULENAME}" "${TARGETPATH}/${MODULENAME}.preABI" >/dev/null 2>&1
             if test "$?" != 0 ; then
-                failure $"Unable to move ancient ASM module out of the way"
-                echo
-                exit 1
+                echo "Unable to move ancient module out of the way" >&2
+                return 1
             fi
         fi
     fi
 
-    if test ! -d "$MODPATH" ; then
-        if test -e "${MODPATH}"; then
-            failure $"Path \"${MODPATH}\" already exists, but is not a directory"
-            echo
-            exit 1
+    if test ! -d "$TARGETPATH" ; then
+        if test -e "${TARGETPATH}"; then
+            echo "Path \"${TARGETPATH}\" already exists, but is not a directory" >&2
+            return 1
         else
-            mkdir -p "$MODPATH" >/dev/null 2>&1
+            mkdir -p "$TARGETPATH" >/dev/null 2>&1
             if test $? != 0; then
-                failure $"Unable to create directory \"${MODPATH}\""
-                echo
-                exit 1
+                echo "Unable to create directory \"${TARGETPATH}\"" >&2
+                return 1
             fi
         fi
     fi
 
-    ln -s "${OBJPATH}/oracleasm.o" "${MODPATH}/oracleasm.o" >/dev/null 2>&1
+    ln -s "${SRCPATH}/${MODULENAME}" "${TARGETPATH}/${MODULENAME}" >/dev/null 2>&1
     if test $? != 0; then
-        failure $"Unable to create symbolic link \"${MODPATH}/oracleasm.o\""
-        echo
-        exit 1
+        echo "Unable to create symbolic link \"${TARGETPATH}/${MODULENAME}\"" >&2
+        return 1
     fi
     depmod -a
 
-    success
-    echo
+    return 0
 }
 
-case "$1" in
-    start)
-        module_link
-        dev_create
-        # Should it load and mount?
-        RETVAL=0
-	;;
-	
-    link)
-	module_link
-        dev_create
-        RETVAL=0
-        ;;
 
-    status)
-        echo -n $"Checking if ASM is loaded: "
-	if grep '^oracleasm ' /proc/modules >/dev/null 2>&1
-        then
-            success $"ASM is already loaded; status"
-            echo
-            echo -n $"Checking if $DEVASM is mounted: "
-            if grep '^none $DEVASM oracleasmfs' /proc/mounts >/dev/null 2>&1
-            then
-                success $"$DEVASM is already mounted; status"
-                echo
-                exit 0
-            else
-                failure $"$DEVASM is not mounted; status"
-                echo
-                exit 1
-            fi
-        else
-            failure $"ASM is not loaded; status"
-            echo
-            exit 1
-        fi
-        ;;
+#
+# load_module()
+# Load a module
+#
+# 0 is success, 1 is error, 2 is already loaded
+# 
+load_module()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "load_module(): Requires an argument" >&2
+        return 1
+    fi
+    MODNAME="$1"
 
-    stop|restart)
-        RETVAL=0
-	;;
+    MODOUT="`awk '$1 ~ /^'$MODNAME'$/{print $1;exit}' < /proc/modules 2>/dev/null`"
+    if [ -n "$MODOUT" ]
+    then
+        return 2
+    fi
 
-    *)
-	echo "Usage: $0 {start|stop|restart|link|status}"
-        RETVAL=1
-esac
+    echo -n "Loading module \"$MODNAME\" "
+    modprobe -s "$MODNAME"
+    if [ "$?" != 0 ]
+    then
+        echo "Unable to load module \"$MODNAME\"" >&2
+        return 1
+    fi
 
-exit $RETVAL
+    return 0
+}
+
+#
+# unload_module()
+# Unload a module
+#
+# 0 is success, 1 is error, 2 is not loaded
+# 
+unload_module()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "unload_module(): Requires an argument" >&2
+        return 1
+    fi
+    MODNAME="$1"
+
+    MODOUT="`awk '$1 ~ /^'$MODNAME'$/{print $1;exit}' < /proc/modules 2>/dev/null`"
+    if [ -z "$MODOUT" ]
+    then
+        return 2
+    fi
+
+    echo -n "Unloading module \"$MODNAME\" "
+    modprobe -rs "$MODNAME"
+    if [ "$?" != 0 ]
+    then
+        echo "Unable to unload module \"$MODNAME\"" >&2
+        return 1
+    fi
+
+    return 0
+}

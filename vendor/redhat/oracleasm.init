@@ -18,6 +18,12 @@ export LC_ALL=C
 # Source init.d functions
 . /etc/init.d/functions
 
+# Source common functions
+. /build/jlbec/osm/src-local/vendor/common/oracleasm.init.functions
+
+# Source configuration
+[ -f /etc/sysconfig/oracleasm ] && . /etc/sysconfig/oracleasm
+
 
 KVER="`uname -r`"
 case "$KVER" in
@@ -160,105 +166,72 @@ MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
 OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/oracleasm"
 DEVASM="/dev/oracleasm"
 
-test -r "$OBJPATH/oracleasm.o" || exit 0
+#test -r "$OBJPATH/oracleasm.o" || exit 0
 
-
-dev_create()
-{
-    if [ -e "$DEVASM" ]
-    then
-        if [ -d "$DEVASM" ]
-        then
-            return
-        fi
-        echo -n "Checking for $DEVASM "
-        failure $"File $DEVASM is not a directory;"
-        echo
-        exit 1
-    fi
-
-    echo -n "Creating $DEVASM mount point "
-    mkdir "$DEVASM" 2>/dev/null
-    if [ $? != 0 ]
-    then
-        failure $"Unable to create directory %DEVASM;"
-        echo
-        exit 1
-    fi
-    success
-    echo
-}
-
-
-module_link()
-{
-    # Assume any symlink is OK - caveat emptor for non-RPM users
-    test -L "${MODPATH}/oracleasm.o" && return
-
-    echo -n "Linking ASM module into the module path "
-
-    # Same deal for modules that are physically there
-    if test -f "${MODPATH}/oracleasm.o" ; then
-        EXISTVER="`modinfo "${MODPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
-        if test -n "${EXISTVER}" ; then
-            ABIVER="`modinfo "${OBJPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
-
-            echo
-            echo "Leaving existing ASM module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
-            success
-            echo
-            return
-        else
-            # The existing module is too old - pre-ABI packaging
-            echo
-            echo "Warning: Moving ancient oracleasm.o out of the way"
-            mv -f "${MODPATH}/oracleasm.o" "${MODPATH}/oracleasm.o.preABI" >/dev/null 2>&1
-            if test "$?" != 0 ; then
-                failure $"Unable to move ancient ASM module out of the way"
-                echo
-                exit 1
-            fi
-        fi
-    fi
-
-    if test ! -d "$MODPATH" ; then
-        if test -e "${MODPATH}"; then
-            failure $"Path \"${MODPATH}\" already exists, but is not a directory"
-            echo
-            exit 1
-        else
-            mkdir -p "$MODPATH" >/dev/null 2>&1
-            if test $? != 0; then
-                failure $"Unable to create directory \"${MODPATH}\""
-                echo
-                exit 1
-            fi
-        fi
-    fi
-
-    ln -s "${OBJPATH}/oracleasm.o" "${MODPATH}/oracleasm.o" >/dev/null 2>&1
-    if test $? != 0; then
-        failure $"Unable to create symbolic link \"${MODPATH}/oracleasm.o\""
-        echo
-        exit 1
-    fi
-    depmod -a
-
-    success
-    echo
-}
 
 case "$1" in
     start)
-        module_link
-        dev_create
-        # Should it load and mount?
+        module_link oracleasm.o "${OBJPATH}" "${MODPATH}"
+        RC=$?
+        if [ "$RC" = "0" ]
+        then
+            success
+            echo
+        elif [ "$RC" = "1" ]
+        then
+            failure $"Unable to link the ASMlib driver module;"
+            echo
+            exit 1
+        fi
+
+        dev_create "$DEVASM"
+        RC=$?
+        if [ "$RC" = "0" ]
+        then
+            success
+            echo
+        elif [ "$RC" = "1" ]
+        then
+            failure $"Unable to create ${DEVASM};"
+            echo
+            exit 1
+        fi
+
+        if [ "$ORACLEASM_ENABLED" != "true" ]
+        then
+            exit 0
+        fi
+
+        load_module oracleasm
+        RC=$?
+        if [ "$RC" = "0" ]
+        then
+            success
+            echo
+        elif [ "$RC" = "1" ]
+        then
+            failure $"Unable to load the ASM library driver;"
+            echo
+            exit 1
+        fi
+
         RETVAL=0
 	;;
 	
     link)
-	module_link
-        dev_create
+        module_link oracleasm.o "${OBJPATH}" "${MODPATH}"
+        RC=$?
+        if [ "$RC" = "0" ]
+        then
+            success
+            echo
+        elif [ "$RC" = "1" ]
+        then
+            failure $"Unable to link the ASMlib driver module;"
+            echo
+            exit 1
+        fi
+
         RETVAL=0
         ;;
 
@@ -286,7 +259,24 @@ case "$1" in
         fi
         ;;
 
-    stop|restart)
+    stop)
+        unload_module oracleasm
+        RC=$?
+        if [ "$RC" = "0" ]
+        then
+            success
+            echo
+        elif [ "$RC" = "1" ]
+        then
+            failure $"Unable to load the ASM library driver;"
+            echo
+            exit 1
+        fi
+
+        RETVAL=0
+        ;;
+
+    restart)
         RETVAL=0
 	;;
 
