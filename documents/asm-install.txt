@@ -117,4 +117,19 @@ Any operating system disk can be queried to see if it is used by ASM:
 	[root@ca-test1 /]# /etc/init.d/oracleasm querydisk /dev/sdg
 	Checking if device "/dev/sdg" is an Oracle ASM disk        [  OK  ]
 
+Existing disks can be listed and queried:
+
+	[root@ca-test1 /]# /etc/init.d/oracleasm listdisks
+	vol1
+	vol2
+	vol3
+	[root@ca-test1 /]# /etc/init.d/oracleasm querydisk vol1
+	Checking for ASM disk "vol1"                               [  OK  ]
+
+When a disk is added to a RAC setup, the other nodes need to be notified
+about it.  Run the 'createdisk' command on one node, and then run
+'scandisks' on every other node:
+
+	[root@ca-test1 /]# /etc/init.d/oracleasm scandisks
+	Scanning for Oracle ASM disks                              [  OK  ]
 
