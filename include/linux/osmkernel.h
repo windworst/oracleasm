@@ -77,9 +77,9 @@ struct _osm_check
 	__u32		fence_num_osm_check;
 	__u32		fence_value_osm_check;
 	__u32		key_num_osm_check;
+	__u32		error_fence_osm_check;
 	__u64		key_mask_osm_check;
 	__u64		key_value_osm_check;
-	__u32		error_fence_osm_check;
 	__u64		error_key_osm_check;
 };
 

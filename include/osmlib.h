@@ -527,6 +527,15 @@ struct osm_check
    * disk key to test.  It must be less than keys_osm_name. The first key is
    * number zero. */
   
+  ub4    error_fence_osm_check;      /* actual fence key value if fenced out */
+  /* If the operation completes with status bit OSM_FENCED set, then the
+   * actual value of the fence key is returned here. This is the value that
+   * was compared with fence_value_osm_check and found not to match. It is
+   * possible that the value has changed since the operation failed so that
+   * this is no longer the current value. It is possible that the operation
+   * did succeed once, but was fenced on a retry. A value of zero indicates
+   * that the disk has lost its key values and they must be reloaded. */
+
   ub8     key_mask_osm_check;                 /* mask of key bits to compare */
   /* If OSM_KEYCHK is set in operation_osm_ioc then this is used to determine
    * which bits are compared when validating the disk key. Only the bits that
@@ -538,15 +547,6 @@ struct osm_check
   /* If OSM_KEYCHK is set in operation_osm_ioc then this value is compared with
    * the value in the disk key, subject to masking. */
   
-  ub4    error_fence_osm_check;      /* actual fence key value if fenced out */
-  /* If the operation completes with status bit OSM_FENCED set, then the
-   * actual value of the fence key is returned here. This is the value that
-   * was compared with fence_value_osm_check and found not to match. It is
-   * possible that the value has changed since the operation failed so that
-   * this is no longer the current value. It is possible that the operation
-   * did succeed once, but was fenced on a retry. A value of zero indicates
-   * that the disk has lost its key values and they must be reloaded. */
-
   ub8    error_key_osm_check;       /* actual disk key value if key mismatch */
   /* If the operation completes with status bit OSM_BADKEY set, then the
    * actual value of the disk key is returned here. This is the value that was
