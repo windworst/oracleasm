@@ -1,6 +1,10 @@
 
 2003-11-16	Joel Becker <joel.becker@oracle.com>
 
+	* documents/asm-install.txt: Reflect new oracleasm script.
+
+2003-11-16	Joel Becker <joel.becker@oracle.com>
+
 	* vendor/redhat/*.spec.in: Use %attr for perms, and %config
 		for /etc/sysconfig/oracleasm.
 

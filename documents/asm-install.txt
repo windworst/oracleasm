@@ -53,26 +53,49 @@ Once the command completes, ASMLib is now installed on the system.
 Now that the ASMLib software is installed, a few steps have to be taken
 by the system administrator to make the ASM driver available.  The
 ASM driver needs to be loaded, and the driver filesystem needs to be
-mounted.
+mounted.  This is taken care of by the initialization script,
+/etc/init.d/oracleasm.
 
-First, the ASM driver needs to be loaded.  It is loaded via the standard
-Linux module loading program, insmod(8).  Load the module with the
-command:
+Run the /etc/init.d/oracleasm script with the 'configure' option.  It
+will ask for the user id and group id that default ot owning the ASM
+driver access point.  If the 'oracle' user has a user id of 1001 and the
+'dba' group has a groub id of 1005, the output would look like so:
 
-	insmod oracleasm
+	[root@ca-test1 /]# /etc/init.d/oracleasm configure
+	Configuring the Oracle ASM library driver.
+ 
+	This will configure the on-boot properties of the Oracle ASM library
+	driver.  The following questions will determine whether the driver is
+	loaded on boot and what permissions it will have.  The current values
+	will be shown in brackets ('[]').  Hitting <ENTER> without typing an
+	answer will keep that current value.  Ctrl-C will abort.
 
-This should load the oracleasm.o driver module.  The ASM driver
-filesystem must now be mounted.  This filesystem is not a normal
-filesystem.  It only provides the interface for the ASM library to
-communicate with the ASM driver.  Mounting the filesystem needs two
-options.  The 'uid' and 'gid' options specify the user id and group
-id that default to owning the ASM driver access.  If the 'oracle' user
-has a user id of 1001, and the 'dba' group has a group id of 1005, the
-filesystem is mounted as such:
+	Default UID to own the driver interface []: 1001
+	Default GID to own the driver interface []: 1005
+	Start Oracle ASM library driver on boot (y/n) [n]: y
+	Writing Oracle ASM library driver configuration            [  OK  ]
+	Creating /dev/oracleasm mount point                        [  OK  ]
+	Loading module "oracleasm"                                 [  OK  ]
+	Mounting ASMlib driver filesystem                          [  OK  ]
 
-	mount -o uid=1001,gid=1005 -t oracleasmfs oracleasmfs /dev/oracleasm
 
-The ASM library can now communicate with the ASM driver.
+This should load the oracleasm.o driver module and mount the ASM driver
+filesystem.  By selecting enabled = 'y' during the configuration, the
+system will always load the module and mount the filesystem on boot.
+
+The automatic start can be enabled or disabled with the 'enable' and
+'disable' options to /etc/init.d/oracleasm:
+
+	[root@ca-test1 /]# /etc/init.d/oracleasm disable
+	Writing Oracle ASM library driver configuration            [  OK  ]
+	Unmounting ASMlib driver filesystem                        [  OK  ]
+	Unloading module "oracleasm"                               [  OK  ]
+
+	[root@ca-test1 /]# /etc/init.d/oracleasm enable
+	Writing Oracle ASM library driver configuration            [  OK  ]
+	Loading module "oracleasm"                                 [  OK  ]
+	Mounting ASMlib driver filesystem                          [  OK  ]
+
 
 [ Making Disks Available to ASMLib ]
 
@@ -96,5 +119,8 @@ To mark the disks /dev/sdg and /dev/sdh as ASM disks, use the command:
 	asmtool -m /dev/sdg /dev/sdh
 
 The ASM instance will now be able to load ASMLib and see the disks
-/dev/sdg and /dev/sdh to access them via the library.
+/dev/sdg and /dev/sdh to access them via the library.  This only needs
+to be done once for each disk.  It will be permanently marked on the
+disk, so each disk will remain marked even if the server reboots.  Also,
+other nodes in a RAC cluster will be able to see the marking.
 
