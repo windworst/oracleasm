@@ -37,28 +37,8 @@
 
 
 /*
- * ioctls
- */
-#define OSM_IOCTL_BASE          0xFD
-
-/* ioctls on /dev/osm */
-#define OSMIOC_GETIID           _IOR(OSM_IOCTL_BASE, 0, unsigned long)
-#define OSMIOC_CHECKIID         _IOWR(OSM_IOCTL_BASE, 1, unsigned long)
-
-/* ioctls on /dev/osm/<iid> */
-#define OSMIOC_ISDISK           _IOW(OSM_IOCTL_BASE, 2, int)
-#define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, unsigned long)
-#define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, unsigned long)
-struct osmio;
-#define OSMIOC_IODISK           _IOWR(OSM_IOCTL_BASE, 5, struct osmio)
-
-
-/*
  * Structures
  */
-#ifdef __KERNEL__
-#define osm_ioc osm_kioc
-#endif
 struct osmio
 {
     unsigned long       handle;
@@ -72,5 +52,25 @@ struct osmio
     __u32               timeout;
     __u32               *statusp;
 };
+
+
+/*
+ * ioctls
+ */
+#define OSM_IOCTL_BASE          0xFD
+
+/* ioctls on /dev/osm */
+#define OSMIOC_GETIID           _IOR(OSM_IOCTL_BASE, 0, unsigned long)
+#define OSMIOC_CHECKIID         _IOWR(OSM_IOCTL_BASE, 1, unsigned long)
+
+/* ioctls on /dev/osm/<iid> */
+#define OSMIOC_ISDISK           _IOW(OSM_IOCTL_BASE, 2, int)
+#define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, unsigned long)
+#define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, unsigned long)
+#define OSMIOC_IODISK           _IOWR(OSM_IOCTL_BASE, 5, struct osmio)
+
+/* ioctl for testing */
+#define OSMIOC_DUMP             _IO(OSM_IOCTL_BASE, 16)
+
 
 #endif  /* _OSMPRIVATE_H */

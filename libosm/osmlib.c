@@ -415,3 +415,16 @@ void osm_posted(osm_ctx ctx)
 
     priv->posted++;
 }  /* osm_posted() */
+
+#if 1
+/* Debugging */
+void osm_dump(osm_ctx ctx)
+{
+    osm_ctx_private *priv = (osm_ctx_private *)ctx;
+
+    if (!priv)
+        return;
+
+    ioctl(priv->fd, OSMIOC_DUMP, 0);
+}  /* osm_dump() */
+#endif
