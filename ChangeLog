@@ -1,4 +1,10 @@
 
+2003-08-19	Joel Becker <joel.becker@oracle.com>
+
+	* test/sizes.c: Simple structure size examiner.
+	* test/Makefile: Add sizes
+	* libosm/osmlib.c: Don't prefil iid structure, and use lseek64()
+
 2003-08-18	Joel Becker <joel.becker@oracle.com>
 
 	* kernel/osm.c: Fix osmfs_dir_operations for 2.4.19/20/21.

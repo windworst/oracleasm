@@ -47,14 +47,14 @@ struct osmio
 struct osm_disk_query
 {
     __u64 dq_rdev;
-    __u32 dq_maxio;
+    __u64 dq_maxio;  /* gcc padding is lame */
 };
 
 #define OSM_ABI_VERSION	1UL
 struct osm_get_iid
 {
-    __u32 gi_version;
     __u64 gi_iid;
+    __u64 gi_version;  /* gcc padding is lame */
 };
 
 

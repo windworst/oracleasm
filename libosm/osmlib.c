@@ -16,6 +16,8 @@
   This is the main source file for the Linux implementation of osmlib
  */
 
+#define _LARGEFILE64_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -129,7 +131,7 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
 {
     osm_erc err;
     osm_ctx_private *priv;
-    struct osm_get_iid real_iid = {OSM_ABI_VERSION, iid};
+    struct osm_get_iid real_iid;
     int fd, rc;
     char *osm_file;
 
@@ -142,6 +144,8 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
     if (fd < 0)
         goto out;
 
+    real_iid.gi_iid = iid;
+    real_iid.gi_version = OSM_ABI_VERSION;
     rc = ioctl(fd, OSMIOC_CHECKIID, &real_iid);
     close(fd);
     if (rc)
@@ -256,7 +260,6 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     glob_t *globbuf;
     char *path = NULL;
     int rc, fd, len, to_clear;
-    unsigned long size;
     struct stat stat_buf;
     struct osm_disk_query dq;
 
@@ -284,15 +287,14 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
                 rc = ioctl(priv->fd, OSMIOC_QUERYDISK, &dq);
                 if (!rc)
                 {
-                    /* Use size temporary for ub4 platforms */
-                    rc = ioctl(fd, BLKGETSIZE, &size);
-                    if (!rc)
+                    name->size_osm_name = lseek64(fd, 0ULL, SEEK_END);
+                    if (name->size_osm_name < SB8MAXVAL)
                     {
-                        name->size_osm_name = size;
                         rc = ioctl(fd, BLKSSZGET,
                                    &(name->blksz_osm_name));
                         if (!rc)
                         {
+                            name->size_osm_name /= name->blksz_osm_name;
                             close(fd);
                             break;
                         }
@@ -312,7 +314,7 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     /* strncpy sucks */
     len = strlen(path);
     if (len >= OSM_MAXPATH)
-        len = OSM_MAXPATH -1;
+        len = OSM_MAXPATH - 1;
     memmove(name->path_osm_name,
             globbuf->gl_pathv[priv->discover_index], len);
     name->path_osm_name[len] = '\0';
