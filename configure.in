@@ -121,7 +121,12 @@ ppc)
     MODULEARCH="$host_cpu"
     ;;
 i386)
-    MODULEARCH="i686"
+    if test -r /etc/UnitedLinux-release -o -r /etc/SuSE-release
+    then
+        MODULEARCH=i586
+    else
+        MODULEARCH="i686"
+    fi
     ;;
 *)
     AC_MSG_RESULT([not found])

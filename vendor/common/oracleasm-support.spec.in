@@ -40,7 +40,12 @@ Tools to manage the Oracle Automatic Storage Management library driver
 
 
 %build
-%configure --sbindir=/usr/sbin --with-kernel=/usr/src/linux
+KPATH=/usr/src/linux-2.4
+if [ ! -d "${KPATH}" ]
+then
+    KPATH=/usr/src/linux
+fi
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
 
 cd tools
 make
