@@ -34,7 +34,6 @@ Provides: osm = %{version}
 AutoReqProv: no
 Requires: kernel >= %{kver}
 Requires: osm-support >= 0.6.1
-Obsoletes:
 BuildRequires: kernel-source >= %{kver}
 
 
