@@ -1,6 +1,10 @@
 
 2003-11-13	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/common/oracleasm.init.functions.
+
+2003-11-13	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: vendor subdir.
 	* vendor/common/Makefile: Added.
 	* vendor/unitedlinux/Makefile: Added.
