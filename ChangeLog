@@ -4,6 +4,8 @@
 	* test/sizes.c: Simple structure size examiner.
 	* test/Makefile: Add sizes
 	* libosm/osmlib.c: Don't prefil iid structure, and use lseek64()
+	* kernel/osm.c: Quick OSM_ABI_VERSION cast.
+	* include/linux/osmabi.h: 32->64 bugs.
 
 2003-08-18	Joel Becker <joel.becker@oracle.com>
 
