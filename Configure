@@ -66,5 +66,9 @@ KERNEL_INCLUDE_PATH=$KERNEL_INCLUDES
 ARCH=$ARCH
 EOF
 
-rm include/arch
+if [ -L include/arch ]
+then
+    rm -f include/arch
+fi
+
 ln -s arch-$ARCH include/arch
