@@ -1394,11 +1394,15 @@ out_error:
 
 static int osm_maybe_wait_io(struct osmfs_file_info *ofi, 
 			     struct osmfs_inode_info *oi,
-			     osm_ioc *iocp)
+			     osm_ioc *iocp,
+			     struct timeout *to)
 {
 	long ret;
 	unsigned long p;
 	struct osm_request *r;
+	struct task_struct *tsk = current;
+	DECLARE_WAITQUEUE(wait, tsk);
+	DECLARE_WAITQUEUE(to_wait, tsk);
 
 	printk("OSM: Entering wait_io()\n");
 	if (get_user(p, &(iocp->request_key_osm_ioc)))
@@ -1418,15 +1422,35 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	}
 
 	printk("OSM: osm_request is valid...we think\n");
-	while (!(r->r_status & (OSM_COMPLETED |
-				OSM_BUSY | OSM_ERROR))) {
+	if (!(r->r_status & (OSM_COMPLETED |
+			     OSM_BUSY | OSM_ERROR))) {
 		spin_unlock(&ofi->f_lock);
-		/* FIXME: Wait correctly and deal with timeout */
-		schedule();
-		spin_lock(&ofi->f_lock);
+		add_wait_queue(&to->wait, &to_wait);
+		do {
+			ret = 0;
+			set_task_state(tsk, TASK_INTERRUPTIBLE);
+
+			spin_lock(&ofi->f_lock);
+			if (r->r_status & (OSM_COMPLETED |
+					     OSM_BUSY | OSM_ERROR))
+				break;
+			spin_unlock(&ofi->f_lock);
+
+			ret = -ETIMEDOUT;
+			if (to->timed_out)
+				break;
+			schedule();
+			if (signal_pending(tsk)) {
+				ret = -EINTR;
+				break;
+			}
+		} while (1);
+		set_task_state(tsk, TASK_RUNNING);
+		remove_wait_queue(&to->wait, &to_wait);
 	}
 
-
+	/* Somebody got here first */
+	if (r->r_status & OSM_FREE)
 	if (list_empty(&ofi->f_complete))
 		BUG();
 #ifdef DEBUG
@@ -1449,9 +1473,9 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	printk("OSM: Removing request 0x%p\n", r);
 	list_del_init(&r->r_list);
 	r->r_file = NULL;
-	spin_unlock(&ofi->f_lock);
-
 	r->r_status |= OSM_FREE;
+
+	spin_unlock(&ofi->f_lock);
 
 	ret = osm_update_user_ioc(r);
 
@@ -1482,14 +1506,14 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 	r = list_entry(l, struct osm_request, r_list);
 	list_del_init(&r->r_list);
 	r->r_file = NULL;
-	spin_unlock(&ofi->f_lock);
-
 	r->r_status |= OSM_FREE;
+
+	spin_unlock(&ofi->f_lock);
 
 	*ioc = r->r_ioc;
 	
 #ifdef DEBUG
-	if (!(r->r_status & (OSM_FREE | OSM_ERROR)))
+	if (!(r->r_status & (OSM_COMPLETED | OSM_ERROR)))
 		BUG();
 #endif /* DEBUG */
 
@@ -1510,6 +1534,9 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	__u32 status = 0;
 	osm_ioc *iocp;
 	struct timeout to;
+	struct task_struct *tsk = current;
+	DECLARE_WAITQUEUE(wait, tsk);
+	DECLARE_WAITQUEUE(to_wait, tsk);
 
 	printk("OSM: Entering osm_do_io()\n");
 	osmdump_file(ofi);
@@ -1524,8 +1551,10 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 			goto out;
 
 		set_timeout(&to, &ts);
-		if (to.timed_out)
+		if (to.timed_out) {
 			ioc->timeout = 0;
+			clear_timeout(&to);
+		}
 	}
 
 	ret = 0;
@@ -1544,7 +1573,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 			if (get_user(iocp, ioc->waitreqs + i))
 				return -EFAULT;
 
-			ret = osm_maybe_wait_io(ofi, oi, iocp);
+			ret = osm_maybe_wait_io(ofi, oi, iocp, &to);
 			if (ret)
 				goto out_to;
 		}
@@ -1559,23 +1588,49 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 			if (iocp) {
 				ret = put_user(iocp,
 					       ioc->completions + i);
-			} else {
-				i--; /* Reset this completion */
-				if (ioc->waitreqs)
-					break;
+				continue;
+			}
+
+			i--; /* Reset this completion */
+
+			/* We had waiters that are full */
+			if (ioc->waitreqs)
+				break;
+
+			spin_lock(&ofi->f_lock);
+			if (list_empty(&ofi->f_ios) &&
+			    list_empty(&ofi->f_complete))
+			{
+				/* No I/Os left */
+				spin_unlock(&ofi->f_lock);
+				status |= OSM_IO_IDLE;
+				break;
+			}
+			spin_unlock(&ofi->f_lock);
+
+			add_wait_queue(&to.wait, &to_wait);
+			do {
+				ret = 0;
+				set_task_state(tsk, TASK_INTERRUPTIBLE);
+
 				spin_lock(&ofi->f_lock);
-				if (list_empty(&ofi->f_ios) &&
-				    list_empty(&ofi->f_complete))
-				{
-					/* No I/Os left */
+				if (!list_empty(&ofi->f_complete)) {
 					spin_unlock(&ofi->f_lock);
-					status |= OSM_IO_IDLE;
 					break;
 				}
 				spin_unlock(&ofi->f_lock);
-				/* FIXME: Wait on some I/Os */
+
+				ret = -ETIMEDOUT;
+				if (to.timed_out)
+					break;
 				schedule();
-			}
+				if (signal_pending(tsk)) {
+					ret = -EINTR;
+					break;
+				}
+			} while (1);
+			set_task_state(tsk, TASK_RUNNING);
+			remove_wait_queue(&to.wait, &to_wait);
 		}
 		if (i >= ioc->complen)
 			status |= OSM_IO_FULL;
