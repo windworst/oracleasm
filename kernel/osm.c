@@ -1,7 +1,7 @@
 /*
  * osm - Kernel driver for the Oracle Storage Manager
  *
- * Copyright (C) 2002 Oracle Corporation.  All rights reserved.
+ * Copyright (C) 2002,2003 Oracle Corporation.  All rights reserved.
  *
  * This driver's filesystem code is based on the ramfs filesystem.
  * Copyright information for the original source appears below.  This
@@ -12,7 +12,7 @@
  * Resizable simple ram filesystem for Linux.
  *
  * Copyright (C) 2000 Linus Torvalds.
- *               2000 Transmeta Corp.
+ *		 2000 Transmeta Corp.
  *
  * Usage limits added by David Gibson, Linuxcare Australia.
  * This file is released under the GPL.
@@ -57,7 +57,7 @@
  * below that is 64K.  The intention is for per-device discovery of this
  * value in the future.  FIXME.
  */
-#define OSM_MAX_IOSIZE          (1024 * 64)
+#define OSM_MAX_IOSIZE	  (1024 * 64)
 
 /*
  * Compat32
@@ -83,18 +83,22 @@
 #undef DEBUG 
 #undef DEBUG1
 #undef DEBUG_BROKEN
+#define dprintk(x...) do { ; } while (0)
+#define dprintk1(x...) do { ; } while (0)
+#undef LOG_ENABLE
 
-#ifndef DEBUG
-#define dprintk(x...) do { ; } while(0)
-#else
-#define dprintk printk
-#endif  /* DEBUG */
 
-#ifndef DEBUG1
-#define dprintk1(x...) do { ; } while(0)
+#ifndef LOG_ENABLE
+#define LOG_ENTRY() do { ; } while (0)
+#define LOG_EXIT() do { ; } while (0)
+#define LOG_EXIT_RET(x...) do { ; } while (0)
+#define LOG(x...) do { ; } while (0)
 #else
-#define dprintk1 printk
-#endif  /* DEBUG1 */
+#define LOG_ENTRY() do { printk("OSM: Entered %s\n", __FUNCTION__); } while (0)
+#define LOG_EXIT() do { printk("OSM: Exited %s\n", __FUNCTION__); } while (0)
+#define LOG_EXIT_RET(ret) do { printk("OSM: Exited %s with code 0x%lX\n", __FUNCTION__, (unsigned long)(ret)); } while (0)
+#define LOG printk
+#endif  /* LOG_ENABLE */
 
 
 static struct super_operations osmfs_ops;
@@ -311,7 +315,9 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 	struct list_head *l, *p;
 	struct osm_disk_info *d = NULL;
 
-	dprintk("OSM: Looking up device 0x%.8lX\n", (unsigned long)dev);
+	LOG_ENTRY();
+
+	LOG("OSM: Looking up disk %d,%d\n", MAJOR(dev), MINOR(dev));
 	
 	spin_lock_irq(&oi->i_lock);
 	l = &(oi->disk_hash[OSM_HASH_DISK(dev)]);
@@ -320,7 +326,6 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 
 	list_for_each(p, l) {
 		d = list_entry(p, struct osm_disk_info, d_hash);
-		dprintk("OSM: Comparing device 0x%.8lX\n", (unsigned long) d->d_dev);
 		if (d->d_dev == dev) {
 			atomic_inc(&d->d_count);
 			break;
@@ -330,6 +335,8 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 
 out:
 	spin_unlock_irq(&oi->i_lock);
+
+	LOG_EXIT_RET(d);
 	return d;
 }  /* osm_find_disk() */
 
@@ -1311,21 +1318,21 @@ static int osm_build_io(int rw, struct osm_request *r,
 		tmp->b_next = r->r_buffers;
 #else
 
-                if (r->r_bh)
-                {
-                    r->r_bhtail->b_next = tmp;
+		if (r->r_bh)
+		{
+			r->r_bhtail->b_next = tmp;
 #ifdef RED_HAT_LINUX_KERNEL
 # if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20))
-                    r->r_bhtail->b_reqnext = tmp;
+			r->r_bhtail->b_reqnext = tmp;
 # else
 #  error Invalid Red Hat Linux kernel
 # endif  /* LINUX_VERSION_CODE */
 #endif  /* RED_HAT_LINUX_KERNEL */
-                }
-                else
-                    r->r_bh = tmp;
+     		}
+		else
+			r->r_bh = tmp;
 
-                r->r_bhtail = tmp;
+		r->r_bhtail = tmp;
 #endif /* 0 */
 		r->r_bh_count++;
 	} /* End of page loop */		
@@ -1352,14 +1359,14 @@ error:
 static int osm_submit_io(struct osmfs_file_info *ofi, 
 			 struct osmfs_inode_info *oi,
 			 osm_ioc *user_iocp,
-                         osm_ioc *ioc)
+			 osm_ioc *ioc)
 {
 	int ret, major, rw = READ, minorsize = 0;
 	struct osm_request *r;
 	struct osm_disk_info *d;
 	size_t count;
-        struct buffer_head *bh;
-        kdev_t kdv;
+	struct buffer_head *bh;
+	kdev_t kdv;
 
 	if (!ioc)
 		return -EINVAL;
@@ -1379,7 +1386,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	spin_unlock_irq(&ofi->f_lock);
 
 	ret = -ENODEV;
-        kdv = ioc->disk_osm_ioc;
+	kdv = ioc->disk_osm_ioc;
 	d = osm_find_disk(oi, kdv);
 	if (!d)
 		goto out_error;
@@ -1394,7 +1401,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	       (unsigned long)ioc->first_osm_ioc);
 	/* linux only supports unsigned long size sector numbers */
 	dprintk("OSM: status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
-	       ioc->status_osm_ioc, ioc->buffer_osm_ioc, count);
+		ioc->status_osm_ioc,
+		(unsigned long)ioc->buffer_osm_ioc, count);
 	/* Note that priority is ignored for now */
 	ret = -EINVAL;
 	if (!ioc->buffer_osm_ioc ||
@@ -1442,8 +1450,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 			break;
 
 		case OSM_NOOP:
-                        /* Trigger an errorless completion */
-                        count = 0;
+			/* Trigger an errorless completion */
+			count = 0;
 			break;
 	}
 	
@@ -1471,21 +1479,21 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	r->r_elapsed = jiffies;  /* Set start time */
 
-        bh = r->r_bh;
+	bh = r->r_bh;
 #ifdef RED_HAT_LINUX_KERNEL
 # if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20))
-        submit_bh_linked(rw, bh);
+	submit_bh_linked(rw, bh);
 # else
 #  error Invalid Red Hat Linux kernel
 # endif  /* LINUX_VERSION_CODE */
 #else
 # ifdef CONFIG_UNITED_LINUX_KERNEL
 #  if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
-        while (bh)
-        {
-            submit_bh_blknr(rw, bh);
-            bh = bh->b_next;
-        }
+	while (bh)
+	{
+	    submit_bh_blknr(rw, bh);
+	    bh = bh->b_next;
+	}
 	blk_refile_atomic_queue(bh_elv_seq(r->r_bh));
 #  else
 #   error Invalid United Linux kernel
@@ -1523,7 +1531,8 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 			   sizeof(p)))
 		return -EFAULT;
 
-	dprintk("OSM: User key is 0x%p\n", (struct osm_request *)p);
+	dprintk("OSM: User key is 0x%p\n",
+		(struct osm_request *)(unsigned long)p);
 	r = (struct osm_request *)(unsigned long)p;
 	if (!r)
 		return -EINVAL;
@@ -1615,11 +1624,13 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 	struct list_head *l;
 	struct osm_request *r;
 
+	LOG_ENTRY();
 	spin_lock_irq(&ofi->f_lock);
 
 	if (list_empty(&ofi->f_complete)) {
 		spin_unlock_irq(&ofi->f_lock);
 		*ioc = NULL;
+		LOG_EXIT_RET(0);
 		return 0;
 	}
 
@@ -1642,21 +1653,23 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 
 	osm_request_free(r);
 
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_complete_io() */
 
 
 static int osm_wait_completion(struct osmfs_file_info *ofi,
-                               struct osmfs_inode_info *oi,
-                               struct osmio *io,
-                               struct timeout *to,
-                               u32 *status)
+			       struct osmfs_inode_info *oi,
+			       struct osmio *io,
+			       struct timeout *to,
+			       u32 *status)
 {
 	int ret;
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
 	DECLARE_WAITQUEUE(to_wait, tsk);
 
+	LOG_ENTRY();
 	/* Early check - expensive stuff follows */
 	ret = -ETIMEDOUT;
 	if (to->timed_out)
@@ -1702,6 +1715,7 @@ static int osm_wait_completion(struct osmfs_file_info *ofi,
 	remove_wait_queue(&to->wait, &to_wait);
 
 out:
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_wait_completion() */
 
@@ -1715,6 +1729,7 @@ static inline int osm_submit_io_native(struct osmfs_file_info *ofi,
 	osm_ioc *iocp;
 	osm_ioc tmp;
 
+	LOG_ENTRY();
 	for (i = 0; i < io->oi_reqlen; i++) {
 		ret = -EFAULT;
 		if (get_user(iocp,
@@ -1724,11 +1739,13 @@ static inline int osm_submit_io_native(struct osmfs_file_info *ofi,
 		if (copy_from_user(&tmp, iocp, sizeof(tmp)))
 			break;
 
+		LOG("OSM: Submitting user ioc at 0x%p\n", iocp);
 		ret = osm_submit_io(ofi, oi, iocp, &tmp);
 		if (ret)
 			break;
 	}
 
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_submit_io_native() */
 
@@ -1766,6 +1783,7 @@ static inline int osm_complete_ios_native(struct osmfs_file_info *ofi,
 	u32 i;
 	osm_ioc *iocp;
 
+	LOG_ENTRY();
 	for (i = 0; i < io->oi_complen; i++) {
 		ret = osm_complete_io(ofi, oi, &iocp);
 		if (ret)
@@ -1773,12 +1791,10 @@ static inline int osm_complete_ios_native(struct osmfs_file_info *ofi,
 		if (iocp) {
 			ret = put_user(iocp,
 				       ((osm_ioc **)((unsigned long)io->oi_completions)) + i);
-                               if (ret)
-                                   break;
+			       if (ret)
+				   break;
 			continue;
 		}
-
-		i--; /* Reset this completion */
 
 		/* We had waiters that are full */
 		if (*status & OSM_IO_WAITED)
@@ -1789,8 +1805,12 @@ static inline int osm_complete_ios_native(struct osmfs_file_info *ofi,
 			break;
 		if (*status & OSM_IO_IDLE)
 			break;
+
+		i--; /* Reset this completion */
+
 	}
 
+	LOG_EXIT_RET(ret ? ret : i);
 	return (ret ? ret : i);
 }  /* osm_complete_ios_native() */
 
@@ -1899,8 +1919,8 @@ static inline int osm_complete_ios_thunk(struct osmfs_file_info *ofi,
 
 			ret = put_user(iocp_32,
 				       ((u32 *)((unsigned long)io->oi_completions)) + i);
-                               if (ret)
-                                   break;
+			       if (ret)
+				   break;
 			continue;
 		}
 
@@ -1931,17 +1951,14 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	u32 status = 0;
 	struct timeout to;
 
-	dprintk("OSM: Entering osm_do_io()\n");
-#ifdef DEBUG_BROKEN
-	osmdump_file(ofi);
-#endif /* DEBUG_BROKEN */
+	LOG_ENTRY();
 
 	init_timeout(&to);
 
 	if (io->oi_timeout) {
 		struct timespec ts;
 
-		dprintk1("Real timeout\n");
+		LOG("OSM: osm_do_io() was passed a timeout\n");
 		ret = -EFAULT;
 		if (copy_from_user(&ts,
 				   (struct timespec *)(unsigned long)io->oi_timeout,
@@ -1957,7 +1974,8 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 
 	ret = 0;
 	if (io->oi_requests) {
-		dprintk1("Has requests; reqlen %d\n", io->oi_reqlen);
+		LOG("OSM: osmio has requests; reqlen %d\n",
+		    io->oi_reqlen);
 		ret = -EINVAL;
 		if (bpl == OSM_BPL_32)
 			ret = osm_submit_io_32(ofi, oi, io);
@@ -1971,7 +1989,8 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	}
 
 	if (io->oi_waitreqs) {
-		dprintk1("Has waits; waitlen %d\n", io->oi_waitlen);
+		LOG("OSM: osmio has waits; waitlen %d\n",
+		    io->oi_waitlen);
 		ret = -EINVAL;
 		if (bpl == OSM_BPL_32)
 			ret = osm_maybe_wait_io_32(ofi, oi, io, &to);
@@ -1987,7 +2006,8 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	}
 
 	if (io->oi_completions) {
-		dprintk1("Has completes; complen %d\n", io->oi_complen);
+		LOG("OSM: osmio has completes; complen %d\n",
+		    io->oi_complen);
 		ret = -EINVAL;
 		if (bpl == OSM_BPL_32)
 			ret = osm_complete_ios_32(ofi, oi, io,
@@ -1995,23 +2015,14 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 #if BITS_PER_LONG == 64
 		else if (bpl == OSM_BPL_64)
 			ret = osm_complete_ios_64(ofi, oi, io,
-                                                  &to, &status);
+						  &to, &status);
 #endif  /* BITS_PER_LONG == 64 */
 
+		if (ret < 0)
+			goto out_to;
 		if (ret >= io->oi_complen)
 			status |= OSM_IO_FULL;
-		else if (ret < 0)
-			goto out_to;
-		else {
-			ret = 0;
-#ifdef DEBUG1
-                        if (get_user(iocp, io->oi_completions + i)) {
-                                ret = -EFAULT;
-                        }
-			if (iocp)
-				dprintk1("Next completion pointer is not null.\n");
-#endif /* DEBUG1 */
-                }
+		ret = 0;
 	}
 
 out_to:
@@ -2020,7 +2031,8 @@ out_to:
 
 out:
 	if (put_user(status, (u32 *)(unsigned long)io->oi_statusp))
-		return -EFAULT;
+		ret = -EFAULT;
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_do_io() */
 
@@ -2137,22 +2149,26 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 	struct osm_disk_query dq;
 	int ret;
 
+	LOG_ENTRY();
+
 	switch (cmd) {
 		default:
 			return -ENOTTY;
 			break;
 
 		case OSMIOC_QUERYDISK:
+			LOG("OSM: Operation is OSMIOC_QUERYDISK\n");
 			if (copy_from_user(&dq, (struct osm_disk_query *)arg,
 					   sizeof(dq)))
 				return -EFAULT;
 			kdv = to_kdev_t(dq.dq_rdev);
-			dprintk("OSM: Checking disk %d,%d\n", MAJOR(kdv), MINOR(kdv));
+			LOG("OSM: Checking disk %d,%d\n", MAJOR(kdv),
+			    MINOR(kdv));
 			/* Right now we trust only SCSI ->request_fn */
 			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
 				return -EINVAL;
 
-                        ret = osm_validate_disk(kdv);
+			ret = osm_validate_disk(kdv);
 			if (ret)
 				return ret;
 
@@ -2160,37 +2176,45 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (copy_to_user((struct osm_disk_query *)arg,
 					 &dq, sizeof(dq)))
 				return -EFAULT;
+			LOG("OSM: Valid disk %d,%d\n", MAJOR(kdv),
+			    MINOR(kdv));
 			break;
 
 		case OSMIOC_OPENDISK:
+			LOG("OSM: Operation is OSMIOC_OPENDISK\n");
 			if (copy_from_user(&dq, (struct osm_disk_query *)arg,
-                                           sizeof(dq)))
+					   sizeof(dq)))
 				return -EFAULT;
 			kdv = to_kdev_t(dq.dq_rdev);
+			LOG("OSM: Opening disk %d,%d\n", MAJOR(kdv),
+			    MINOR(kdv));
 
-                        ret = osm_validate_disk(kdv);
+			ret = osm_validate_disk(kdv);
 			if (ret)
 				return ret;
 
 			/* Userspace checks a 0UL return */
-			if (!osm_disk_open(ofi, oi, kdv))
-                            dq.dq_rdev = 0;
-			dprintk("OSM: Opened handle 0x%.8lX\n", dq.dq_rdev);
+			if (osm_disk_open(ofi, oi, kdv))
+			    dq.dq_rdev = 0;
 			if (copy_to_user((struct osm_disk_query *)arg,
-                                         &dq, sizeof(dq)))
-                            return -EFAULT;
+					 &dq, sizeof(dq)))
+			    return -EFAULT;
+			LOG("OSM: Opened handle 0x%.8lX\n",
+			    (unsigned long)dq.dq_rdev);
 			break;
 
 		case OSMIOC_CLOSEDISK:
+			LOG("OSM: Operation is OSMIOC_CLOSEDISK\n");
 			if (copy_from_user(&dq, (struct osm_disk_query *)arg,
-                                           sizeof(dq)))
+					   sizeof(dq)))
 				return -EFAULT;
-			dprintk("OSM: Closing handle 0x%.8lX\n", dq.dq_rdev);
-                        kdv = to_kdev_t(dq.dq_rdev);
+			LOG("OSM: Closing handle 0x%.8lX\n", (unsigned long)dq.dq_rdev);
+			kdv = to_kdev_t(dq.dq_rdev);
 			return osm_disk_close(ofi, oi, kdv);
 			break;
 
 		case OSMIOC_IODISK32:
+			LOG("OSM: Operation is OSMIOC_IODISK32\n");
 			if (copy_from_user(&io, (struct osmio *)arg,
 					   sizeof(io)))
 				return -EFAULT;
@@ -2199,6 +2223,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 
 #if BITS_PER_LONG == 64
 		case OSMIOC_IODISK64:
+			LOG("OSM: Operation is OSM_IODISK64\n");
 			if (copy_from_user(&io, (struct osmio *)arg,
 					   sizeof(io)))
 				return -EFAULT;
@@ -2207,6 +2232,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 #endif  /* BITS_PER_LONG == 64 */
 
 		case OSMIOC_DUMP:
+			LOG("OSM: Operation is OSMIOC_DUMP\n");
 			/* Dump data */
 #ifdef DEBUG_BROKEN
 			osmdump_file(ofi);
@@ -2215,6 +2241,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			break;
 	}
 
+	LOG_EXIT_RET(0);
 	return 0;
 }
 
@@ -2229,39 +2256,39 @@ static int osmfs_dir_ioctl(struct inode * inode, struct file * file, unsigned in
 			break;
 
 		case OSMIOC_GETIID:
-                        if (copy_from_user(&new_iid,
-                                           (struct osm_get_iid *)arg,
-                                           sizeof(new_iid)))
-                            return -EFAULT;
-                        if (new_iid.gi_version != OSM_ABI_VERSION)
-                            return -EINVAL;
+			if (copy_from_user(&new_iid,
+					   (struct osm_get_iid *)arg,
+					   sizeof(new_iid)))
+			    return -EFAULT;
+			if (new_iid.gi_version != OSM_ABI_VERSION)
+			    return -EINVAL;
 			lock_osb(osb);
 			new_iid.gi_iid = (u64)osb->next_iid;
 			osb->next_iid++;
 			unlock_osb(osb);
 			if (copy_to_user((struct osm_get_iid *)arg,
-                                         &new_iid, sizeof(new_iid)))
-                            return -EFAULT;
+					 &new_iid, sizeof(new_iid)))
+			    return -EFAULT;
 			break;
 
-                case OSMIOC_CHECKIID:
-                        if (copy_from_user(&new_iid,
-                                           (struct osm_get_iid *)arg,
-                                           sizeof(new_iid)))
-                            return -EFAULT;
-                        if (new_iid.gi_version != OSM_ABI_VERSION)
-                            return -EINVAL;
-                        lock_osb(osb);
-                        if (new_iid.gi_iid >= (u64)osb->next_iid)
-                            new_iid.gi_iid = 0;
-                        unlock_osb(osb);
-                        if (!new_iid.gi_iid)
-                        {
-                            if (copy_to_user((struct osm_get_iid *)arg,
-                                             &new_iid, sizeof(new_iid)))
-                                return -EFAULT;
-                        }
-                        break;
+		case OSMIOC_CHECKIID:
+			if (copy_from_user(&new_iid,
+					   (struct osm_get_iid *)arg,
+					   sizeof(new_iid)))
+			    return -EFAULT;
+			if (new_iid.gi_version != OSM_ABI_VERSION)
+			    return -EINVAL;
+			lock_osb(osb);
+			if (new_iid.gi_iid >= (u64)osb->next_iid)
+			    new_iid.gi_iid = 0;
+			unlock_osb(osb);
+			if (!new_iid.gi_iid)
+			{
+			    if (copy_to_user((struct osm_get_iid *)arg,
+					     &new_iid, sizeof(new_iid)))
+				return -EFAULT;
+			}
+			break;
 	}
 
 	return 0;

@@ -1,4 +1,10 @@
 
+2003-06-24	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/osm.c: Some LOG() bits, it works now, and some
+		whitespace cleanup.
+	* test/Makefile: Remove libosm.so dep, silly Makebo.
+
 2003-06-23	Joel Becker <joel.becker@oracle.com>
 
 	* kernel/osm.c: 64bit typos.
