@@ -996,13 +996,17 @@ static int osm_update_user_ioc(struct osm_request *r)
 	       (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR),
 	       (r->r_status & (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR)));
 	if (r->r_status & OSM_FREE) {
-		if (put_user(0UL, &(ioc->request_key_osm_ioc)))
+		u64 z = 0ULL;
+		if (copy_to_user(&(ioc->reserved_osm_ioc),
+				 &z, sizeof(ioc->reserved_osm_ioc)))
 			return -EFAULT;
 	} else if (r->r_status &
 		   (OSM_SUBMITTED | OSM_ERROR)) {
+		u64 key = (u64)(unsigned long)r;
 		dprintk("OSM: Putting key 0x%p\n", r);
 		/* Only on first submit */
-		if (put_user(r, &(ioc->request_key_osm_ioc)))
+		if (copy_to_user(&(ioc->reserved_osm_ioc),
+				 &key, sizeof(ioc->reserved_osm_ioc)))
 			return -EFAULT;
 	}
 
@@ -1484,23 +1488,24 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 			     struct timeout *to)
 {
 	long ret;
-	unsigned long p;
+	u64 p;
 	struct osm_request *r;
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
 	DECLARE_WAITQUEUE(to_wait, tsk);
 
 	dprintk("OSM: Entering wait_io()\n");
-	if (get_user(p, &(iocp->request_key_osm_ioc)))
+	if (copy_from_user(&p, &(iocp->reserved_osm_ioc),
+			   sizeof(p)))
 		return -EFAULT;
 
 	dprintk("OSM: User key is 0x%p\n", (struct osm_request *)p);
-	r = (struct osm_request *)p;
+	r = (struct osm_request *)(unsigned long)p;
 	if (!r)
 		return -EINVAL;
 
 	spin_lock_irq(&ofi->f_lock);
-	/* Is it valid? */
+	/* Is it valid? It's surely ugly */
 	if (!r->r_file || (r->r_file != ofi) ||
 	    list_empty(&r->r_list)) {
 		spin_unlock_irq(&ofi->f_lock);

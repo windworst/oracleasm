@@ -108,28 +108,7 @@ struct _osm_ioc {
 	__u32		abn_osm_ioc;
 	__u32		abn_mask_osm_ioc;
 	__u64		tag_osm_ioc;
-	union
-	{
-		__u64	reserved_osm_ioc_8;
-		struct
-		{
-			 __u32 reserved_osm_ioc_4_0;
-			 __u32 reserved_osm_ioc_4_1;
-		} reserved_osm_ioc_4;
-	} reserved_osm_ioc_u;
-#if defined(__LITTLE_ENDIAN)
-#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
-#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
-#else
-#if defined(__BIG_ENDIAN)
-#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
-#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
-#else
-#error BYTESEX
-#endif
-#endif
-
-#define request_key_osm_ioc reserved_osm_ioc_low
+	__u64		reserved_osm_ioc;
 };
 
 #endif  /* _OSMKERNEL */

@@ -538,7 +538,6 @@ osm_erc osm_ioerror(osm_ctx ctx, osm_ioc *ioc,
         return OSM_ERR_INVAL;
 
     errcode = ioc->error_osm_ioc;
-    fprintf(stdout, "Error code of %d\n", errcode);
 
     return osm_error(ctx, errcode, errbuf, eblen);
 }  /* osm_ioerror() */
