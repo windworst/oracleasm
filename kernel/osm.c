@@ -19,6 +19,18 @@
  */
 
 
+/*
+ * defines, because we don't want to have link problems
+ */
+#define get_page_map		o_get_page_map
+#define mm_follow_page		o_mm_follow_page
+#define map_user_kvec		o_map_user_kvec
+#define mm_map_user_kvec	o_mm_map_user_kvec
+#define unmap_kvec		o_unmap_kvec
+#define free_kvec		o_free_kvec
+#define memcpy_from_kvec_dst	o_memcpy_from_kvec_dst
+#define memcpy_to_kvec_dst	o_memcpy_to_kvec_dst
+
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/pagemap.h>
@@ -28,14 +40,15 @@
 #include <linux/highmem.h>
 #include <linux/slab.h>
 #include <linux/genhd.h>
+#include <linux/blkdev.h>
 
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
-#include <linux/kiovec.h>
 
 #include "arch/osmkernel.h"
 #include "osmprivate.h"
 #include "kiovec.c"
+#include "blk.c"
 
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
@@ -156,7 +169,12 @@ struct osm_request {
 	osm_ioc *r_ioc;				/* User osm_ioc */
 	__u16 r_status;				/* status_osm_ioc */
 	int r_error;
-	unsigned long r_elapsed;		/* start time while in-flight, elapsted time once complete */
+	unsigned long r_elapsed;		/* Start time while in-flight, elapsted time once complete */
+	kvec_cb_t r_cb;				/* kvec info */
+	struct buffer_head *r_bh;		/* Assocated buffers */
+	struct buffer_head *r_bhtail;		/* tail of buffers */
+	unsigned long r_bh_count;		/* Number of bufferss */
+	atomic_t r_io_count;			/* Atomic count */
 };
 
 
@@ -903,22 +921,93 @@ static void osm_request_free(struct osm_request *r)
 }  /* osm_request_free() */
 
 
+static void osm_finish_io(struct osm_request *r)
+{
+	struct osm_disk_info *d = r->r_disk;
+	struct osmfs_file_info *ofi = r->r_file;
+	struct osmfs_inode_info *oi = d->d_inode;
+
+	if (!ofi || !d || !oi)
+		BUG();
+
+	lock_oi(oi);
+	list_del(&r->r_queue);
+	r->r_disk = NULL;
+	unlock_oi(oi);
+	osm_put_disk(d);
+
+	spin_lock(&ofi->f_lock);
+	list_del(&r->r_list);
+	list_add(&r->r_list, &ofi->f_complete);
+	r->r_status |= (OSM_COMPLETED | OSM_FREE);
+	if (r->r_error < 0)
+		r->r_status |= OSM_ERROR;
+	spin_unlock(&ofi->f_lock);
+}  /* osm_finish_io() */
+
+
+static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
+{
+	struct osm_request *r = _req;
+	
+	if (!r)
+		BUG();
+
+	unmap_kvec(vec, 0);
+	free_kvec(vec);
+	r->r_cb.vec = NULL;
+
+	osm_finish_io(r);
+}  /* osm_end_kvec_io() */
+
+
+static int osm_submit_request(int rw, struct osm_request *r,
+			      unsigned long first, unsigned long nr)
+{
+	request_queue_t *q;
+	struct request *req;
+
+	/* FIXME: io_req_lock */
+
+	q = blk_get_queue(r->r_bh->b_rdev);
+	if (!q) {
+		printk(KERN_ERR
+		       "OSM: osm_submit_request: Attempt to access nonexistent block device [0x%02X, 0x%02X]\n", MAJOR(r->r_bh->b_rdev), MINOR(r->r_bh->b_rdev));
+		return -ENODEV;
+	}
+
+	req = get_request_wait(q, rw);
+	req->cmd = rw;
+	req->errors = 0;
+	req->hard_sector = req->sector = first;
+	req->hard_nr_sectors = req->nr_sectors = nr;
+	req->current_nr_sectors = req->hard_cur_sectors = nr;
+	req->nr_segments = req->nr_hw_segments = r->r_bh_count;
+	req->buffer = r->r_bh->b_data;
+	req->waiting = NULL;
+	req->bh = r->r_bh;
+	req->bhtail = r->r_bhtail;
+	req->rq_dev = r->r_bh->b_rdev;
+	req->start_time = jiffies;
+
+	/* FIXME: add_request() */
+	return 0;
+}  /* osm_submit_request() */
+
+
 static int osm_submit_io(struct osmfs_file_info *ofi, 
 			 struct osmfs_inode_info *oi,
 			 osm_ioc *ioc)
 {
+	int rw;
 	long ret;
 	struct osm_request *r;
 	struct osm_disk_info *d;
 	osm_ioc tmp;
+	size_t count;
 
 	if (copy_from_user(&tmp, ioc, sizeof(tmp)))
 		return -EFAULT;
-
-	if (tmp.status_osm_ioc)
-		return -EINVAL;
-	if (tmp.rcount_osm_ioc > OSM_MAX_IOSIZE)
-		return -EINVAL;
 
 	ret = -ENOMEM;
 	r = osm_request_alloc();
@@ -935,8 +1024,46 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 		goto out_free;
 
 	r->r_disk = d;
+
+	count = tmp.rcount_osm_ioc * get_hardsect_size(d->dev);
+
+	/* linux only supports unsigned long size sector numbers */
+	if (tmp.status_osm_ioc ||
+	    (tmp.buffer_osm_ioc != (unsigned long)tmp.buffer_osm_ioc) ||
+	    (tmp.first_osm_ioc != (unsigned long)tmp.first_osm_ioc) ||
+	    (tmp.rcount_osm_ioc != (unsigned long)tmp.rcount_osm_ioc) ||
+	    (count > OSM_MAX_IOSIZE) ||
+	    (count < 0))
+		return -EINVAL;
+
+	switch (tmp.operation_osm_ioc) {
+		default:
+			return -EINVAL;
+			break;
+
+		case OSM_READ:
+			rw = READ;
+			break;
+
+		case OSM_WRITE:
+			rw = WRITE;
+			break;
+
+		case OSM_NOOP:
+			/* FIXME: Do something */
+			return 0;
+			break;
+	}
 	
-	/* FIXME: Build the I/O */
+	/* FIXME: More size checks */
+
+	r->r_cb.vec = map_user_kvec(rw, tmp.buffer_osm_ioc, count);
+	r->r_cb.data = r;
+	r->r_cb.fn = osm_end_kvec_io;
+	if (IS_ERR(r->r_cb.vec)) {
+		/* FIXME: Clean up */
+		goto out;
+	}
 
 	lock_oi(oi);
 	list_add(&r->r_queue, &d->d_ios);
@@ -946,9 +1073,12 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	list_add(&r->r_list, &ofi->f_ios);
 	spin_unlock(&ofi->f_lock);
 
-	/* FIXME: Actually queue the I/O */
-
-	r->r_status |= OSM_SUBMITTED;
+	ret = osm_submit_request(rw, r,
+				 tmp.first_osm_ioc, tmp.rcount_osm_ioc);
+	if (ret)
+		osm_finish_io(r);
+	else
+		r->r_status |= OSM_SUBMITTED;
 
 	ret = osm_update_user_ioc(r);
 	goto out;
@@ -1064,29 +1194,6 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 
 	return ret;
 }  /* osm_complete_io() */
-
-
-static void osm_finish_io(struct osm_request *r)
-{
-	struct osm_disk_info *d = r->r_disk;
-	struct osmfs_file_info *ofi = r->r_file;
-	struct osmfs_inode_info *oi = d->d_inode;
-
-	if (!ofi || !d || !oi)
-		BUG();
-
-	lock_oi(oi);
-	list_del(&r->r_queue);
-	r->r_disk = NULL;
-	unlock_oi(oi);
-	osm_put_disk(d);
-
-	spin_lock(&ofi->f_lock);
-	list_del(&r->r_list);
-	list_add(&r->r_list, &ofi->f_complete);
-	r->r_status |= (OSM_COMPLETED | OSM_FREE);
-	spin_unlock(&ofi->f_lock);
-}  /* osm_finish_io() */
 
 
 /* HACK HACK HACK */

@@ -44,7 +44,7 @@ $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
 $(OSMLIB_OBJS): %.o: %.c
 	$(CC) $(CPPFLAGS) $(OSMLIB_CPPFLAGS) -c -o $@ $<
 
-kernel/osm.o: include/osmprivate.h kernel/kiovec.c
+kernel/osm.o: include/osmprivate.h kernel/kiovec.c kernel/blk.c
 kernel/osm.o: kernel/osm.c
 	$(CC) $(CPPFLAGS) $(KERNEL_CPPFLAGS) -c -o $@ $<
 

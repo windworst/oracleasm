@@ -51,6 +51,17 @@
 #define    OSM_IO_FULL      0x8                      /* completion list full */
 #define    OSM_IO_IDLE      0x10                       /* no more active I/O */
 
+/* I/O operations */
+#define OSM_NOOP        0x00            /* no-op to key check or pass a hint */
+#define OSM_READ        0x01                          /* Read data from disk */
+#define OSM_WRITE       0x02                           /* write data to disk */
+#define OSM_COPY        0x03       /* copy data from one location to another */
+#define OSM_GETKEY      0x04           /* get value of one or more disk keys */
+#define OSM_SETKEY      0x05           /* set value of one or more disk keys */
+#define OSM_GETFENCE    0x06          /* get value of one or more fence keys */
+#define OSM_SETFENCE    0x07          /* set value of one or more fence keys */
+
+
 
 /*
  * Disk/Fence Keys - (unused as yet)
@@ -87,7 +98,7 @@ struct _osm_ioc {
 	__u64   	disk_osm_ioc;
 	__u64		first_osm_ioc;
 	__u32		rcount_osm_ioc;
-	void		*buffer_osm_ioc;
+	unsigned long	buffer_osm_ioc;
 	osm_check	*check_osm_ioc;
 	__u16		content_offset_osm_ioc;
 	__u16		content_repeat_osm_ioc;
@@ -117,4 +128,5 @@ struct _osm_ioc {
 };
 
 #endif  /* _OSMKERNEL */
+
 
