@@ -1,4 +1,8 @@
 
+2003-12-10	Joel Becker <joel.becker@oracle.com>
+
+	* tools/asmtool.c: Create and Delete seem to work.
+
 2003-12-08	Joel Becker <joel.becker@oracle.com>
 
 	* documents/asm-install.txt: Newer oracleasm plans.

@@ -88,7 +88,41 @@ struct _ASMToolAttrs
 /*
  * Function prototypes
  */
+static inline size_t strnlen(const char *s, size_t size);
+static void print_usage(int rc);
+static void print_version();
+static int open_disk(const char *disk_name);
+static int read_disk(int fd, struct asm_disk_label *adl);
+static int write_disk(int fd, struct asm_disk_label *adl);
+static int check_disk(struct asm_disk_label *adl, const char *label);
+static int mark_disk(int fd, struct asm_disk_label *adl,
+                     const char *label);
+static int unmark_disk(int fd, struct asm_disk_label *adl);
+static char *asm_disk_id(struct asm_disk_label *adl);
+static char *asm_disk_path(const char *manager, const char *disk);
+static int delete_disk_by_name(const char *manager,
+                               const char *disk,
+                               ASMToolAttrs *attrs);
+static int delete_disk_by_device(const char *manager,
+                                 const char *target,
+                                 ASMToolAttrs *attrs);
+static int make_disk(const char *manager, const char *disk,
+                     const char *target);
 static int unlink_disk(const char *manager, const char *disk);
+static int create_disk(const char *manager, const char *disk,
+                       const char *target, ASMToolAttrs *attrs);
+static int delete_disk(const char *manager, const char *object,
+                       ASMToolAttrs *attrs);
+static int is_manager(const char *filename);
+static int list_managers();
+static int parse_options(int argc, char *argv[], ASMToolOperation *op,
+                         char **manager, char **object, char **target,
+                         struct list_head *prog_attrs);
+static int prepare_attrs(char **attr_names, int num_names,
+                         struct list_head *l);
+static void clear_attrs(struct list_head *l);
+static int attr_boolean(const char *attr_value);
+static int fill_attrs(ASMToolAttrs *attrs, struct list_head *attr_list);
 
 
 
@@ -195,7 +229,7 @@ static int read_disk(int fd, struct asm_disk_label *adl)
         return -ENOSPC;
 
     return 0;
-}
+}  /* read_disk() */
 
 
 static int write_disk(int fd, struct asm_disk_label *adl)
@@ -229,7 +263,7 @@ static int write_disk(int fd, struct asm_disk_label *adl)
         return -ENOSPC;
 
     return 0;
-}
+}  /* write_disk() */
 
 
 static int check_disk(struct asm_disk_label *adl, const char *label)
@@ -342,6 +376,7 @@ static int delete_disk_by_name(const char *manager, const char *disk,
 {
     int rc, fd;
     char *asm_disk, *id;
+    struct asm_disk_label adl;
 
     rc = -ENOMEM;
     asm_disk = asm_disk_path(manager, disk);
@@ -362,7 +397,7 @@ static int delete_disk_by_name(const char *manager, const char *disk,
     }
     fd = rc;
 
-    rc = read_disk(fd, adl);
+    rc = read_disk(fd, &adl);
     if (rc)
     {
         fprintf(stderr,
@@ -371,46 +406,55 @@ static int delete_disk_by_name(const char *manager, const char *disk,
         goto out_close;
     }
 
-    rc = check_disk(adl, disk);
+    rc = check_disk(&adl, disk);
     if (rc)
     {
-        if (rc == -ENXIO)
+        if (rc == -ESRCH)
         {
-            fprintf(stderr,
-                    "asmtool: Device \"%s\" is not labeled for ASM\n",
-                    disk);
-        }
-        else if (rc == -ESRCH)
-        {
-            rc = -ENOMEM;
-            id = asm_disk_id(adl);
+            id = asm_disk_id(&adl);
             if (!id)
             {
                 fprintf(stderr,
-                        "asmtool: Unable to query ASM disk \"%s\": %s\n",
-                        disk, strerror(-rc));
+                        "asmtool: ASM disk label mismatch: %s\n",
+                        strerror(-rc));
             }
             else
             {
-                rc = -ESRCH;
                 fprintf(stderr,
-                        "asmtool: ASM disk \"%s\" is actually labeled for ASM disk \"%s\"\n",
+                        "asmtool: Device of ASM disk \"%s\" is actually labeled for ASM disk \"%s\"\n",
                         disk, id);
                 free(id);
             }
+            goto out_close;
         }
-        goto out_close;
+        else if (rc != -ENXIO)
+        {
+            fprintf(stderr,
+                    "asmtool: Unable to query ASM disk \"%s\": %s\n",
+                    disk, strerror(-rc));
+            goto out_close;
+        }
+    }
+    else
+    {
+        rc = unmark_disk(fd, &adl);
+        if (rc && (rc != -ESRCH))
+        {
+            fprintf(stderr,
+                    "asmtool: Unable to unmark ASM disk \"%s\": %s\n",
+                    disk, strerror(-rc));
+            goto out_close;
+        }
     }
 
+    rc = unlink_disk(manager, disk);
+
 out_close:
-    if (rc < 0)
-        close(fd);
-    else
-        rc = fd;
+    close(fd);
 
 out:
     return rc;
-}  /* get_disk_by_name() */
+}  /* delete_disk_by_name() */
 
 
 static int delete_disk_by_device(const char *manager,
@@ -481,7 +525,14 @@ static int delete_disk_by_device(const char *manager,
     rc = open_disk(asm_disk);
     if (rc < 0)
     {
-        if (rc != -ENOENT)
+        if (rc == -ENXIO)
+        {
+            /* If the actual device behind asm_disk is not there... */
+            rc = unlink_disk(manager, id);
+            if (rc)
+                goto out_free;
+        }
+        else if (rc != -ENOENT)
         {
             fprintf(stderr,
                     "asmtool: Unable to open ASM disk \"%s\": %s\n",
@@ -738,9 +789,7 @@ out:
 static int delete_disk(const char *manager, const char *object,
                        ASMToolAttrs *attrs)
 {
-    int fd, rc;
-    char *asm_disk, *id, *disk;
-    struct asm_disk_label adl;
+    int rc;
 
     if (!object || !*object)
     {
@@ -754,7 +803,6 @@ static int delete_disk(const char *manager, const char *object,
     else
         rc = delete_disk_by_name(manager, object, attrs);
 
-out:
     return rc;
 }  /* delete_disk() */
 
