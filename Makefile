@@ -37,6 +37,13 @@ rhas_srpm: dist
 rhas_rpm: rhas_srpm
 	rpm --rebuild --target i686 "osm-2.4.9-e-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
+rhel3_srpm: dist
+	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/redhat/osm-2.4.21-EL.spec"
+
+rhel3_rpm: rhel3_srpm
+	rpmbuild --rebuild --target i686 "osm-2.4.21-EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+
+
 #
 # Include this at the very end of the Makefile
 #

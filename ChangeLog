@@ -1,6 +1,14 @@
 
 2003-08-25	Joel Becker <joel.becker@oracle.com>
 
+	* Makefile: Add rhel3 targets.
+	* configure.in: Add rhel3 specfile.
+	* kernel/Makefile: Add hugemem target.
+	* redhat/Makefile: Add rhel3 specfile.
+	* redhat/osm-2.4.21-EL.spec.in: Added.
+
+2003-08-25	Joel Becker <joel.becker@oracle.com>
+
 	* kernel/Makefile: Support 'hugemem'.
 	* kernel/osm.c: Lots of logging.  UNITED_LINUX->UNITEDLINUX.
 
