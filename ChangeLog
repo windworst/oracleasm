@@ -1,6 +1,15 @@
 
 2003-11-13	Joel Becker <joel.becker@oracle.com>
 
+	* Makefile: Add vendor subdir.
+	* vendor: Add vendor subdir.
+	* redhat: Moved to vendor/redhat.
+	* unitedlinux: Moved to vendor/unitedlinux.
+	* vendor/common: Added.
+	* vendor/redhat/Makefile: Adjust TOPDIR.
+
+2003-11-13	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: Added M64, USERM64, and --enable-force32.
 	* Config.make.in: Added M64, USERM64.
 	* kernel/Makefile: Added M64.

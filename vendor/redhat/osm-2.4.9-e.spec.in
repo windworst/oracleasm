@@ -1,0 +1,330 @@
+#
+# Spec file for osm
+#
+
+# Macros
+# This one is hardcoded because, well, it belongs there
+%define _prefix /usr
+
+# Turn on's and off's (summit and debug not used but added
+# for future proofing)
+%define buildup		1
+%define buildsmp	1
+%define buildenterprise	1
+%define buildsummit	0
+%define builddebug	0
+
+
+# This must be changed to the minimum ABI compat kernel version expected
+%define base 2.4.9-e
+%define kver %{base}.12
+
+Summary: The Oracle Storage Manager.
+Name: osm-%{base}
+Version: @DIST_VERSION@
+Release: @RPM_VERSION@
+Copyright: GPL
+Group: System Environment/Kernel
+Source: osmlib-@DIST_VERSION@.tar.gz
+URL: http://oss.oracle.com/
+Distribution: Oracle
+Vendor: Oracle Corporation
+Packager: Joel Becker <joel.becker@oracle.com>
+Provides: osm = %{version}
+AutoReqProv: no
+Requires: kernel >= %{kver}
+Requires: osm-support >= 0.6.1
+BuildRequires: kernel-source >= %{kver}
+
+
+BuildRoot: %{_tmppath}/osmlib-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+
+
+%description
+OSM is the Oracle Storage Manager.  This package is compiled for
+uniprocessor kernels.
+
+%if %{buildsmp}
+%package smp
+Summary: The Oracle Storage Manager for SMP systems.
+Group: System Environment/Kernel
+Provides: osm = %{version}
+Requires: kernel-smp >= %{kver}
+Requires: osm-support >= 0.6.1
+BuildRequires: kernel-source >= %{kver}
+AutoReqProv: no
+
+
+%description smp
+OSM is the Oracle Storage Manager.  This package is compiled for
+symmetric multiprocessor kernels.
+%endif
+
+
+%if %{buildenterprise}
+%package enterprise
+Summary: The Oracle Storage Manager for enterprise systems.
+Group: System Environment/Kernel
+Provides: osm = %{version}
+Requires: kernel-enterprise >= %{kver}
+Requires: osm-support >= 0.6.1
+BuildRequires: kernel-source >= %{kver}
+AutoReqProv: no
+
+
+%description enterprise
+OSM is the Oracle Storage Manager.  This package is compiled for
+symmetric processor kernels on machines with more than 4GB of RAM.
+%endif
+
+
+%if %{buildsummit}
+%package summit
+Summary: The Oracle Storage Manager for summit based systems.
+Group: System Environment/Kernel
+Provides: osm = %{version}
+Requires: kernel-summit >= %{kver}
+Requires: osm-support >= 0.6.1
+BuildRequires: kernel-source >= %{kver}
+AutoReqProv: no
+
+
+%description summit
+OSM is the Oracle Storage Manager.  This package is compiled for
+summit based symmetric processor kernels eg IBM's x440
+%endif
+
+
+%if %{builddebug}
+%package debug
+Summary: The Oracle Storage Manager for debugging systems.
+Group: System Environment/Kernel
+Provides: osm = %{version}
+Requires: kernel-debug >= %{kver}
+Requires: osm-support >= 0.6.1
+BuildRequires: kernel-source >= %{kver}
+AutoReqProv: no
+
+
+%description debug
+OSM is the Oracle Storage Manager.  This package is compiled for
+debugging kernels.
+%endif
+
+
+%package -n osm-lib
+Summary: Userspace library for the Oracle Storage Manager
+Group: System Environment/Kernel
+AutoReqProv: no
+Requires: glibc >= 2.2.4
+
+%description -n osm-lib
+The Oracle userspace library to access the Oracle Storage Manager
+
+%package -n osm-support
+Summary: Tools for managing the Oracle Storage Manager
+Group: System Environment/Kernel
+AutoReqProv: no
+Requires: glibc >= 2.2.4
+
+
+%description -n osm-support
+Tools to manage the Oracle Storage Manager
+
+
+%prep
+%setup -n osmlib-%{version}
+
+
+%build
+# Hack to find a good source tree
+KVER=""
+if test -d "/usr/src/linux-%{kver}"; then
+    KVER="%{kver}"
+else
+    CURKVER="`uname -r | awk '{sub(/smp$|enterprise$|summit$|debug$/,"");print}'`"
+    case "$CURKVER" in
+    %{base}*)
+        if test -d "/usr/src/linux-${CURKVER}"; then
+            KVER="${CURKVER}"
+        fi
+        ;;
+    *)
+        ;;
+    esac
+fi
+
+if test -z "$KVER" ; then
+    if test -d "/usr/src/linux-2.4" ; then
+        KPATH="/usr/src/linux-2.4"
+    elif test -d "/usr/src/linux" ; then
+        KPATH="/usr/src/linux"
+    else
+        echo "No kernel tree to build from!" >&2
+        exit 1
+    fi
+else
+    KPATH="/usr/src/linux-${KVER}"
+fi
+    
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
+cd kernel
+
+%if %{buildup}
+make KVER=up
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{base}-ABI/osm" install 
+%endif
+
+%if %{buildsmp}
+make clean
+make KVER=smp
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{base}-smp-ABI/osm" install 
+%endif
+
+%if %{buildenterprise}
+make clean
+make KVER=ent
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{base}-enterprise-ABI/osm" install 
+%endif
+
+%if %{builddebug}
+make clean
+make KVER=debug
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}-debug-ABI/osm" install 
+%endif
+
+
+cd ../tools
+make
+cd ../libosm
+make
+
+%if %{buildsummit}
+cd ..
+# Now to find a summit source tree
+KVER=""
+if test -d "/usr/src/linux-%{kver}summit"; then
+    KVER="%{kver}summit"
+else
+    CURKVER="`uname -r | awk '{sub(/smp$|enterprise$|summit$|debug$/,"");print}'`"
+    case "$CURKVER" in
+    %{base}*)
+        if test -d "/usr/src/linux-${CURKVER}summit"; then
+            KVER="${CURKVER}summit"
+        fi
+        ;;
+    *)
+        ;;
+    esac
+fi
+
+if test -z "$KVER" ; then
+    echo "No summit tree to build from!" >&2
+    exit 1
+fi
+
+KPATH="/usr/src/linux-${KVER}"
+    
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
+cd kernel
+
+make clean
+make KVER=summit
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{base}-summit-ABI/osm" install 
+%endif
+
+
+
+%install
+
+mkdir -p $RPM_BUILD_ROOT/etc/init.d
+cp -f redhat/osm.init $RPM_BUILD_ROOT/etc/init.d/osm
+
+if [ "%{_lib}" = "lib64" ]
+then
+    BPL=64
+elif [ "${RPM_ARCH}" = "ia64" ]
+then
+    BPL=64
+else
+    BPL=32
+fi
+mkdir -p ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1
+cp libosm/libosm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
+
+cd tools
+make DESTDIR="$RPM_BUILD_ROOT" install
+
+
+%clean
+rm -rf "$RPM_BUILD_ROOT"
+
+
+%post -n osm-support
+chkconfig osm on
+/etc/init.d/osm linc
+
+
+%if %{buildup}
+%post
+/etc/init.d/osm link
+
+%files
+%defattr(-,root,root)
+/lib/modules/%{base}-ABI/osm
+%endif
+
+%if %{buildsmp}
+%post smp
+/etc/init.d/osm link
+
+%files smp
+%defattr(-,root,root)
+/lib/modules/%{base}-smp-ABI/osm
+%endif
+
+%if %{buildenterprise}
+%post enterprise
+/etc/init.d/osm link
+
+%files enterprise
+%defattr(-,root,root)
+/lib/modules/%{base}-enterprise-ABI/osm
+%endif
+
+%if %{buildsummit}
+%post summit
+/etc/init.d/osm link
+
+%files summit
+%defattr(-,root,root)
+/lib/modules/%{base}-summit-ABI/osm
+%endif
+
+%if %{builddebug}
+%post debug
+/etc/init.d/osm link
+
+%files debug
+%defattr(-,root,root)
+/lib/modules/%{base}-debug-ABI/osm
+%endif
+
+%files -n osm-lib
+%defattr(-,root,root)
+/opt/extapi
+
+%files -n osm-support
+%defattr(-,root,root)
+/usr/sbin/osmtool
+/etc/init.d/osm
+
+
+
+%changelog
+* Mon Jun 23 2003 Joel Becker <joel.becker@oracle.com>
+- Added osm-lib bits
+
+* Fri Jun 20 2003 Joel Becker <joel.becker@oracle.com>
+- Initial RPM
+

@@ -12,7 +12,7 @@ include $(TOPDIR)/Preamble.make
 #
 # Add any directories to recurse into via the SUBDIRS variable.
 # 
-SUBDIRS = include libosm kernel tools test redhat
+SUBDIRS = include libosm kernel tools test vendor
 
 #
 # Extra (non-source) files to distribute
@@ -32,13 +32,13 @@ DIST_FILES = \
 
 
 rhas_srpm: dist
-	rpm -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/redhat/oracleasm-2.4.9-e.spec"
+	rpm -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-2.4.9-e.spec"
 
 rhas_rpm: rhas_srpm
 	rpm --rebuild --target i686 "oracleasm-2.4.9-e-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
 rhel3_srpm: dist
-	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/redhat/oracleasm-2.4.21-EL.spec"
+	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-2.4.21-EL.spec"
 
 rhel3_rpm: rhel3_srpm
 	rpmbuild --rebuild --target i686 "oracleasm-2.4.21-EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
