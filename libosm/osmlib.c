@@ -39,7 +39,7 @@
 
 
 uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
-                  uword len, uword *interface, ub4 *maxio)
+                  uword len, uword *interface_mask)
 {
     uword ret;
     int fd, rc;
@@ -74,11 +74,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
     ret = OSM_INIT_OTHER;
         *iid = (osm_iid)new_iid;
 
-    *interface = OSM_IO | OSM_UDID | OSM_FGROUP | OSM_SIZE |
-        OSM_OSNAME | OSM_HARDEN;
-
-    /* This should probably be returned from the kernel */
-    *maxio = OSM_MAX_IOSIZE;
+    *interface_mask = OSM_IO | OSM_UDID | OSM_FGROUP | OSM_OSNAME;
 
     ret = OSM_INIT_SUCCESS;
 
@@ -87,7 +83,8 @@ out:
 }  /* osm_version() */
 
 
-osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp)
+/* osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp) */
+osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
 {
     osm_erc err;
     osm_ctx_private *priv;
@@ -133,7 +130,9 @@ osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp)
         goto out_free_ctx;
 
     priv->iid = iid;
+#if 0 /* wither app? */
     priv->app = app;
+#endif
     priv->discover_cache = NULL;
 
     *ctxp = (osm_ctx *)priv;
@@ -214,10 +213,11 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     osm_name_private *pname = (osm_name_private *)name;
     osm_erc err;
     glob_t *globbuf;
-    char *path;
+    char *path = NULL;
     int rc, fd, len, to_clear;
     unsigned long size;
     struct stat stat_buf;
+    struct osm_disk_query dq;
 
     err = OSM_ERR_INVAL;
     if (!priv)
@@ -238,7 +238,8 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
             rc = fstat(fd, &stat_buf);
             if (!rc && S_ISBLK(stat_buf.st_mode)) 
             {
-                rc = ioctl(priv->fd, OSMIOC_ISDISK, &(stat_buf.st_rdev));
+                dq.dq_rdev = stat_buf.st_rdev;
+                rc = ioctl(priv->fd, OSMIOC_QUERYDISK, &dq);
                 if (!rc)
                 {
                     /* Use size temporary for ub4 platforms */
@@ -274,9 +275,9 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
             globbuf->gl_pathv[priv->discover_index], len);
     pname->path_osm_name[len] = '\0';
     pname->label_osm_name[0] = '\0';
-    pname->interface_osm_name = (OSM_IO | OSM_OSNAME | OSM_SIZE);
+    pname->interface_osm_name = (OSM_IO | OSM_OSNAME);
     pname->reserved_osm_name_low = stat_buf.st_rdev;
-
+    pname->maxio_osm_name = dq.dq_maxio / pname->blksz_osm_name;
 
     priv->discover_index++;
 end_glob:
@@ -503,6 +504,13 @@ osm_erc osm_ioerror(osm_ctx ctx, osm_ioc *ioc,
 }  /* osm_ioerror() */
 
 
+osm_erc osm_iowarn(osm_ctx ctx, osm_ioc *ioc,
+                   oratext *wrnbuf, uword wblen)
+{
+    return osm_ioerror(ctx, ioc, wrnbuf, wblen);
+}  /* osm_iowarn() */
+
+
 /* Stub implementation, no real cancel */
 osm_erc osm_cancel(osm_ctx ctx, osm_ioc *ioc)
 {
@@ -539,12 +547,3 @@ void osm_dump(osm_ctx ctx)
     ioctl(priv->fd, OSMIOC_DUMP, 0);
 }  /* osm_dump() */
 #endif
-
-osm_erc osm_register(void *mem, size_t len, boolean shared)
-{
-    return 0;
-}
-osm_erc osm_deregister(void *mem, size_t len, boolean shared)
-{
-    return 0;
-}

@@ -56,7 +56,7 @@
 
 /* Debugging is on */
 #undef DEBUG 
-#define DEBUG1 1
+#undef DEBUG1
 #undef DEBUG_BROKEN
 
 #ifndef DEBUG
@@ -1705,7 +1705,6 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 				dprintk1("Next completion pointer is not null.\n");
                 }
 #endif /* DEBUG1 */
-
 	}
 
 out_to:
@@ -1822,27 +1821,32 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
 	kdev_t kdv;
+#if 0 /* allow partitions */
 	struct gendisk *g;
-	int drive, first_minor, dev;
+	int drive, first_minor;
+#endif
 	unsigned long handle;
 	struct osmfs_file_info *ofi = OSMFS_FILE(file);
 	struct osmfs_inode_info *oi = OSMFS_INODE(inode);
 	struct osmio ioc;
+	struct osm_disk_query dq;
 
 	switch (cmd) {
 		default:
 			return -ENOTTY;
 			break;
 
-		case OSMIOC_ISDISK:
-			if (get_user(dev, (int *)arg))
+		case OSMIOC_QUERYDISK:
+			if (copy_from_user(&dq, (struct osm_disk_query *)arg,
+					   sizeof(dq)))
 				return -EFAULT;
-			kdv = to_kdev_t(dev);
+			kdv = to_kdev_t(dq.dq_rdev);
 			dprintk("OSM: Checking disk %d,%d\n", MAJOR(kdv), MINOR(kdv));
 			/* Right now we trust only SCSI ->request_fn */
 			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
 				return -EINVAL;
 
+#if 0 /* allow partitions */
 			g = get_gendisk(kdv);
 			if (!g)
 				return -ENXIO;
@@ -1850,6 +1854,11 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			first_minor = (drive << g->minor_shift);
 			if (first_minor != MINOR(kdv))
 				return -EINVAL;
+#endif
+			dq.dq_maxio = OSM_MAX_IOSIZE;
+			if (copy_to_user((struct osm_disk_query *)arg,
+					 &dq, sizeof(dq)))
+				return -EFAULT;
 			break;
 
 		case OSMIOC_OPENDISK:

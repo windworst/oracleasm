@@ -27,8 +27,8 @@
  */
 #define OSMLIB_NAME "OSM Library - Generic Linux"
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
-#define OSMLIB_MINOR 1
-#define OSMLIB_MICRO 1
+#define OSMLIB_MINOR 2
+#define OSMLIB_MICRO 0
 
 /*
  * Max I/O is 100k.  Why 100?  Because the MegaRAID card supports only
@@ -38,7 +38,7 @@
  * MegaRAID sg list.  The intention is for per-device discovery of this
  * value in the future.  FIXME.
  */
-#define OSM_MAX_IOSIZE  (1024 * 100)
+#define OSM_MAX_IOSIZE          (1024 * 64)
 
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
@@ -51,17 +51,24 @@
  */
 struct osmio
 {
-    unsigned long       handle;
+    unsigned long        handle;
     osm_ioc             **requests;
-    unsigned long       reqlen;
+    unsigned int        reqlen;
     osm_ioc             **waitreqs;
-    unsigned long       waitlen;
+    unsigned int        waitlen;
     osm_ioc             **completions;
-    unsigned long       complen;
+    unsigned int        complen;
     __u32               intr;
     struct timespec     *timeout;
-    __u32               *statusp;
+    unsigned int        *statusp;
 };
+
+struct osm_disk_query
+{
+    int dq_rdev;
+    unsigned long dq_maxio;
+};
+
 
 
 /*
@@ -74,7 +81,7 @@ struct osmio
 #define OSMIOC_CHECKIID         _IOWR(OSM_IOCTL_BASE, 1, unsigned long)
 
 /* ioctls on /dev/osm/<iid> */
-#define OSMIOC_ISDISK           _IOW(OSM_IOCTL_BASE, 2, int)
+#define OSMIOC_QUERYDISK        _IOWR(OSM_IOCTL_BASE, 2, struct osm_disk_query)
 #define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, unsigned long)
 #define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, unsigned long)
 #define OSMIOC_IODISK           _IOWR(OSM_IOCTL_BASE, 5, struct osmio)

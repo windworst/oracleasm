@@ -9,19 +9,19 @@
 
 /*
   NAME
-    osm.h - Oracle Storage Manager interface definition
+    osmlib.h - Oracle Storage Manager interface definition
     
   DESCRIPTION
   
-  The Oracle Storage Manager (OSM) is a part of the Oracle kernel that allows
-  Oracle to use disks rather than file systems/volume managers for storing all
-  the data for an Oracle database. OSM is given one or more disks to form a
-  disk group. OSM will automatically allocate data files, control files,
-  online logs, archive logs, backup sets, and other binary files from a disk
-  group as needed. The I/O load is evenly distributed across all the disks in
-  a group.  Administrators administer disk groups not files. OSM supports a
-  database having its files in multiple disk groups and multiple databases
-  having files in the same disk group.
+  The Oracle Storage Manager (OSM) is a file system inside the Oracle kernel
+  that allows Oracle to use raw disks rather than external file systems/volume
+  managers for storing all the data for an Oracle database. OSM is given one
+  or more disks to form a disk group. OSM will automatically allocate data
+  files, control files, online logs, archive logs, backup sets, and other
+  binary files from a disk group as needed. The I/O load is evenly distributed
+  across all the disks in a group.  Administrators administer disk groups not
+  files. OSM supports a database having its files in multiple disk groups and
+  multiple databases having files in the same disk group.
 
   OSM will work with JBOD or storage arrays. With JBOD OSM will implement
   redundancy algorithms to tolerate disk failures.  With a storage array the
@@ -32,19 +32,20 @@
   for growing or shrinking a virtual disk given to OSM by a storage array.
 
   This header file defines an alternative API for the Oracle kernel to access
-  physical disks, rather than the standard operating system interface. A
-  storage vendor may implement a library that presents this API to enhance the
+  raw disks, rather than the standard operating system interface. A storage
+  vendor may implement a library that presents this API to enhance the
   performance and/or managability of OSM for their storage. The API provides
-  seven major enhancements over standard interfaces: discovery, I/O processing,
-  serverless copy, buffer registration, metadata validation, usage hints, and
-  I/O hardening.
+  six major enhancements over standard interfaces: discovery, I/O processing,
+  serverless copy, metadata validation, usage hints, and write validation.
 
   Discovery
 
-  osmlib allows OSM to find the disks that are already in disk
-  groups, and disks that are available for adding to disk groups. The disks
-  may be accessed via different names on different nodes in a cluster.
-  Discovery makes the characteristics of the disk available to OSM.
+  osmlib allows OSM to find the disks that are already in disk groups, and
+  disks that are available for adding to disk groups. The disks may be
+  accessed via different names on different nodes in a cluster.  Discovery
+  makes the characteristics of the disk available to OSM. Disks discovered
+  through osmlib do not need to be available through normal operating system
+  interfaces.
 
   I/O processing 
 
@@ -52,19 +53,13 @@
   dramatically reduce the number of calls to the operating system for
   doing I/O. One handle can be used by all the processes in an
   instance for accessing the same disk. This eliminates multiple open
-  calls  and multiple file descriptors.
-
+  calls and multiple file descriptors.
+  
   Serverless copy
  
   A read and a write can be linked so that the data can be copied
   without sending it to a server. This is useful for replicating data,
   taking backups, and relocating data for load balancing. 
-
-  Buffer registration 
-
-  Memory used for asynchronous, performance critical I/O will be
-  registered with osmlib. This allows some I/O's to be done in user
-  mode through host adaptors that require memory registration. 
 
   Metadata validation on I/O
   
@@ -86,18 +81,22 @@
   a new online log so it can be used for logging data. The storage device can
   use these hints to choose caching policies. Each I/O also includes a
   priority so that the storage device can complete the more important requests
-  first.
+  first. A priority is included with every I/O to ensure the more important
+  I/O's are done first.
 
-  I/O Hardening
+  Write validation
 
   Bugs can occur in the software and hardware between the Oracle kernel and
   the storage system. The most damaging problems affect the data on a disk
-  write. I/O requests can contain information about the data so that the
-  storage can verify that it received the data intended to go with the
-  command. Administrators can accidentally overwrite a disk that is in use.
-  Disks discovered through osmlib do not need to be available through normal
-  operating system discovery. It would be reasonable to disallow access
-  through normal I/O mechanisms to disks opened through osmlib.
+  write. Bugs in operating systems, host adaptors, switches and other places
+  can result in the wrong data being associated with a write. I/O requests can
+  contain information about the data so that the storage can verify that it
+  received the data intended to go with the command. Administrators can
+  accidentally overwrite a disk that is in use.  Associating partition tags
+  with disk partitions can assign a portion of a disk to a particular
+  application and have the disk verify writes are from the correct
+  application. Tagging will disallow writes through normal I/O mechanisms to
+  tagged areas of a disk.
   
   RELATED DOCUMENTS
   
@@ -121,10 +120,9 @@
     osm_fetch      - Fetch names from the discovered set of disks
     osm_open       - Open a disk for read/write
     osm_close      - Close a disk
-    osm_register   - Register memory for fast async I/O
-    osm_deregister - Deregister memory that was registered 
     osm_io         - Manage disk I/O requests
     osm_ioerror    - Translate an I/O error code into an error message
+    osm_iowarn     - Translate an I/O warning code into a message
     osm_cancel     - Cancel an I/O request that is being processed.
     osm_posted     - Thread is posted out of its I/O wait
 
@@ -146,7 +144,19 @@
      with no effect on any other execution thread. It must not change any
      signal handling.
 
+     The library will be dynamically linked with the Oracle kernel. There
+     could be multiple osmlib implementations simultaneously linked to the
+     same Oracle kernel. Each library would provide access to a different
+     set of disks.
+
   MODIFIED
+     wbridge    12/05/02 - remove atomic key change on I/O
+     pbagal     11/22/02 - Introduce maxio size for read & write
+     wbridge    09/11/02 - tweek comments
+     wbridge    08/29/02 - remove registration and add other improvements
+     wbridge    04/22/02 - interface is a reserved word on NT eliminate it.
+     rlong      04/15/02 - Oracle Storage Manager merge
+     wbridge    03/15/02 - eliminate hard tabs.
      wbridge    03/05/02 - better yet.
      wbridge    02/01/02 - improve comments.
      wbridge    01/11/02 - eliminate discovery returning an array of disks.
@@ -158,12 +168,11 @@
 
 */
 
-
 #ifndef OSMLIB_ORACLE
 # define OSMLIB_ORACLE  
 
 /*---------------------------------------------------------------------------*/
-/*		      PUBLIC TYPES AND CONSTANTS                             */
+/*                    PUBLIC TYPES AND CONSTANTS                             */
 /*---------------------------------------------------------------------------*/
 
 /*
@@ -172,9 +181,9 @@
  * The very first call to osmlib, when an Oracle instance is being started,
  * negotiates the version of the library and verifies that the correct system
  * software is installed. This results in an instance identifier that is used
- * by all execution threads when they initialize their osmlib state. This
- * allows the library to know that a group of execution threads are
- * cooperating as an instance and will be sharing disk identifiers. The
+ * by all execution threads in an instance when they initialize their osmlib
+ * state. This allows the library to know that a group of execution threads
+ * are cooperating as an instance and will be sharing disk identifiers. The
  * contents of the identifier is opaque to Oracle. If the library does not
  * need an instance identifier this value can be zero.  */
 typedef ub8 osm_iid;                                  /* instance identifier */
@@ -199,7 +208,7 @@ typedef void *osm_ctx;                                    /* context pointer */
  * Every osmlib call, except osm_version(), returns an error code. An error
  * code of zero indicates the call was successful. Any other error code
  * indicates that something went wrong. A negative error code means that a
- * software bug has been encountered. Some parameter does not make sense
+ * software bug has been encountered - some parameter does not make sense
  * (e.g. an invalid pointer), or some osmlib internal structure has been
  * damaged. A negative error code will always result in Oracle signaling an
  * internal error. A positive error code indicates that there has been a
@@ -207,22 +216,22 @@ typedef void *osm_ctx;                                    /* context pointer */
  * disk name would generate a positive error code. The code is converted into
  * a meaningful message by osm_error(). Thus the meaning of an error code is
  * completely up to the osmlib implementation. Oracle only interprets the sign
- * of an error. In the descriptions of the routines that follow examples are
+ * of an error. In the descriptions of the routines that follow, examples are
  * given of possible errors. These examples are not a complete list of all
  * possible errors. There may be implementations where the example errors
- * could not occur. They are intended to aid understanding, not limit the set
- * of errors.  */
+ * could not occur. The examples are intended to aid understanding, not limit
+ * the set of errors.  */
 typedef sword osm_erc;                                      /* an error code */
 
 /*
  * Disk name and attributes structure
  *
- * The name structure is used to describe a disk to
- * Oracle. Discovery returns name structures as its result. A name can be used
- * to open a disk for use by an Oracle instance. A name structure can be used
- * by any instance on the same node of a cluster to refer to the same disk. A
- * name discovered on one node is never passed to another node for opening. A
- * name structure also contains information about the disk that is useful for
+ * The name structure is used to describe a disk to Oracle. Discovery returns
+ * name structures as its result. A name can be used to open a disk for use by
+ * an Oracle instance. A copy of the name structure can be used by any
+ * instance on the same node of a cluster to open the same disk. A name
+ * discovered on one node is never passed to another node for opening. A name
+ * structure also contains information about the disk that is useful for
  * adding it to a disk group. This simplifies administration since the
  * administrator will not have to enter these values. It also allows warnings
  * when disks with significantly different characteristics are added to the
@@ -232,7 +241,7 @@ typedef struct osm_name osm_name;                /* disk name and attributes */
 #define OSM_MAXPATH   256     /* maximum size of a null terminated path name */
 #define OSM_MAXLABEL  32               /* maximum characters in a disk label */
 #define OSM_MAXFGROUP 32       /* maximum characters in a failure group name */
-#define OSM_MAXUDID 64           /* maximum characters in a unique disk ID */
+#define OSM_MAXUDID   64           /* maximum characters in a unique disk ID */
 
 struct osm_name
 {
@@ -249,54 +258,72 @@ struct osm_name
    * osm_version(). The following interface bits are defined. */
 #define OSM_IO       0x0001 /* osmlib style I/O with per instance descriptor */
         /* The routines osm_open(), osm_close(), and osm_io() will be called
-	 * to read and write the contents of this disk.  If it is not set then
-	 * osmlib is only used for discovery, and the disks are accessed
-	 * through the normal operating system interfaces for
-	 * open/close/read/write. If this is not set the path name must be a
-	 * valid OS file name - OSM_OSNAME set. */
+         * to read and write the contents of this disk.  If it is not set then
+         * osmlib is only used for discovery, and the disks are accessed
+         * through the normal operating system interfaces for
+         * open/close/read/write. If this is not set the path name must be a
+         * valid OS file name - OSM_OSNAME set. */
 #define OSM_KEYVALID 0x0002               /* osmlib key validation supported */
         /* The disk supports the use of keys to validate I/O. The OSM_KEYCHK
-	 * and OSM_FENCE flags may be set in the operation field of I/O
-	 * control blocks passed to osm_io(). The operations to get and set
-	 * disk keys and fence keys are supported. The number of disk keys and
-	 * the number of fence keys must not be zero. If this flag is set then
-	 * OSM_IO must be set. */
+         * and OSM_FENCE flags may be set in the operation field of I/O
+         * control blocks passed to osm_io(). The operations to get and set
+         * disk keys and fence keys are supported. The number of disk keys and
+         * the number of fence keys must not be zero. If this flag is set then
+         * OSM_IO must be set. */
 #define OSM_UDID     0x0004           /* Unique Disk ID's reported for disks */
         /* The unique disk id field udid_osm_name contains a value that can be
-	 * used to uniquely identify this disk with respect to any other disk
-	 * ever manufactured. The same unique id will be returned by any
-	 * discovery of this disk by any node. */
+         * used to uniquely identify this disk with respect to any other disk
+         * ever manufactured. The same unique id will be returned by any
+         * discovery of this disk by any node. */
 #define OSM_FGROUP   0x0008      /* osmlib failure groups reported for disks */
         /* A failure group name has been provided for this disk in
-	 * fgroup_osm_name. The user does not need to enter the name when
-	 * adding the disk. */
-#define OSM_SIZE     0x0010                 /* disk and block sizes reported */
-        /* The physical sector size and the size of the disk are reported in
-	 * blksz_osm_name and size_osm_name. */
-#define OSM_QOS      0x0020                   /* Quality of service reported */
+         * fgroup_osm_name. The user does not need to enter the name when
+         * adding the disk. */
+#define OSM_QOS      0x0010                   /* Quality of service reported */
         /* The redundancy and maximum transfer rate are provided for this disk
-	 * in mirror_osm_name, parity_osm_name, and speed_osm_name;. */
-#define OSM_OSNAME   0x0040             /* path name is a valid OS file name */
+         * in mirror_osm_name, parity_osm_name, and speed_osm_name;. */
+#define OSM_OSNAME   0x0020             /* path name is a valid OS file name */
         /* A valid OS file name is provided in path_osm_name. The name may be
-	 * used by any process on this node to access the contents of this
-	 * disk through the normal operating system I/O interface. Oracle will
-	 * only use this name to access the disk if OSM_IO is not set. This
-	 * must be set if OSM_IO is not set. A path name may be present even
-	 * if this bit is not set, but it may be in some other file name
-	 * space. */
-#define OSM_ICOPY    0x0080                       /* internal copy supported */
+         * used by any process on this node to access the contents of this
+         * disk through the normal operating system I/O interface. Oracle will
+         * only use this name to access the disk if OSM_IO is not set. This
+         * must be set if OSM_IO is not set. Even if this bit is not set,
+         * path_osm_name may contain a non-null string, but it may be in some
+         * other file name space. */
+#define OSM_ICOPY    0x0040                       /* internal copy supported */
         /* This is set if serverless copies within this disk are supported. A
-	 * read from one area of the disk can be linked to a write to another
-	 * area of the same disk. */
-#define OSM_XCOPY    0x0100                       /* external copy supported */
+         * read from one area of the disk can be linked to a write to another
+         * area of the same disk. If this flag is set then OSM_IO must be
+         * set. */
+#define OSM_XCOPY    0x0080                       /* external copy supported */
         /* This is set if serverless copies are supported between disks
-	 * accessed through this library.  A read from this disk can be linked
-	 * to a write to any other disk with OSM_XCOPY set. Note that
-	 * OSM_XCOPY implies OSM_ICOPY. */
-#define OSM_HARDEN   0x0200                       /* I/O hardening supported */
-        /* This is set if the content validators are used to catch errors,
-         * and/or if disks are protected from accesses outside of osmlib. */
-
+         * accessed through this library.  A read from this disk can be linked
+         * to a write to any other disk with OSM_XCOPY set. Note that
+         * OSM_XCOPY implies OSM_ICOPY. */
+#define OSM_ABNVALID   0x0100     /* Virtual block number checking supported */
+        /* This is set if the application block number validators can be used
+         * to validate block numbers in the data. The disk can be told about
+         * the first application block number, application block size, and the
+         * location of the number within the block to validate that every
+         * application block number is correct in the data. If this flag is
+         * set then OSM_IO must be set. */
+#define OSM_XORVALID 0x0200                 /* Data XOR validation supported */
+        /* This is set if the disk can validate an XOR of the data per logical
+         * block matches a value set in the I/O command. If the data does not
+         * match on a write then an error is reported and preferably the disk
+         * will not be updated. This is to catch errors in transmitting the
+         * data to the disk. If this flag is set then OSM_IO must be set. */
+#define OSM_TAGVALID 0x0400            /* Partition tag validation supported */
+        /* This is set if the disk can keep partition tags and validate them
+         * on every write. There is a command to set a tag and a range of
+         * blocks of an entry in the partition table. Any write to a block in
+         * a tagged partition must contain the correct tag in the command.
+         * This is used to assign areas of a disk to a particular application,
+         * and to verify that writes only come from the correct application.
+         * This prevents a stray write by one application from damaging data
+         * of another application. If this flag is set then OSM_IO must be
+         * set. */
+  
   oratext label_osm_name[OSM_MAXLABEL];                        /* Disk label */
   /* This is a human readable label associated with the disk. It is a null
    * terminated string. It is the default for the osmlib disk name when the
@@ -313,11 +340,12 @@ struct osm_name
    * would be no problem if the same contents appeared under a different
    * unique disk id while the disk group was dismounted or the disk was
    * offline. A remote mirror of a disk group could be activated even though
-   * all the disks would have a different unique disk id. If this exists then
-   * it must also be a valid discovery string for passing to osm_discover().
-   * The call to osm_discover() may be made on any node in cluster, and it will
-   * only discover the one disk described by this osm_name (or no disks if
-   * this disk is no longer available). */
+   * all the disks would have a different unique disk id. The unique disk id
+   * must not change while a disk is open. If a unique id exists then it must
+   * be a valid discovery string for passing to osm_discover().  The call to
+   * osm_discover() may be made on any node in cluster, and it will only
+   * discover the one disk described by this osm_name (or no disks if this
+   * disk is no longer available). */
   
   oratext path_osm_name[OSM_MAXPATH];                    /* Access path name */
   /* This is a node local name for accessing the disk. It would commonly be
@@ -354,42 +382,75 @@ struct osm_name
    * ideal value would be 4096, but most disks are formatted with 512 byte
    * sectors. */
   
+  ub4     maxio_osm_name;                      /* maximum I/O size in blocks */
+  /* This is largest value allowed in rcount_osm_ioc for a read or write
+   * command. Oracle will never request a larger transfer. This should be a
+   * power of two. The library will not break large requests into smaller
+   * requests. The entire data buffer will be associated with a single command
+   * to the disk. This parameter allows Oracle to better track I/O resource
+   * consumption. It also ensures that a host software failure will not result
+   * in partial writes.  Mirrored writes to two disks are very unlikely to
+   * result in both I/O's being partially completed.  There will be a
+   * significant performance problem if this value is much less than 512K
+   * bytes. */
+
+  ub4     max_abs_osm_name;      /* Maximum Application Block Size in blocks */
+  /* This is the maximum supported value for abs_osm_ioc. The disk may have a
+   * limited amount of buffering that it can use to hold data while gathering
+   * an application block for calculating the XOR of the data and preventing
+   * fractured blocks. If a larger application block size is put in
+   * abs_osm_ioc then the validation may not be done, or some of the data may
+   * be written to disk before the entire application block is received. Note
+   * that exceeding this limit should not result in an error. Oracle uses
+   * blocks of up to 32K bytes, so it would be best to have this be at least
+   * that large. Larger values may be useful for data that has not been forced
+   * to XOR to a particular value. To validate the XOR of this kind of data
+   * the application block size is set to the size of the transfer, and the
+   * XOR of the data is stored in xor_osm_ioc. With this algorithm
+   * max_abs_osm_name becomes the maximum transfer size. */
+  
   ub8     size_osm_name;                              /* disk size in blocks */
-  /* If OSM_SIZE is set then this is the size of the disk in physical blocks.
-   * If it is not possible for the discovery routine to determine the size of
-   * the disk then OSM_SIZE is not set and this field is zero. In this case
-   * the administrator will have to enter the size when adding the disk. The
-   * size of a disk could change between discoveries. This would happen if the
-   * disk is actually a virtual disk. The amount of space used by OSM does not
-   * change just because the amount discovered changes. */
+  /* This is the size of the disk in physical blocks. The size of a disk could
+   * change between discoveries. This would happen if the disk is actually a
+   * virtual disk. The amount of space used by Oracle does not change just
+   * because the amount discovered changes. An administrative command can
+   * change the amount of space used by Oracle. */
    
   ub4     keys_osm_name;                    /* number of disk keys supported */
-  /* If OSM_KEYS is set then this is the number of disk keys that the disk can
-   * maintain. In the year 2000 there should be one key for every megabyte of
-   * storage. When disks get larger it may make sense to have a key for every
-   * 2 or 4 megabytes. The number of keys should be user selectable when the
-   * disk is formatted, just like the sector size. The key values must be
-   * initialized to zero when the disk is formatted, or if the current values
-   * are lost. If OSM_KEYS is not set then this field must be zero. Just as
-   * the amount of space can change for a virtual disk, the number of disk
-   * keys can change too. */
+  /* If OSM_KEYVALID is set then this is the number of disk keys that the disk
+   * can maintain. In the year 2000 there should be one key for every megabyte
+   * of storage. When disks get much larger it may make sense to have a key
+   * for every 2 or 4 megabytes. The number of keys should be user selectable
+   * when the disk is formatted, just like the sector size. The key values
+   * must be initialized to zero when the disk is formatted, or if the current
+   * values are lost. If OSM_KEYVALID is not set then this field must be
+   * zero. Just as the amount of space can change for a virtual disk, the
+   * number of disk keys can change too. A disk can become unusable if the
+   * number of disk keys does not change with the size of the disk. */
   
   ub4     fences_osm_name;                 /* number of fence keys supported */
-  /* If OSM_KEYS is set then this is the number of fence keys that the disk
-   * can maintain. A disk needs to have one key for every Oracle instance that
-   * can access the disk. A large cluster with several databases could have a
-   * few thousand Oracle instances.  The number of fence keys should be
+  /* If OSM_KEYVALID is set then this is the number of fence keys that the
+   * disk can maintain. A disk needs to have one key for every Oracle instance
+   * that can access the disk. A large cluster with several databases could
+   * have a few thousand Oracle instances.  The number of fence keys should be
    * selectable when formatting the disk. The key values must be initialized
    * to zero when the disk is formatted, or if the current values are lost. If
-   * OSM_KEYS is not set then this field must be zero. */
-   
-  ub2     mirror_osm_name;            /* mirrored disks underlying this disk */
-  ub2     parity_osm_name;        /* Data blocks covered by one parity block */
+   * OSM_KEYVALID is not set then this field must be zero. */
+
+  ub2     tags_osm_name;       /* maximum number of partition tags supported */
+  /* If OSM_TAGVALID is set then this is the number of partition tags that the
+   * disk can maintain. 32 tags should be enough for any expected use. When a
+   * disk is formatted all tags are cleared. This is equivalent to setting all
+   * partitions to have a tag of zero. Oracle only needs one tagged
+   * partition. */
+  
+  ub2     mirror_osm_name;  /* number of mirrored disks underlying this disk */
+  ub2     parity_osm_name;/* number of Data blocks covered by a parity block */
   ub2     speed_osm_name;       /* Max transfer rate in megabytes per second */
   /* These three fields are set if OSM_QOS is set. They are used to give
    * warning messages if disks of significantly different characteristics are
    * combined into one disk group. Since a disk cannot be both mirrored and
-   * parity protected, one of mirror_osm_name and parity_osm_name must be
+   * parity protected, either mirror_osm_name or parity_osm_name must be
    * zero. A simple unmirrored disk will have mirror_osm_name set to one and
    * parity_osm_name set to zero. */
 
@@ -415,9 +476,31 @@ struct osm_name
 typedef ub8 osm_handle;
 
 /*
+ * Partition tag
+ *
+ * If OSM_TAGVALID is set in interface_osm_name then the disk supports a
+ * partition table with a tag for each partition. Blocks in tagged partitions
+ * can only be written by write commands that contain the correct tag. This
+ * structure describes one partition. These are passed as data to OSM_SETTAG
+ * commands to modify one or more entries in the partition table. The data
+ * returned from OSM_GETTAG is an array of these structures. The disk has a
+ * persistent array of these structures that is of length tags_osm_name. The
+ * entries in the array do not have to be ordered by block number. A block
+ * that is not within any parition must be written with a command that does
+ * not have a tag. If two partitions overlap then the blocks in the overlap
+ * may be written with either tag. */
+typedef struct osm_tag osm_tag;                  /* partition tag descriptor */
+struct osm_tag
+{
+  ub8     first_osm_tag;            /* first physical block in the partition */
+  ub8     size_osm_tag;          /* size of the partition in physical blocks */
+  ub8     value_osm_tag;                   /* tag expected in write commands */
+};
+
+/*
  * Check data and results
  *
- * If OSM_KEYS is set in interface_osm_name then an I/O operation can have
+ * If OSM_KEYVALID is set in interface_osm_name then an I/O operation can have
  * check data to be validated when doing the I/O. This structure contains the
  * the data for making the check and a place to return key values if the
  * check fails. This structure is logically part of the I/O control block,
@@ -436,10 +519,10 @@ struct osm_check
   /* If OSM_FENCE is set in operation_osm_ioc then this is the value to compare
    * with the value stored in the disk. */
 
-  ub4     key_num_osm_check;                  /* disk key to validate/modify */
+  ub4     key_num_osm_check;                         /* disk key to validate */
   /* If OSM_KEYCHK is set in operation_osm_ioc then this is the number of the
-   * disk key to test and modify.  It must be less than keys_osm_name. The
-   * first key is number zero. */
+   * disk key to test.  It must be less than keys_osm_name. The first key is
+   * number zero. */
   
   ub8     key_mask_osm_check;                 /* mask of key bits to compare */
   /* If OSM_KEYCHK is set in operation_osm_ioc then this is used to determine
@@ -452,19 +535,6 @@ struct osm_check
   /* If OSM_KEYCHK is set in operation_osm_ioc then this value is compared with
    * the value in the disk key, subject to masking. */
   
-  ub8     key_and_osm_check;                    /* & with key if checks pass */
-  /* If OSM_KEYCHK is set in operation_osm_ioc and all key checks are passed
-   * then this value is used to clear bits in the disk key. A value of all one
-   * will preserve the existing key value. A value of all zero will set the
-   * disk key to zero. */
-
-  ub8     key_or_osm_check;                     /* | with key if checks pass */
-  /* If OSM_KEYCHK is set in operation_osm_ioc and all key checks are passed
-   * then this value is used to set bits in the disk key. This is applied
-   * after bits are cleared by key_and_osm_check. A value of all 0 will
-   * preserve the existing key value. Any ones in this field will be copied
-   * into the disk key. */
-
   ub4    error_fence_osm_check;      /* actual fence key value if fenced out */
   /* If the operation completes with status bit OSM_FENCED set, then the
    * actual value of the fence key is returned here. This is the value that
@@ -482,9 +552,8 @@ struct osm_check
    * key_mask_osm_check. It is possible that the value has changed since the
    * operation failed so that this is no longer the current value. It is also
    * possible that this is the result of a retry after a successful operation.
-   * The key reported here could contain updates made by the successful
-   * operation. A value of zero indicates that the disk has lost its key
-   * values and they must be reloaded. */
+   * A value of zero indicates that the disk has lost its key values and they
+   * must be reloaded. */
 };
 
 
@@ -503,9 +572,10 @@ struct osm_check
  * thread private or shared memory. If a thread of execution terminates while
  * osmlib owns a control block then the contents of the control block are
  * meaningless and any I/O that may have been associated with the control
- * block must be terminated by osmlib before the thread is reported as dead.
- * Thus a control block in shared memory may be reclaimed when its execution
- * thread dies even though a status of free was never set.  */
+ * block must be terminated by osmlib before the thread is reported as dead by
+ * the operating system.  Thus a control block in shared memory may be
+ * reclaimed when its execution thread dies even though a status of free was
+ * never set.  */
 typedef struct osm_ioc   osm_ioc;                       /* I/O control block */
 struct osm_ioc {                                        /* I/O control block */
   ub4       ccount_osm_ioc;                               /* Completed count */
@@ -528,8 +598,22 @@ struct osm_ioc {                                        /* I/O control block */
    * too big or not a multiple of the physical block size. Errors involving
    * hardware failures or permissions are positive. A disk key or fence key
    * mismatch is not an error, and does not store an error code in
-   * error_osm_ioc. */
+   * error_osm_ioc. Errors are not returned unless all reasonable attempts
+   * to retry have failed. OSM will not retry the operation as part of error
+   * recovery. */
 
+  osm_erc   warn_osm_ioc;                              /* Warning error code */
+  /* This field is zero if the I/O completed normally. If the I/O was
+   * successful, but future I/O's may fail then OSM_WARN can be set in the
+   * status field and this field can contain a message code. A warning can be
+   * used to indicate situations such as over temperature, or excessive
+   * recoverable errors indicating the disk will soon fail. The message code
+   * will be converted to a string via osm_iowarn and displayed to an
+   * administrator. In all other ways the system will continue to operate
+   * normally. It is possible to get both a warning and an error on the same
+   * request. The warning may or may not be related to the cause of the
+   * error. */
+  
   ub4    elaptime_osm_ioc;                                   /* Elapsed Time */
   /* This field is set to the time elapsed between setting the OSM_SUBMITTED
    * status flag and setting the OSM_COMPLETED flag, as a measure of the I/O
@@ -585,79 +669,69 @@ struct osm_ioc {                                        /* I/O control block */
          * request. The I/O may be partially done, completed, still in
          * progress or not started. The completion count and elapsed time
          * might not be accurate even if the OSM_COMPLETED status has been
-         * set. If this is a write to a mirrored disk it is possible that one
-         * side of the mirror was written, but not the other. This is set even
-         * if the completed status was set when osm_cancel() was called. */
+         * set. This is set even if the completed status was set when
+         * osm_cancel() was called. */
 #define OSM_ERROR        0x0020              /* request failed with an error */
         /* This status is set if there was an error while processing the
          * request. The error code can be found in error_osm_ioc. This osm_ioc
          * must be passed to osm_ioerror() to interpret the error code. */
-#define OSM_PARTIAL      0x0040                   /* only a partial transfer */
+#define OSM_WARN         0x0040                 /* a future request may fail */
+        /* This status is set if there was a warning while processing the
+         * request. The message code for the warning can be found in
+         * warn_osm_ioc. This osm_ioc must be passed to osm_iowarn() to
+         * interpret the message code. A warning does not imply the operation
+         * was successful or failed. */
+#define OSM_PARTIAL      0x0080                   /* only a partial transfer */
         /* This status is set when only a portion of the requested data was
          * transferred.  When this is set the completion count is different
          * from the request count. OSM_ERROR will always be set when
          * OSM_PARTIAL is set, and the error code will report why all the data
          * was not transferred. */
-#define OSM_BADKEY       0x0080                         /* disk key mismatch */
+#define OSM_BADKEY       0x0100                         /* disk key mismatch */
         /* This status bit is set when the operation failed due to a disk key
-	 * mismatch. This can only happen if the OSM_KEYCHK flag was set in
-	 * the operation. The key value that was in the disk is returned in
-	 * error_key_osm_check. A key mismatch is not an error, so OSM_ERROR
-	 * must not be set if OSM_BADKEY is set. This status does mean the
-	 * operation is complete, so OSM_COMPLETED will be set. Note that a
-	 * key mismatch does not mean that the operation did not execute. It
-	 * is possible that the operation completed successfully, but a bus
-	 * reset lost the completion status and the operation was reissued.
-	 * The reissued operation may encounter a different key value due to
-	 * the original issuing or some other operation on the same key. The
-	 * new key value may cause the key mismatch even though the operation
-	 * succeeded when first issued. */
-#define OSM_FENCED       0x0100      /* I/O was not allowed by the fence key */
+         * mismatch. This can only happen if the OSM_KEYCHK flag was set in
+         * the operation. The key value that was in the disk is returned in
+         * error_key_osm_check. A key mismatch is not an error, so OSM_ERROR
+         * must not be set if OSM_BADKEY is set. This status does mean the
+         * operation is complete, so OSM_COMPLETED will be set. Note that a
+         * key mismatch does not mean that the operation did not execute. It
+         * is possible that the operation completed successfully, but a bus
+         * reset lost the completion status and the operation was reissued.
+         * The reissued operation may encounter a different key value due to a
+         * setkey operation on the key. The new key value may cause the key
+         * mismatch even though the operation succeeded when first issued. */
+#define OSM_FENCED       0x0200      /* I/O was not allowed by the fence key */
         /* This status bit is set when the operation failed due to a fence key
-	 * mismatch. This can only happen if the OSM_FENCE flag was set in the
-	 * operation. The key value that was in the disk is returned in
-	 * error_fence_osm_check. A key mismatch is not an error, so OSM_ERROR
-	 * must not be set if OSM_FENCED is set. This status does mean the
-	 * operation is complete, so OSM_COMPLETED will be set. As with a disk
-	 * key mismatch, the operation may have succeeded but the retry was
-	 * fenced off. */
+         * mismatch. This can only happen if the OSM_FENCE flag was set in the
+         * operation. The key value that was in the disk is returned in
+         * error_fence_osm_check. A key mismatch is not an error, so OSM_ERROR
+         * must not be set if OSM_FENCED is set. This status does mean the
+         * operation is complete, so OSM_COMPLETED will be set. As with a disk
+         * key mismatch, the operation may have succeeded but the retry was
+         * fenced off. */
 
   ub2     flags_osm_ioc;   /* flags set by Oracle describing the i/o request */
   /* These flags give additional information about the request and/or
    * modify the opcode to require additional checking. */
-#define OSM_KEYCHK      0x0001    /* validate/change disk key with operation */
-        /* If OSM_KEYS is set in interface_osm_name then this may be set to
-         * atomically check and/or modify a disk key along with the operation.
-         * The key to validate is specified by key_num_osm_check. It is
-         * always less than keys_osm_name. If the key stored by the disk is
-         * key_disk then the operation is allowed if
-	 *    ((key_disk ^ key_value_osm_check) & key_mask_osm_check) == 0
-	 * Thus a key_mask_osm_check of zero allows any key_disk to be valid.
-	 * If a legal operation is allowed after both fence key checking and
-	 * disk key checking, then the value on disk is modified as follows: 
-	 *    key_disk &= key_and_osm_check; key_disk |= key_or_osm_check;
-	 * Thus a key_and_osm_check of all 1 and key_or_osm_check of all 0,
-	 * will not modify the disk key. If two operations refer to the same
-	 * disk key then they must be done atomically with respect to each
-	 * other, including any successful data transfer. An invalid I/O
-	 * control block will result in a negative error before the disk key
-	 * is modified. This would happen if the starting disk block was
-	 * beyond the end of the disk. A positive error may or may not result
-	 * in the disk key being modified. However it must never be partially
-	 * modified. Oracle may have to do recovery to correct the key value
-	 * if an error occurs when modifying a key value. A key mismatch is
-	 * not an error even though it prevents the operation from being
-	 * executed. A disk key mismatch will set OSM_BADKEY in
-	 * status_osm_ioc, and return the entire disk key value in
-	 * error_key_osm_check. Note that disk keys provide a test and set
-	 * mechanism, global to the SAN, that is associated with a data
-	 * transfer. The intent is to store metadata in the disk keys and have
-	 * it validated on every I/O that depends on it. Thus cached copies of
-	 * the metadata can be invalidated through the disk itself.  If a disk
-	 * loses its disk key values, the values will be set to zero. A key of
-	 * zero will always fail any key check used by OSM. */
+#define OSM_KEYCHK      0x0001           /* validate disk key with operation */
+        /* If OSM_KEYVALID is set in interface_osm_name then this may be set
+         * to check a disk key before performing the operation.  The key to
+         * validate is specified by key_num_osm_check. It is always less than
+         * keys_osm_name. If the key value stored in the disk is key_disk then
+         * the operation is allowed if ((key_disk ^ key_value_osm_check) &
+         * key_mask_osm_check) == 0 Thus a key_mask_osm_check of zero allows
+         * any key_disk to be valid.  A key mismatch is not an error even
+         * though it prevents the operation from being executed. A disk key
+         * mismatch will set OSM_BADKEY in status_osm_ioc, and return the
+         * entire disk key value in error_key_osm_check. The intent is to
+         * store metadata in the disk keys and have it validated on every I/O
+         * that depends on it. Thus cached copies of the metadata in other
+         * hosts on the SAN can be invalidated through the disk itself.  If a
+         * disk loses its disk key values, the values will be set to zero by
+         * the disk. A key of zero will always fail any key check used by
+         * OSM. */
 #define OSM_FENCE       0x0002          /* validate fence key with operation */
-        /* If OSM_KEYS is set in interface_osm_name then this may be set to
+        /* If OSM_KEYVALID is set in interface_osm_name then this may be set to
          * atomically check a fence key along with the operation. The key to
          * validate is specified by fence_num_osm_check. It is always less than
          * fences_osm_name. If the fence key value stored by the disk is equal
@@ -675,149 +749,213 @@ struct osm_ioc {                                        /* I/O control block */
         /* This flag indicates that this I/O request will be reaped in a 
          * batch and not as a single I/O request. The implementor can use this 
          * hint to determine how they wait for this I/O completion. */
-#define OSM_XOR         0x0008                         /* data XOR's to zero */
-        /* This flag indicates that a 16 bit wide XOR of the data in this
-	 * request should be zero. On a write this can be used to verify that
-	 * the data has not been damaged on its way to the disk. On a read
-	 * this can be used as an indicator that another side of a mirror
-	 * should be accessed. A write that fails to XOR should not update the
-	 * disk, and an error should be returned. A read that fails to XOR
-	 * should be allowed to complete normally. Another XOR is performed by
-	 * Oracle after read to catch problems between the disk and Oracle. */
-#define OSM_REGISTERED  0x0010               /* memory buffer was registered */
-        /* If a previous call to osm_register registered the memory containing
-	 * the I/O buffer for this request, then this flag will be set. Note
-	 * that some I/O's will not have this flag set. They will tend to be
-	 * synchronous operations, or I/O to buffers which will not be reused
-	 * for more I/O. */
-#define OSM_CONTENT   0x0020                  /* can validate values in data */
-        /* Bugs in operating systems, host adaptors, switches and other places
-         * can result in the wrong data being associated with a write. If this
-         * flag is set then the content fields defined below
-         * (content_offset_osm_ioc, content_repeat_osm_ioc, content_osm_ioc)
+#define OSM_ABNCHK   0x0008     /* request includes application block number */
+        /* If this flag is set then the application block number fields
+         * (abs_osm_ioc, abn_offset_osm_ioc, abn_osm_ioc, abn_mask_osm_ioc)
          * can be used by the storage device to verify that the correct data
-         * buffer has been transfered. The content validators are sent in the
-         * command block along with the disk address (e.g. SCSI CDB). The data
-         * is commonly sent later via a different mechanism. If validation
-         * fails the library should do at least one retry. However a negative
-         * error should be returned on a write where the data buffer itself
-         * fails the validation checks. */
-
+         * buffer has been transfered on a disk write. The application block
+         * validators are sent in the command block along with the disk
+         * address (e.g., SCSI CDB). The data is commonly sent later via a
+         * different mechanism. If validation fails the library should do at
+         * least one retry. However a negative error should be returned on a
+         * write where the disk detected bad application block numbers, and
+         * the data buffer passed in by OSM contained incorrect application
+         * block numbers.  A write that fails the validation returns an error
+         * and does not update the disk with the block that failed. Writes of
+         * multiple application blocks may update some blocks that passed the
+         * verification before encountering a block that fails. This flag will
+         * only be set on writes. */
+#define OSM_XORCHK      0x0010               /* request includes XOR of data */
+        /* This flag indicates that a 16 bit wide XOR of the data in the
+         * application blocks is stored in xor_osm_ioc. Every application
+         * block in a multiblock transfer will XOR to this same value. If the
+         * application cannot make every block XOR to the same value, then OSM
+         * may set the application block size (abs_osm_ioc) to the size of the
+         * transfer (rcount_osm_ioc) and set xor_osm_ioc to the XOR of all the
+         * data. On a write this can be used to verify that the data has not
+         * been damaged on its way to the disk. A write that fails to XOR to
+         * the correct value returns an error and preferably does not update
+         * the disk. Some implementations may not be able to detect the error
+         * before modifying the persistent storage. While this defeats the
+         * major advantage of this feature, it is still better than no
+         * checking at all. This may also happen if abs_osm_ioc is greater
+         * than maxabs_osm_name. Writes of multiple application blocks may
+         * update some blocks that passed the verification before encountering
+         * a block that fails.  This flag will only be set on writes. */
+#define OSM_TAGCHK      0x0020             /* request includes partition tag */
+        /* This flag indicates that the expected tag for the partion is in
+         * tag_osm_ioc. The blocks being written must be assocaited with the
+         * same tag value. If the tag is wrong then the write must not update
+         * the disk, and an error is returned for the write. If this flag is
+         * not set on a write then the blocks must not be within a tagged
+         * partition. This flag will only be set on writes. */
+#define OSM_OK_FRACTURE 0x0040     /* fractured writes will not corrupt data */
+        /* This flag is set if an I/O error on this write means the data being
+         * written will never be read. For example, initializating a file at
+         * creation will fail the creation if there is an error. If this flag
+         * is not set then it is best to avoid partial writes of an
+         * application block as given by abs_osm_ioc. The disk should buffer
+         * all the data for an application block before making any of it
+         * persistent. Recovery of a partially written application block is
+         * more expensive than an unwritten block. There is always the
+         * possibility of a disk failure resulting in a partial write, but by
+         * buffering all the data from the host before writing, it is less
+         * likely a host failure will cause a partial write. If abs_osm_ioc is
+         * zero or greater than maxabs_osm_name then the disk will not be able
+         * to provide this feature.  This flag will only be set on writes. */
+  
   ub1    operation_osm_ioc;                           /* which I/O operation */
   /* This field defines what I/O operation is being requested. Usually this is
    * either a read or a write. However there are some other less frequently
-   * used operations as well. There are also modifier flags that can be ORed
-   * to the basic operation code. The supported codes and modifiers are listed
-   * below. */
-#define OSM_NOOP        0x00            /* no-op to key check or pass a hint */
-        /* This operation does not do any transfer. However it could change a
-         * disk key as an atomic test and set if OSM_KEYCHK is set. It can
-         * also be used as a means of allowing Oracle to indicate it is still
-         * interested in the contents of a block. The memory address in the
-         * request might not be a valid address. It is commonly zero. This
-         * operation could be used to keep blocks in the disk cache when they
-         * are hot read-only blocks in the Oracle cache so that restarting the
-         * Oracle instance would be faster. This operation will not be used in
-         * Oracle 10. It is only defined in this interface for compatibility
-         * with future releases of Oracle. */
+   * used operations as well.  The supported codes are listed below. */
+#define OSM_NOOP        0x00                         /* no-op to pass a hint */
+        /* This operation does not do any transfer. It can be used as a means
+         * of allowing Oracle to indicate it is still interested in the
+         * contents of a block. The memory address in the request might not be
+         * a valid address. It is commonly zero. This operation could be used
+         * to keep blocks in the disk cache when they are hot read-only blocks
+         * in the Oracle cache so that restarting the Oracle instance would be
+         * faster. This operation will not be used in Oracle 10. It is only
+         * defined in this interface for compatibility with future releases of
+         * Oracle. */
 #define OSM_READ        0x01                          /* Read data from disk */
         /* Transfer disk blocks to memory from disk. This must read the latest
          * version written to the disk and acknowledged as complete. However
          * if there is a write in progress to the same blocks, which has been
          * started but not acknowledged as complete, then either the new
-         * version, the old version, or a mix of the two versions may be
-         * returned. */
+         * version, the old version, or a mix of blocks from the two versions
+         * may be returned. */
 #define OSM_WRITE       0x02                           /* write data to disk */
         /* Transfer disk blocks from memory to disk. When the OSM_FREE flag is
-	 * set in the status and the write is successful, it is guaranteed that
-	 * any future read will see this data or get an error. This must be
-	 * guaranteed even if there is a failure such as the loss of a highly
-	 * reliable NVRAM cache. Oracle will never issue two simultaneous
-	 * writes to the same blocks except in one very unlikely case where
-	 * the two writes contain the same data. (Two readers simultaneously
-	 * repairing the same corrupt block.) Thus mixing the data from the
-	 * two writes would not be a problem. */
+         * set in the status and the write is successful, it is guaranteed that
+         * any future read will see this data or get an error. This must be
+         * guaranteed even if there is a failure such as the loss of a highly
+         * reliable NVRAM cache. Oracle will never issue two simultaneous
+         * writes to the same blocks except in one very unlikely case where
+         * the two writes contain the same data. (Two readers simultaneously
+         * repairing the same corrupt block.) Thus mixing the data from the
+         * two writes would not be a problem. */
 #define OSM_COPY        0x03       /* copy data from one location to another */
-        /* Copy blocks from one disk location to another. The data does not
-	 * appear in a buffer so this is a serverless copy. This I/O control
-	 * block describes the data to read. The link_osm_ioc field points at
-	 * another osm_ioc structure to define the write. This second
-	 * structure is only used to get the parameters for doing the write.
-	 * It is not treated as an independent I/O. It does not have its
-	 * status updated except for a key mismatch. It must have an opcode of
-	 * OSM_WRITE and null buffer and link pointers. If the write is to the
-	 * same disk then OSM_ICOPY must have been set in interface_osm_name.
-	 * If the write is to a different disk then OSM_XCOPY must have been
-	 * set in interface_osm_name for both disks. */
+        /* Copy blocks from one disk location to others. The data does not
+         * appear in a buffer so this is a serverless copy. This I/O control
+         * block describes the data to read. The link_osm_ioc field points at
+         * a list of osm_ioc structures to define the writes. The list is only
+         * used to get the parameters for doing the writes.  They are not
+         * treated as independent I/O's. They do not have their status updated
+         * except for a key mismatch. They must have an opcode of OSM_WRITE
+         * and a null buffer pointers. The last write command in the list has
+         * a null link pointer. If a write is to the same disk as the read
+         * then OSM_ICOPY must have been set in interface_osm_name.  If a
+         * write is to a different disk then OSM_XCOPY must have been set in
+         * interface_osm_name for both disks. */
 #define OSM_GETKEY      0x04           /* get value of one or more disk keys */
         /* Transfer disk key values to memory from disk key storage. The
-	 * number of the first key to be gotten is in first_osm_ioc. The data
-	 * buffer pointed to by buffer_osm_ioc contains an array of
-	 * rcount_osm_ioc 8 byte disk key buffers. If there are any operations
-	 * in progress that affect the key values, then either the before or
-	 * after version of the key may be returned. There is no need to
-	 * return a consistent version of multiple keys. This is mostly used
-	 * for debugging and statistics. */
+         * number of the first key to be gotten is in first_osm_ioc. The data
+         * buffer pointed to by buffer_osm_ioc contains an array of
+         * rcount_osm_ioc 8 byte disk key buffers. If there are any setkey
+         * operations in progress, then either the before or after version of
+         * the key may be returned. There is no need to return a consistent
+         * version of multiple keys. This is mostly used for debugging and
+         * statistics. */
 #define OSM_SETKEY      0x05           /* set value of one or more disk keys */
         /* Transfer disk key values from memory to disk key storage. The
-	 * number of the first key to be set is in first_osm_ioc. The data
-	 * buffer pointed to by buffer_osm_ioc contains an array of
-	 * rcount_osm_ioc 8 byte disk key values. If there are any operations
-	 * in progress that are being validated by a key that is being set,
-	 * then the operation must completed before the new key values are
-	 * set.  This operation will be coordinated by Oracle so there should
-	 * not be conflicting set key operations. If there are conflicting
-	 * operations then the results are undefined. When a disk is first
-	 * formatted, or if the key values are lost, the keys must be
-	 * initialized to zero.  OSM will not use zero as a valid key value,
-	 * but setting a key to zero through this operation should be
-	 * allowed. */
+         * number of the first key to be set is in first_osm_ioc. The data
+         * buffer pointed to by buffer_osm_ioc contains an array of
+         * rcount_osm_ioc 8 byte disk key values. If there are any operations
+         * in progress that were validated by the previous value in any of the
+         * keys being set, then the previous operation must completed before
+         * this setkey operation is marked as successfully completed. New
+         * operations validated by the new key values may proceed and even
+         * complete before this setkey operation completes. This operation
+         * will be coordinated by Oracle so there should not be conflicting
+         * set key operations. If there are conflicting operations then the
+         * results are undefined. In particular this mechanism cannot be used
+         * as a test and set by having it validated by the old value in the
+         * key. When a disk is first formatted, or if the key values are lost,
+         * the keys must be initialized to zero. OSM uses zero as an
+         * indication that it must reload the keys. OSM will not use zero as a
+         * valid key value, but setting a key to zero through this operation
+         * should be allowed. If a setkey command fails with an error, then
+         * the key value may be either the old value, the new value, or
+         * zero. */
 #define OSM_GETFENCE    0x06          /* get value of one or more fence keys */
         /* Transfer fence key values to memory from fence key storage. The
-	 * number of the first key to be gotten is in first_osm_ioc.  The data
-	 * buffer pointed to by buffer_osm_ioc contains an array of
-	 * rcount_osm_ioc 4 byte fence key buffers. If there are any
-	 * operations in progress that affect the key values, then either the
-	 * before or after version of the key may be returned. There is no
-	 * need to return a consistent version of multiple keys. This is
-	 * mostly used for debugging and statistics. */
+         * number of the first key to be gotten is in first_osm_ioc.  The data
+         * buffer pointed to by buffer_osm_ioc contains an array of
+         * rcount_osm_ioc 4 byte fence key buffers. If there are any setfence
+         * operations in progress that affect the key values, then either the
+         * before or after version of the key may be returned. There is no
+         * need to return a consistent version of multiple keys. This is
+         * mostly used for debugging and statistics. */
 #define OSM_SETFENCE    0x07          /* set value of one or more fence keys */
         /* Transfer fence key values from memory to fence key storage. The
-	 * number of the first key to be set is in first_osm_ioc. The data
-	 * buffer pointed to by buffer_osm_ioc contains an array of
-	 * rcount_osm_ioc 4 byte fence key values. If there are any operations
-	 * in progress that are being validated by a key that is being set,
-	 * then the operation must completed before the new key values are set
-	 * and this operation completes. This operation will be used to
-	 * initialize keys when a disk is being brought into service, set the
-	 * key of an instance when it starts up, and fence out an instance
-	 * that should be dead. Except for initialization, this operation is
-	 * combined with OSM_FENCE to prevent conflicting set fence
-	 * operations. If there are conflicting operations then the results
-	 * are undefined. When a disk is first formatted, or if the key values
-	 * are lost, the keys must be initialized to zero.  OSM will not use
-	 * zero as a valid key value, but setting a key to zero through this
-	 * operation should be allowed. */
+         * number of the first key to be set is in first_osm_ioc. The data
+         * buffer pointed to by buffer_osm_ioc contains an array of
+         * rcount_osm_ioc 4 byte fence key values.  If there are any
+         * operations in progress that were validated by the previous value in
+         * any of the fence keys being set, then the previous operation must
+         * completed before this setfence operation is marked as successfully
+         * completed. New operations validated by the new fence key values may
+         * proceed and even complete before this setfence operation
+         * completes. This operation will be used to initialize keys when a
+         * disk is being brought into service, set the key of an instance when
+         * it starts up, and fence out an instance that should be dead. Except
+         * for initialization, this operation is combined with OSM_FENCE to
+         * prevent conflicting set fence operations. If there are conflicting
+         * operations then the results are undefined. When a disk is first
+         * formatted, or if the key values are lost, the keys must be
+         * initialized to zero.  OSM will not use zero as a valid key value,
+         * but setting a key to zero through this operation should be
+         * allowed. If a setfence command fails with an error, then the fence
+         * key value may be either the old value, the new value, or zero. */
+#define OSM_GETTAG      0x08            /* get tag of one or more partitions */
+        /* Transfer partitions tags to memory from the persistent partition
+         * table. The number of the first partition to get is in
+         * first_osm_ioc. The data buffer pointed to by buffer_osm_ioc
+         * contains an array of rcount_osm_ioc osm_tag buffers to hold the
+         * partitions. This is only used for displaying the table to
+         * administrators so there are no consistency issues with a
+         * simultaneous update of the partition tags. */
+#define OSM_SETTAG      0x10            /* set tag of one or more partitions */
+        /* Transfer partitions tags from memory to the persistent partition
+         * table. The number of the first partition to set is in
+         * first_osm_ioc. The data buffer pointed to by buffer_osm_ioc
+         * contains an array of rcount_osm_ioc osm_tag buffers containing the
+         * new value for the partitions. Active writes submitted before the
+         * settag do not have to be validated against the new partition table,
+         * but it would be OK to validate them. Any writes issued after this
+         * command successfully completes must be validated against the
+         * tag. The partition table must be as persistent as a normal disk
+         * block. Updates are infrequent and are expected to perform no better
+         * than a low priority disk write. If a disk is remotely mirrored, then
+         * the partition table on the remote mirror must be updated as if it
+         * was a disk block. */
 
+           
   ub1   priority_osm_ioc;                                        /* Priority */
   /* This field is a number, between 0 and 7, indicating the relative
    * importance of this I/O.  Priority 0 requests are processed ahead of all
    * other requests, possibly starving other priority classes.  For priorities
    * in the range from 1 to 7, the lower numbered priority requests get more
    * service than the higher numbered, but all requests are guaranteed to be
-   * processed (no starvation).  */
+   * processed (no starvation). The disk is free to reorder requests of the
+   * same priority to improve utilization of the disk. Even requests of
+   * different priority may be serviced in reverse priority order. Ignoring
+   * priority will not affect correctness, but may have an adverse affect on
+   * performance. */
 
   ub2     hint_osm_ioc;                                      /* caching hint */
   /* This fields contain a hint giving the reason that the I/O was
-   * issued. Converting an I/O reason into a caching policy depends heavily on
-   * the size of the cache relative to the size of the disks. It is not
-   * expected that storage vendors understand all the subtleties of Oracle
-   * I/O. It is sufficient to provide a set of caching policies and a means of
-   * associating a policy with a hint value. Note that in the future there may
-   * be additional reasons added to the ones currently defined. Thus it must
-   * not be an error for this hint field to have an undefined value. Ideally
-   * the cache should have a means of giving a policy to the new hint
-   * values. */
+   * issued. This can be used to select a caching policy in the disk for the
+   * data in this request. Converting an I/O reason into a caching policy
+   * depends heavily on the size of the cache relative to the size of the
+   * disks. It is not expected that storage vendors understand all the
+   * subtleties of Oracle I/O. It is sufficient to provide a set of caching
+   * policies and a means of associating a policy with a hint value. Note that
+   * in the future there may be additional reasons added to the ones currently
+   * defined. Thus it must not be an error for this hint field to have an
+   * undefined value. Ideally the cache in the disk should have a means of
+   * assigning a policy to the new hint values. */
 #define OSM_HINT_UNKNOWN     0                /* reason for I/O is not known */
         /* The code issuing this I/O has not provided a hint. */
 #define OSM_HINT_LOG         1                   /* normal online log access */
@@ -904,11 +1042,13 @@ struct osm_ioc {                                        /* I/O control block */
          * part of normal database operation. The rewind log is read for
          * unusual recovery situations. */
 
-  osm_ioc *link_osm_ioc;          /* pointer to destination osm_ioc for copy */
-  /* If the opcode is OSM_COPY then this field points to a second osm_ioc to
-   * describe the destination disk and offset. The destination can also have a
-   * disk key and fence key to validate. The destination control block must
-   * have an opcode of OSM_WRITE. */
+  osm_ioc *link_osm_ioc;     /* pointer to destination osm_ioc list for copy */
+  /* If the opcode is OSM_COPY then this field points to a list of osm_ioc's
+   * to describe the destination disks and offsets. The destinations can also
+   * have a disk key and fence key to validate. The destination control block
+   * must have an opcode of OSM_WRITE. Its link_osm_ioc field could point to
+   * another write osm_ioc. If this field is null then there are no more
+   * destinations for the data. */
   
   osm_handle disk_osm_ioc;                                 /* disk to access */
   /* This is a handle returned by osm_open for the disk to be accessed by this
@@ -920,51 +1060,83 @@ struct osm_ioc {                                        /* I/O control block */
   /* This indicates where on the disk the data transfer begins. This is a
    * block number for OSM_READ or OSM_WRITE. It is a disk key number for
    * OSM_SETKEY or OSM_GETKEY. It is a fence key number for OSM_SETFENCE or
-   * OSM_GETFENCE. This is zero based so that the first block or key is number
+   * OSM_GETFENCE. It is a partition number for OSM_GETTAG or OSM_SETTAG. This
+   * is zero based so that the first block, key, or partition is number
    * zero. If the beginning of the disk is not available for use by Oracle
    * then the library must protect the first sectors. Oracle will read and
    * write block zero. */
 
   ub4     rcount_osm_ioc;                                   /* Request count */
-  /* This is the number of blocks, keys, or fences to transfer.  It is an
-   * error if the block plus count is greater than the number of blocks, keys,
-   * or fences.  */
+  /* This is the number of blocks, tags, keys, or fences to transfer.  It is an
+   * error if the first plus rcount is greater than the number of blocks, keys,
+   * fences, or partitions. */
 
   void   *buffer_osm_ioc;                 /* buffer address for the transfer */
   /* This is the address of the memory buffer for this I/O operation.  The
    * buffer may be in either shared memory or execution thread private
    * memory. It will be aligned to the platform specific alignment required to
-   * do DMA directly to the buffer from a storage device. If the
-   * OSM_REGISTERED flag is set then this buffer will have been previously
-   * registered via osm_register. If the opcode is OSM_COPY then this will
-   * be null. */
+   * do DMA directly to the buffer from a storage device. If the opcode is
+   * OSM_COPY then this will be null. */
 
   osm_check *check_osm_ioc;                 /* pointer to check data/results */
   /* If OSM_KEYCHK is set in operation_osm_ioc then this will point to an
    * osm_check structure that describes the check to be done, and receives the
    * actual keys if the check fails. */
 
-  ub2     content_offset_osm_ioc;             /* offset to content validator */
+  ub2     xor_osm_ioc;                 /* 16 bit XOR of entire data transfer */
+  /* If OSM_XOR is set in operation_osm_ioc then this contains the 16 bit wide
+   * XOR of the data in each application block. If the write is larger than
+   * one block then each application block will XOR to this value. If
+   * abs_osm_ioc is equal to rcount_osm_ioc then this is the XOR of all the
+   * data in the write. This may be used by the storage device to reject a
+   * write of data that has been damaged on its way to the disk. */
 
-  ub2     content_repeat_osm_ioc;                  /* next content validator */
+  
+  ub2     abs_osm_ioc;          /* application block size in physical blocks */
+  /* If this is not zero, then it is the block size, in physical blocks, used
+   * by the application for the data being transfered.  It is a negative error
+   * if rcount_osm_ioc is not an integer multiple of abs_osm_ioc.  If
+   * possible, the disk should attempt to avoid partial writes of an
+   * application block. All the data for a block should be transfered from the
+   * host before making any of it persistent so that a host failure cannot
+   * result in a fractured block. However if OSM_OK_FRACTURE is set there is
+   * no point in doing this.  The application block size is also used to find
+   * application block numbers and to calculate XOR's in multi-block
+   * transfers. These verifications cannot be done if the application block
+   * size is zero. */
 
-  ub4     content_osm_ioc;               /* value of first content validator */
-  /* These 3 fields describe the contents of the data buffer on a write. If
-   * the OSM_CONTENT flag is set these fields can be interpreted by the disk
-   * to ensure it has received the correct data buffer. Typically the portion
-   * of the buffer being validated is a logical block number. It starts at
-   * some offset in the block. If multiple blocks are being transfered then
-   * the next block will contain a value that is one greater. The value of the
-   * first logical block number is in content_ioc. The offset in bytes to the
-   * first logical block number is in content_offset_ioc. The logical block
-   * size in bytes is in content_repeat_ioc. The expected values in the data
-   * buffer are one greater for each subsequent logical block. If the data
-   * received for the write does not match this pattern, then the disk should
-   * give an error and not write the data. Note that the storage device needs
-   * to know the byte ordering of the host that is sending the data. The
-   * validation is different for a host that stores a ub4 with the most
-   * significant byte first than for one that stores least significant byte
-   * first. */
+  ub4     abn_offset_osm_ioc;     /* byte offset to application block number */
+
+  ub4     abn_osm_ioc;            /* value of first application block number */
+
+  ub4     abn_mask_osm_ioc;                      /* mask to limit comparison */
+  /* These 3 fields describe the block number in an application block on a
+   * write. If the OSM_ABNCHK flag is set these fields can be interpreted by
+   * the disk to ensure it has received the correct data buffer. The block
+   * number starts at some offset in the block. If multiple application blocks
+   * are being transfered then the next application block will contain a value
+   * that is one greater. The value of the first application block number is
+   * in abn_osm_ioc. The offset in bytes to the block number in each
+   * application block is in abn_offset_ioc. The application block size in
+   * disk blocks is in abs_osm_ioc. The expected values in the data buffer are
+   * one greater for each subsequent application block. The value in
+   * abn_mask_osm_ioc is anded with the expected block number and the value in
+   * the data before making a comparison. This supports striping and small
+   * block numbers. If the data received for the write does not match this
+   * pattern, then the disk should give an error and not write the data. Note
+   * that the storage device needs to know the byte ordering of the host that
+   * is sending the data. The validation is different for a host that stores a
+   * ub4 with the most significant byte first than for one that stores least
+   * significant byte first. This is not in the interface since the library
+   * should already know the byte order. */
+  
+  ub8    tag_osm_ioc;                /* expected tag if this is a disk write */
+  /* If the OSM_TAGVALID flag was set for this disk and this is a write
+   * command with OSM_TAGCHK set, then the tag for the write is in this
+   * field. This tag must match the tag stored in the disk for the partition
+   * being written. If the blocks are within more than one overlapping
+   * partitions, then the tag only has to match one of the partitions. Any
+   * sectors outside of all tagged partitions must not have OSM_TAGCHK set. */
 
   ub8    reserved_osm_ioc;                                       /* Reserved */
   /* This is an 8 byte field which is never modified by Oracle.  It may be
@@ -974,12 +1146,12 @@ struct osm_ioc {                                        /* I/O control block */
 
 
 /*---------------------------------------------------------------------------*/
-/*			   PUBLIC FUNCTIONS                                  */
+/*                         PUBLIC FUNCTIONS                                  */
 /*---------------------------------------------------------------------------*/
 
 /*---------------------------- osm_version ----------------------------------*/
 uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
-		    uword *interface, ub4 *maxio );
+                    uword *interface_mask );
 
 /* osmlib API version bits supported */
 #define    OSM_API_STUB  0x1                                 /* stub version */
@@ -997,12 +1169,11 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
      osm_version  - Version handshake and instance initialization
 
    PARAMETERS:
-     version(IN/OUT) -  osmlib API version number
-     iid(OUT)        -  Instance identifier
-     name(OUT)       -  library description for alert log
-     len(IN)         -  length of name buffer
-     interface(OUT)  -  bit mask of supported interfaces
-     maxio(OUT)      -  maximum I/O buffer size in bytes
+     version(IN/OUT)     -  osmlib API version number
+     iid(OUT)            -  Instance identifier
+     name(OUT)           -  library description for alert log
+     len(IN)             -  length of name buffer
+     interface_mask(OUT) -  bit mask of supported interfaces
      
    REQUIRES:
 
@@ -1031,8 +1202,10 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
      If the versioning is successful then an instance id may be returned by
      osm_version(). Oracle does not interpret this value. It is simply passed
      to every osm_init() call done by threads in this Oracle instance. The
-     instance id must remain valid even if the calling thread of execution
-     terminates. The instance id will not be used on any other node or after a
+     instance id must remain valid even if the thread of execution that called
+     osm_version() terminates. It can be invalidated when all threads of
+     execution that passed it to osm_init() have terminated or called
+     osm_fini(). The instance id will not be used on any other node or after a
      reboot of this node. Disk identifiers will only be shared among execution
      threads that pass the same instance identifier to osm_init(). The library
      may simply ignore the instance ids if it has no use for this
@@ -1046,20 +1219,11 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
      include the name of the vendor and the release number of the library.
      For the first release len will be 64, but this could change. 
 
-     The interface parameter points to a place to return the capabilities of
-     this library. It is a bit mask of the same bits which appear in
+     The interface_mask parameter points to a place to return the capabilities
+     of this library. It is a bit mask of the same bits which appear in
      interface_osm_name. It receives the most bits that the library could ever
      set in interface_osm_name for any disk it could discover.
 
-     The maxio parameter is used to return the system wide upper bound on an
-     I/O transfer. Oracle will never request a larger transfer. To ensure
-     transfers can always be an integral number of blocks, this maximum must
-     be an exact power of two. The library cannot break large requests into
-     smaller requests because of the disk key semantics. This parameter allows
-     Oracle to know when an operation which modifies a disk key cannot be done
-     with one I/O. There will be a significant performance problem if this
-     value is much less than 512K.
-     
    RETURNS:
 
      Unlike all other osmlib routines osm_version() does not return an error
@@ -1071,17 +1235,25 @@ uword  osm_version( ub4 *version, osm_iid *iid, oratext *name,  uword len,
      will appear in the alert log. Note that the stub version of the library
      always is successful.
 
+   NOTE:
+
+     This call may allocate resources to be shared by all execution threads
+     in the Oracle instance using the same instance id. However these resources
+     cannot be in user space. This call cannot allocate a shared memory
+     segment for all execution theads to attach. Resource sharing must be
+     done within the operating system so that the appropriate cleanup can
+     be performed when an execution thread dies.
+
 */
 
 /*------------------------------ osm_init -----------------------------------*/
-osm_erc  osm_init( osm_iid iid, ub4 app, osm_ctx *ctxp );
+osm_erc  osm_init( osm_iid iid, osm_ctx *ctxp );
 /*
    NAME:
      osm_init - Initialize osmlib for this thread of execution
 
    PARAMETERS:
      iid(IN)       -  Instance id from osm_version()
-     app(IN)       -  4 character ASCII application name - 'ORCL'
      ctxp(IN/OUT)  -  osmlib context pointer (cleared before call)
 
    REQUIRES:
@@ -1099,18 +1271,8 @@ osm_erc  osm_init( osm_iid iid, ub4 app, osm_ctx *ctxp );
 
      This call connects this thread of execution with its instance through the
      instance id.  The instance id must be from an osm_version() call made on
-     the same node of the cluster. Note that osm_init() is called by the same
-     execution thread that called osm_version() before there is an Oracle
-     instance.
-
-     The application name is available for use with disks that expect an
-     application name on every I/O. A disk with this feature can protect
-     Oracle data from accidental damage due to a software bug or
-     misconfiguration that causes writes to the disk from some source outside
-     of Oracle. For example this would prevent the administrator from
-     unintentionally using an Oracle disk for swap space. The disk could
-     refuse a write from a file system that got a corrupted disk address.
-     The Oracle application name is 'ORCL'.
+     the same node of the cluster. Note that the execution thread that calls
+     osm_version() also calls osm_init() to initialize itself.
 
      If there is an error then osm_error() will be called to report the error
      and then osm_fini() will be called to clean up the context. Note that this
@@ -1137,6 +1299,15 @@ osm_erc  osm_init( osm_iid iid, ub4 app, osm_ctx *ctxp );
 
      Insufficient memory to allocate context
 
+   NOTE:
+
+     This call may not attach to a shared memory segment for communication
+     with other threads executing osmlib. There is no mechanism for cleaning
+     up state in a shared memory context if a thread of execution dies while
+     holding an osmlib golbal resource. It is presumed that osmlib shared
+     state is maintained inside the operating system. The osmlib code must
+     continue to function correctly when any thread of execution suddenly
+     terminates between any two instruction in osmlib.
 */
 
 
@@ -1207,7 +1378,7 @@ osm_erc  osm_error( osm_ctx ctx, osm_erc errcode, oratext *errbuf,
      the string returned is truncated to that length, if necessary.  The
      returned string is always null-terminated, and always fits in the
      buffer. It is not an error if the message must be trimmed to fit in the
-     buffer.
+     buffer. The buffer will be at least 72 bytes long.
 
      The osm_error() routine is called after a non-zero error code is
      returned, but before any other osmlib routines are called. This ensures
@@ -1451,8 +1622,11 @@ osm_erc osm_close( osm_ctx ctx, osm_handle handle );
 
      This closes access to a disk through this handle. If there are any I/O's
      in flight when this is called, they may be terminated with an error or
-     allowed to complete normally. Any future uses of the handle by any thread
-     of execution is not allowed.
+     allowed to complete normally. osm_close must block until any in flight
+     I/O's are terminated and any future uses of the handle by any thread of
+     execution are prevented. However it must not block for the in flight
+     I/O's to be reaped via calls to osm_io. There is no gurantee that reaping
+     of a completed I/O happens in a timely manner.
    
    RETURNS:
 
@@ -1464,133 +1638,7 @@ osm_erc osm_close( osm_ctx ctx, osm_handle handle );
 
    EXAMPLES:
 
-   NOTES:
-*/
-
-/*----------------------------- osm_register --------------------------------*/
-osm_erc osm_register(void *mem, size_t len, boolean shared);
-/*
-   NAME: 
-     osm_register   - Register memory for fast async I/O
-
-   PARAMETERS:
-     mem(IN)    - beginning address of memory to register
-     len(IN)    - bytes of memory to register
-     shared(IN) - TRUE if the memory is shared
-
-   REQUIRES:
-
-     osm_init() successfully created a context
-
-   DESCRIPTION:
-
-     This routine is called to register memory that is going to be used for
-     repeated async I/O's by this thread of execution. There is no requirement
-     for the OSM library to do anything with this call. Some implementations
-     may find this useful for pinning the virtual address space in physical
-     memory, and/or registering the memory with a host adaptor for user mode
-     I/O.
-
-     Not all memory used for I/O will be registered before use. In particular
-     the memory for synchronous I/O will not be registered in most cases. The
-     I/O control block has a flag that is set if the I/O buffer is registered
-     (OSM_REGISTERED). I/O to unregistered memory must not be considered an
-     error. The main reason for including memory registration is to support
-     user mode I/O. Synchronous I/O does not benefit from being done in user
-     mode because the execution thread must enter the operating system anyway
-     to block for I/O completion.
-
-     The shared flag is TRUE if the same physical memory may be registered by
-     multiple threads of execution. This can only happen if the memory is in
-     the Oracle SGA (Shared Global Area). However, a buffer used by only one
-     thread of execution will not be registered as shared even if it is in the
-     SGA. Memory registered as shared by one thread of execution cannot be
-     used with OSM_REGISTERED set in another thread of execution unless it too
-     registers the memory. Shared registration does not register for multiple
-     threads of execution.
-
-     The intended use is to have the database writer register all of the
-     buffer cache buffers in the SGA. Since there can be multiple database
-     writers this is a shared registration. Log writer will register the log
-     buffer, but not as a shared registration, even-though it is in the SGA,
-     since only log writer does I/O out of the buffer. When a database
-     foreground allocates large buffers for overlapped sequential I/O, it will
-     register the buffers in private memory. Foregrounds will not register the
-     buffer cache since they cannot deregister it when required. This is OK
-     since foreground I/O to the buffer cache is generally synchronous.
-
-     If a thread of execution terminates, any memory it has registered must be
-     automatically deregistered. This must happen before the operating system
-     reports the thread of execution as dead. If there is an incomplete I/O
-     that was given a registered buffer, it must not be able to read or write
-     the buffer once the execution thread is dead.
-
-   RETURNS:
-   
-     Returns zero if successful, a negative error code if a software bug is
-     encountered, or a positive error code if a hardware or user error is
-     encountered. The error code is converted to text by calling osm_error().  
-
-   EXCEPTIONS:
-
-     A negative error is given if the memory does not exist.
-
-     It is hard to imagine any positive error codes
-
-   EXAMPLES:
-
    NOTES: */
-
-/*------------------------------ osm_deregister -----------------------------*/
-osm_erc osm_deregister(void *mem, size_t len, boolean shared);
-/*
-   NAME: 
-     osm_deregister - Deregister memory that was registered 
-
-   PARAMETERS:
-     mem(IN)    - beginning address of memory to deregister
-     len(IN)    - bytes of memory to deregister
-     shared(IN) - TRUE if the memory was registered as shared
-
-   REQUIRES:
-
-     The memory must have been registered through osm_register
-
-   DESCRIPTION:
-
-     This call undoes the effect of a call to osm_register. The arguments to
-     this call must be identical to the call that registered the memory. This
-     is called in the same thread of execution that called osm_register.
-
-     Deregistering memory that is shared does not affect any other
-     registrations by other threads of execution. They may still use the
-     memory as registered.
-
-     Foregrounds that register buffers for sequential I/O will deregister them
-     when the I/O processing is complete. Most of the time a foreground will
-     not have any memory registered.
-
-     If a thread of execution terminates while it has memory registered, then
-     the deregister must be done automatically by the operating system.
-
-   RETURNS:
-
-     Returns zero if successful, a negative error code if a software bug is
-     encountered, or a positive error code if a hardware or user error is
-     encountered. The error code is converted to text by calling osm_error().  
-
-   EXCEPTIONS:
-
-     A negative error is given if the memory was not registered.
-
-     It is hard to imagine any positive error codes
-
-   EXAMPLES:
-
-   NOTES:
-*/
-
-
 
 /*------------------------------ osm_io  -----------------------------------*/
 osm_erc  osm_io( osm_ctx ctx,
@@ -1879,7 +1927,7 @@ osm_erc  osm_io( osm_ctx ctx,
      errors are not detected until after osm_io() starts some of the I/O
      requests or returns, and thus are not errors on the call. Errors in an
      I/O control block are indicated by setting the OSM_ERROR flag when
-     OSM_FREE is set.  When this happens, the I/O control block should be
+     OSM_FREE is set.  When this happens, the I/O control block is usually
      passed to osm_ioerror() to get a descriptive error message. The 
      information stored in the I/O control block should be sufficient to 
      generate the error message at a later point in time. The implementor is 
@@ -1933,18 +1981,13 @@ osm_erc  osm_io( osm_ctx ctx,
      the outcome of the command in doubt. It may not be possible to determine
      if the disk received or processed the command. A simple disk read or
      write can be repeated and the results are the same - it is idempotent.
-     However an I/O that modifies a disk key can be constructed so that it is
-     not idempotent. It could check a key value and then modify it so that the
-     check would fail if repeated. It is also possible that an operation could
-     succeed the first time, but fail when repeated due to another operation
-     changing the disk key value before the repeat. Despite the possibility of
-     such situations, OSM does not use disk keys in this way. All OSM requests
-     are idempotent, and a failure after success is tolerated. This is because
-     of the recovery requirements of Oracle. It may even be true of all
-     practical uses of disk keys. Therefore this interface allows the library
-     to issue a request multiple times if the result is indeterminate. A key
-     mismatch on write does not mean that the disk was not modified since the
-     mismatch may have happened on a retry.
+     However an I/O that validates a disk key could succeed the first time,
+     but fail when repeated due to a setkey operation changing the disk key
+     value before the repeat. For OSM requests a failure after success is
+     tolerated. This interface allows the library to issue a request multiple
+     times if the result is indeterminate. A key mismatch on write does not
+     mean that the disk was not modified since the mismatch may have happened
+     on a retry.
 
 */
 
@@ -1974,7 +2017,7 @@ osm_erc  osm_ioerror( osm_ctx ctx, osm_ioc *ioc, oratext *errbuf,
      eblen, and the string returned is truncated to that length, if necessary.
      The returned string is always null-terminated, and always fits in the
      buffer. It is not an error if the message must be trimmed to fit in the
-     buffer.
+     buffer. The buffer will be at least 72 bytes long.
 
      This is called for every osm_ioc that is made free with OSM_ERROR set in
      the status field.  However the osmlib library must not rely on
@@ -2002,6 +2045,62 @@ osm_erc  osm_ioerror( osm_ctx ctx, osm_ioc *ioc, oratext *errbuf,
      errbuf is an invalid pointer.
 
      eblen is less than 1 (a null terminated string can not be returned).
+
+*/
+
+/*------------------------------- osm_iowarn --------------------------------*/
+osm_erc  osm_iowarn( osm_ctx ctx, osm_ioc *ioc, oratext *wrnbuf, 
+                      uword wblen );
+
+/*
+   NAME:
+     osm_iowarn - Translate an I/O warning code into a message
+
+   PARAMETERS:
+     ctx(IN)      -  osmlib context pointer initialized by osm_init()
+     ioc(IN)      -  I/O control block with OSM_WARN and OSM_FREE set
+     wrnbuf(OUT)  -  warning string buffer
+     wblen(IN)    -  warning string buffer length
+
+   REQUIRES:
+
+     osm_io() returned control block with warning recorded in it.
+
+   DESCRIPTION:
+
+     osm_iowarn() returns a string in wrnbuf describing the warning recorded
+     in an I/O control block. The size of the buffer is given by wblen, and
+     the string returned is truncated to that length, if necessary.  The
+     returned string is always null-terminated, and always fits in the
+     buffer. It is not an error if the message must be trimmed to fit in the
+     buffer. The buffer will be at least 72 bytes long.
+
+     This is not called for every osm_ioc that is made free with OSM_WARN set
+     in the status field. Repeated warnings with the same code will not flood
+     the warning mechanism with the same message.
+
+     The string returned must contain only printable characters. In an ASCII
+     character set that would be characters in the range 0x20 to 0x7e. The
+     string must never contain control characters such as newline or tab.
+
+   RETURNS:
+
+     Returns zero if successful or a negative error code if a software bug is
+     encountered. A positive error code is not possible. Any error will be
+     reported as an internal Oracle error.
+
+   NEGATIVE ERROR EXAMPLES:
+
+     ctx is not the context created for this thread.
+
+     ioc is an invalid pointer.
+
+     ioc does not point to an I/O control block with both OSM_FREE and
+     OSM_WARN set
+
+     wrnbuf is an invalid pointer.
+
+     wblen is less than 1 (a null terminated string can not be returned).
 
 */
 

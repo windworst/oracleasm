@@ -37,7 +37,9 @@ typedef struct _osm_ctx_private osm_ctx_private;
 struct _osm_ctx_private
 {
     osm_iid iid;
+#if 0  /* wither app? */
     ub4 app;
+#endif
     int fd;
     int discover_index;
     void *discover_cache;
@@ -55,15 +57,18 @@ typedef struct _osm_name_private osm_name_private;
 
 struct _osm_name_private
 {
-  uword    interface_osm_name;                /* osmlib interfaces supported */
+  uword   interface_osm_name;                /* osmlib interfaces supported */
   oratext label_osm_name[OSM_MAXLABEL];                        /* Disk label */
   oratext udid_osm_name[OSM_MAXUDID];                    /* Unique Disk ID */
   oratext path_osm_name[OSM_MAXPATH];                    /* Access path name */
   oratext fgroup_osm_name[OSM_MAXFGROUP];              /* Failure group name */
   ub4     blksz_osm_name;                 /* physical block size of the disk */
+  ub4     maxio_osm_name;                 /* Maximum atomic I/O to the disk in blocks */
+  ub4     max_abs_osm_name;               /* Maximum applicaiton block size in blocks */
   ub8     size_osm_name;                              /* disk size in blocks */
   ub4     keys_osm_name;                    /* number of disk keys supported */
   ub4     fences_osm_name;                 /* number of fence keys supported */
+  ub2     tags_osm_name;                 /* number of partition tags supported */
   ub2     mirror_osm_name;            /* mirrored disks underlying this disk */
   ub2     parity_osm_name;        /* Data blocks covered by one parity block */
   ub2     speed_osm_name;       /* Max transfer rate in megabytes per second */
@@ -96,6 +101,7 @@ typedef struct _osm_ioc_private   osm_ioc_private;
 struct _osm_ioc_private {
   ub4       ccount_osm_ioc;                               /* Completed count */
   osm_erc    error_osm_ioc;                                    /* Error code */
+  osm_erc    warn_osm_ioc;                                    /* Warning error code */
   ub4    elaptime_osm_ioc;                                   /* Elapsed Time */
   ub2     status_osm_ioc;                           /* status of the request */
   ub2     flags_osm_ioc;   /* flags set by Oracle describing the i/o request */
@@ -108,11 +114,13 @@ struct _osm_ioc_private {
   ub4     rcount_osm_ioc;                                   /* Request count */
   void   *buffer_osm_ioc;                 /* buffer address for the transfer */
   osm_check *check_osm_ioc;                 /* pointer to check data/results */
-  ub2     content_offset_osm_ioc;             /* offset to content validator */
-  ub2     content_repeat_osm_ioc;                  /* next content validator */
+  ub2     xor_osm_ioc;                 /* 16 bit XOR of entire data transfer */
+  ub2     abs_osm_ioc;          /* application block size in physical blocks */
 
-  ub4     content_osm_ioc;               /* value of first content validator */
-  ub8    reserved_osm_ioc;                                       /* Reserved */
+  ub4     abn_offset_osm_ioc;     /* byte offset to application block number */
+  ub4     abn_osm_ioc;            /* value of first application block number */
+  ub4     abn_mask_osm_ioc;                      /* mask to limit comparison */
+  ub8     tag_osm_ioc;                /* expected tag if this is a disk write */
   union
   {
       ub8 reserved_osm_ioc_8;

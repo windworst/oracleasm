@@ -40,6 +40,14 @@ OSMTEST_MULTI_INCLUDES = $(OSMLIB_INCLUDES)
 OSMTEST_MULTI_CPPFLAGS = -DLINUX $(OSMTEST_INCLUDES)
 OSMTEST_MULTI_LDFLAGS = libosm/libosm.a # -L libosm -losm
 
+OSMPROFILE_SRCS = test/osmprofile.c
+OSMPROFILE_OBJS = test/osmprofile.o
+OSMPROFILE_INCLUDES = $(OSMLIB_INCLUDES)
+OSMPROFILE_CPPFLAGS = -DLINUX $(OSMPROFILE_INCLUDES) \
+	-I ../aio/libaio-oracle
+OSMPROFILE_LDFLAGS = libosm/libosm.a \
+	../aio/libaio-oracle/libaio-oracle.a -laio
+
 CPPFLAGS = -g -O2 -Wall
 
 KERNEL_SRCS = kernel/osm.c
@@ -73,7 +81,8 @@ all:				\
 	kernel/osm.o		\
 	libosm/libosm.so	\
 	test/osmtest-bin	\
-	test/osmtest-multi-bin
+	test/osmtest-multi-bin	\
+	test/osmprofile-bin
 
 dist:
 	@mkdir $(DISTNAME)
@@ -130,3 +139,9 @@ test/osmtest-multi.o: test/osmtest-multi.c
 
 test/osmtest-multi-bin: libosm-virtual-stamp test/osmtest-multi.o
 	$(CC) -o $@ $(OSMTEST_MULTI_OBJS) $(OSMTEST_MULTI_LDFLAGS)
+
+test/osmprofile.o: test/osmprofile.c
+	$(CC) $(CPPFLAGS) $(OSMPROFILE_CPPFLAGS) -c -o $@ $<
+	
+test/osmprofile-bin: libosm-virtual-stamp test/osmprofile.o
+	$(CC) -o $@ $(OSMPROFILE_OBJS) $(OSMPROFILE_LDFLAGS)
