@@ -52,6 +52,25 @@ case "$KVER" in
     ;;
 esac
     
+check_ver()
+{
+    VERNUM="$1"
+    case "$VERNUM" in
+    [0-9])
+        ;;
+    [1-9][0-9])
+        ;;
+    [1-9][0-9][0-9])
+        ;;
+    *)
+        echo -n "Checking for Red Hat enterprise kernel: "
+        failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
+        echo
+        exit 1
+        ;;
+    esac
+}
+
 EVER="${KVER#${BASE_VER}}"
 ETYPE=""
 case "$EVER" in
@@ -80,6 +99,11 @@ case "$EVER" in
     # UP on RHEL 3
     ETYPE=up
     ;;
+*[0-9].ELorafw*)
+    # UP on RHEL 3 orafw
+    check_ver "${EVER#*orafw}"
+    ETYPE=up
+    ;;
 esac
 
 if test -z "$ETYPE"
@@ -104,31 +128,21 @@ then
 fi
 case "$BASE_STR" in
 2.4.21-EL)
-    EVER="${EVER%.EL${ETYPE}}"
+    case "$EVER" in
+    *ELorafw*)
+        EVER="${EVER%${ETYPE}}"
+        check_ver "${EVER#*orafw}"
+        EVER="${EVER%.ELorafw*}"
+        ;;
+    *)
+        EVER="${EVER%.EL${ETYPE}}"
+       ;;
+    esac
     ;;
 *)
     EVER="${EVER%${ETYPE}}"
     ;;
 esac
-
-check_ver()
-{
-    VERNUM="$1"
-    case "$VERNUM" in
-    [0-9])
-        ;;
-    [1-9][0-9])
-        ;;
-    [1-9][0-9][0-9])
-        ;;
-    *)
-        echo -n "Checking for Red Hat enterprise kernel: "
-        failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
-        echo
-        exit 1
-        ;;
-    esac
-}
 
 EMAJOR=0
 EMINOR=0

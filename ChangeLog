@@ -1,4 +1,9 @@
 
+2004-02-25	Joel Becker <joel.becker@oracle.com>
+
+	* configure.in: 1.0.1 version
+	* vendor/redhat/oracleasm.init.in: RHEL3 firewire kernels.
+
 2004-02-02	Joel Becker <joel.becker@oracle.com>
 
 	* Going to tag.
