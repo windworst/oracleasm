@@ -35,6 +35,7 @@
 #include <linux/spinlock.h>
 
 #include "linux/osmkernel.h"
+#include "asm/osmids.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
 #include "osmerror.h"
@@ -49,6 +50,14 @@
 
 /* some random number */
 #define OSMFS_MAGIC	0x958459f6
+
+/*
+ * Max I/O is 64K.  Why 64?  Because the MegaRAID card supports only
+ * 26 scatter/gather segments.  26 * 4k page == 104k.  The power of 2
+ * below that is 64K.  The intention is for per-device discovery of this
+ * value in the future.  FIXME.
+ */
+#define OSM_MAX_IOSIZE          (1024 * 64)
 
 /* Debugging is on */
 #undef DEBUG 
@@ -2080,4 +2089,3 @@ static void __exit exit_osmfs_fs(void)
 module_init(init_osmfs_fs)
 module_exit(exit_osmfs_fs)
 MODULE_LICENSE("GPL");
-

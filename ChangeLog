@@ -1,4 +1,11 @@
 
+2003-05-24	Joel Becker <joel.becker@oracle.com>
+
+	* include/asm-i386/osmids.h: Moved the ID mangling
+	* kernel/osm.c: Updated ID mangling bits
+	* libosm/osmlib.c: Updated ID mangling bits
+	* include/linux/osmabi.c: Updated ID mangling bits
+
 2003-05-15	Joel Becker <joel.becker@oracle.com>
 
 	* *: Moved to subversion

@@ -22,19 +22,6 @@
 #ifndef _OSMABI_H
 #define _OSMABI_H
 
-/*
- * Max I/O is 64K.  Why 64?  Because the MegaRAID card supports only
- * 26 scatter/gather segments.  26 * 4k page == 104k.  The power of 2
- * below that is 64K.  The intention is for per-device discovery of this
- * value in the future.  FIXME.
- */
-#define OSM_MAX_IOSIZE          (1024 * 64)
-
-#define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
-#define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
-#define REAL_IID(_iid)          (LOW_UB4((_iid)))
-#define REAL_HANDLE(_hand)      (LOW_UB4((_hand)))
-
 
 /*
  * Structures

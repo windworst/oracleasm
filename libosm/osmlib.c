@@ -33,6 +33,7 @@
 #include <oratypes.h>
 #include <osmlib.h>
 #include "osmerror.h"
+#include "asm/osmids.h"
 #include "asm/osmstructures.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
