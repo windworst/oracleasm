@@ -5,20 +5,19 @@ include $(TOPDIR)/Preamble.make
 DEFINES = -DMODULE -DLINUX -D__KERNEL__ 
 
 # Red Hat kernel magic
+# Note that arch is still retrieved from /boot/kernel.h.
+# Set __MODULE_KERNEL_<arch> on the make command line to override.
 ifeq ($(KVER),smp)
-  DEFINES += -D__MODULE_KERNEL_i686=1 
   DEFINES += -D__BOOT_KERNEL_ENTERPRISE=0 
   DEFINES += -D__BOOT_KERNEL_SMP=1 
   DEFINES += -D__BOOT_KERNEL_UP=0 
 endif
 ifeq ($(KVER),ent)
-  DEFINES += -D__MODULE_KERNEL_i686=1 
   DEFINES += -D__BOOT_KERNEL_ENTERPRISE=1 
   DEFINES += -D__BOOT_KERNEL_SMP=0 
   DEFINES += -D__BOOT_KERNEL_UP=0 
 endif
 ifeq ($(KVER),up)
-  DEFINES += -D__MODULE_KERNEL_i686=1 
   DEFINES += -D__BOOT_KERNEL_ENTERPRISE=0 
   DEFINES += -D__BOOT_KERNEL_SMP=0 
   DEFINES += -D__BOOT_KERNEL_UP=1 
