@@ -1,4 +1,12 @@
 
+2004-08-16	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Fix ASM_BUSY + ASM_LOCAL_ERROR on early
+		ENOMEM.  Fix hang due to missing TASK_RUNNING (Fixes
+		bug #3797446).
+	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Make
+		querydisk smart about uppercasing names.
+
 2004-05-19	Joel Becker <joel.becker@oracle.com>
 
 	* Bumped version to 1.0.3.
