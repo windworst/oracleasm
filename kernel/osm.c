@@ -32,6 +32,7 @@
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
 
+#include "arch/osmkernel.h"
 #include "osmprivate.h"
 
 #if PAGE_CACHE_SIZE % 1024
@@ -131,6 +132,8 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 {
 	struct list_head *l, *p;
 	struct osm_disk_info *d = NULL;
+
+	printk("Looking up device 0x%.8lX\n", (unsigned long)dev);
 	
 	spin_lock(&oi->i_lock);
 	l = &(oi->disk_hash[OSM_HASH_DISK(dev)]);
@@ -138,7 +141,8 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 		goto out;
 
 	list_for_each(p, l) {
-		d = list_entry(l, struct osm_disk_info, d_hash);
+		d = list_entry(p, struct osm_disk_info, d_hash);
+		printk("Comparing device 0x%.8lX\n", (unsigned long) d->dev);
 		if (d->dev == dev) {
 			atomic_inc(&d->d_count);
 			break;
@@ -177,7 +181,9 @@ static inline struct osm_disk_info *osm_add_disk(struct osmfs_inode_info *oi, kd
 	}
 out:
 	if (!d) {
+		printk("Adding device 0x%.8lX\n", (unsigned long)dev);
 		n->dev = dev;
+		printk("Became device 0x%.8lX\n", (unsigned long)n->dev);
 		atomic_set(&n->d_count, 1);
 
 		list_add(&n->d_hash, l);
@@ -419,35 +425,9 @@ static int osmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int d
 	return error;
 }
 
-static int osmfs_mkdir(struct inode * dir, struct dentry * dentry, int mode)
-{
-	return osmfs_mknod(dir, dentry, mode | S_IFDIR, 0);
-}
-
 static int osmfs_create(struct inode *dir, struct dentry *dentry, int mode)
 {
 	return osmfs_mknod(dir, dentry, mode | S_IFREG, 0);
-}
-
-/*
- * Link a file..
- */
-static int osmfs_link(struct dentry *old_dentry, struct inode * dir, struct dentry * dentry)
-{
-	struct super_block *sb = dir->i_sb;
-	struct inode *inode = old_dentry->d_inode;
-
-	if (S_ISDIR(inode->i_mode))
-		return -EPERM;
-
-	if (! osmfs_alloc_dentry(sb))
-		return -ENOSPC;
-
-	inode->i_nlink++;
-	atomic_inc(&inode->i_count);	/* New dentry reference */
-	dget(dentry);		/* Extra pinning count for the created dentry */
-	d_instantiate(dentry, inode);
-	return 0;
 }
 
 static inline int osmfs_positive(struct dentry *dentry)
@@ -503,45 +483,6 @@ static int osmfs_unlink(struct inode * dir, struct dentry *dentry)
 		retval = 0;
 	}
 	return retval;
-}
-
-#define osmfs_rmdir osmfs_unlink
-
-/*
- * The VFS layer already does all the dentry stuff for rename,
- * we just have to decrement the usage count for the target if
- * it exists so that the VFS layer correctly free's it when it
- * gets overwritten.
- */
-static int osmfs_rename(struct inode * old_dir, struct dentry *old_dentry, struct inode * new_dir,struct dentry *new_dentry)
-{
-	struct super_block *sb = new_dir->i_sb;
-
-	int error = -ENOTEMPTY;
-
-	if (osmfs_empty(new_dentry)) {
-		struct inode *inode = new_dentry->d_inode;
-		if (inode) {
-			inode->i_nlink--;
-			dput(new_dentry);
-			osmfs_dealloc_dentry(sb);
-		}
-		error = 0;
-	}
-	return error;
-}
-
-static int osmfs_symlink(struct inode * dir, struct dentry *dentry, const char * symname)
-{
-	int error;
-
-	error = osmfs_mknod(dir, dentry, S_IFLNK | S_IRWXUGO, 0);
-	if (!error) {
-		int l = strlen(symname)+1;
-		struct inode *inode = dentry->d_inode;
-		error = block_symlink(inode, symname, l);
-	}
-	return error;
 }
 
 static void osmfs_delete_inode(struct inode *inode)
@@ -666,15 +607,40 @@ static unsigned long osm_disk_open(struct osmfs_inode_info *oi, kdev_t dev)
 	struct osm_disk_info *d;
 
 	d = osm_find_disk(oi, dev);
-	if (!d)
+	if (!d) {
+		/* FIXME: Need to verify it's a valid device here */
 		d = osm_add_disk(oi, dev);
+	}
 
 	return d ? (unsigned long)dev : 0;
 }  /* osm_disk_open() */
 
-static int osm_disk_close(struct osmfs_inode_info *oi, unsigned long handle)
+static int osm_disk_close(struct osmfs_inode_info *oi, kdev_t dev)
 {
 	struct osm_disk_info *d;
+
+	if (!oi)
+		return -EINVAL;
+
+	d = osm_find_disk(oi, dev);
+	if (!d)
+		return -EINVAL;
+
+	/* Drop the ref from osm_find_disk() */
+	atomic_dec(&d->d_count);
+
+	if (!atomic_dec_and_lock(&d->d_count, &oi->i_lock))
+		return 0;
+
+	/* Last close */
+	list_del(&d->d_hash);
+
+	spin_unlock(&oi->i_lock);
+
+	/* FIXME: wait on I/O */
+
+	printk("Freeing disk 0x%.8lX\n", (unsigned long)dev);
+	kfree(d);
 
 	return 0;
 }  /* osm_close_disk() */
@@ -713,6 +679,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			kdv = to_kdev_t(handle);
 			oi = OSMFS_INODE(inode);
 			handle = osm_disk_open(oi, kdv);
+			printk("Opened handle 0x%.8lX\n", handle);
 			return put_user(handle, (unsigned long *)arg);
 			break;
 
@@ -720,7 +687,11 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (get_user(handle, (unsigned long *)arg))
 				return -EFAULT;
 			oi = OSMFS_INODE(inode);
+			printk("Closing handle 0x%.8lX\n", handle);
 			return osm_disk_close(oi, handle);
+			break;
+
+		case OSMIOC_IODISK:
 			break;
 	}
 

@@ -32,9 +32,9 @@
 
 #include <oratypes.h>
 #include <osmlib.h>
-#include "osmprivate.h"
 #include "osmerror.h"
 #include "arch/osmstructures.h"
+#include "osmprivate.h"
 
 
 
@@ -307,8 +307,16 @@ osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
         !pname->blksz_osm_name || !(pname->interface_osm_name & OSM_IO))
         goto out;
 
+    /* FIXME: need to handle fatal errors when the kernel can tell */
+    err = OSM_ERR_PERM;
     handle = pname->reserved_osm_name_low;
     rc = ioctl(priv->fd, OSMIOC_OPENDISK, &handle);
+    if (rc)
+        goto out;
+
+    err = OSM_ERR_NOMEM;
+    if (!handle)
+        goto out;
 
     *hand = handle;
 
@@ -317,6 +325,31 @@ osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
 out:
     return err;
 }  /* osm_open() */
+
+
+osm_erc osm_close(osm_ctx ctx, osm_handle hand)
+{
+    osm_ctx_private *priv = (osm_ctx_private *)ctx;
+    osm_erc err;
+    int rc;
+    unsigned long handle;
+
+    err = OSM_ERR_INVAL;
+    if (!priv || !hand)
+        goto out;
+
+    /* FIXME: need to handle fatal errors when the kernel can tell */
+    handle = REAL_HANDLE(hand);
+    err = OSM_ERR_INVAL;
+    rc = ioctl(priv->fd, OSMIOC_CLOSEDISK, &handle);
+    if (rc)
+        goto out;
+
+    err = OSM_ERR_NONE;
+
+out:
+    return err;
+}  /* osm_close() */
 
 
 /*

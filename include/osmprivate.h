@@ -49,5 +49,28 @@
 #define OSMIOC_ISDISK           _IOW(OSM_IOCTL_BASE, 2, int)
 #define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, unsigned long)
 #define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, unsigned long)
+struct osmio;
+#define OSMIOC_IODISK           _IOWR(OSM_IOCTL_BASE, 5, struct osmio)
+
+
+/*
+ * Structures
+ */
+#ifdef __KERNEL__
+#define osm_ioc osm_kioc
+#endif
+struct osmio
+{
+    unsigned long       handle;
+    osm_ioc             *requests;
+    unsigned long       reqlen;
+    osm_ioc             *waitreqs;
+    unsigned long       waitlen;
+    osm_ioc             *completions;
+    unsigned long       complen;
+    __u32               intr;
+    __u32               timeout;
+    __u32               *statusp;
+};
 
 #endif  /* _OSMPRIVATE_H */
