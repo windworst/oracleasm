@@ -302,10 +302,10 @@ ORACLEASM_UID=${ORACLEASM_UID}
 ORACLEASM_GID=${ORACLEASM_GID}
 
 # ORACLEASM_SCANBOOT: 'true' means fix disk perms on boot
-ORACLEASM_SCANBOOT=${ORACLEASM_SCANBOOT:-true}
+ORACLEASM_SCANBOOT=${ORACLEASM_SCANBOOT}
 
 # ORACLEASM_CLEARBOOT: 'true' means clean old disk perms on boot
-ORACLEASM_CLEARBOOT=${ORACLEASM_CLEARBOOT:-true}
+ORACLEASM_CLEARBOOT=${ORACLEASM_CLEARBOOT}
 
 EOF
 
@@ -401,7 +401,11 @@ EOF
 
     while :
     do
-        if [ "$ORACLEASM_SCANBOOT" = "true" ]
+        if [ -z "$ORACLEASM_SCANBOOT" ]
+        then
+            ORACLEASM_SCANBOOT=true
+        fi
+        if [ "${ORACLEASM_SCANBOOT}" = "true" ]
         then
             CUR=y
         else
@@ -576,8 +580,7 @@ unperm_disk()
     OUID="`echo "$OUTPUT" | awk '{print $3}'`"
     OGID="`echo "$OUTPUT" | awk '{print $4}'`"
 
-    # 'disk' group is gid 6 on Red Hat and United Linux
-    if [ "$OUID" = "0" -a "$OGID" = "6" ]
+    if [ "$OUID" != "${ORACLEASM_UID:-0}" -o "$OGID" != "${ORACLEASM_GID:-0}" ]
     then
         return 2
     fi
@@ -592,4 +595,79 @@ unperm_disk()
     return 0
 }
 
+
+#
+#  is_ide_disk()
+#
+#  Return true if this IDE device is a disk
+#
+is_ide_disk()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "not_ide_disk(): Requires an argument" >&2
+        return 1
+    fi
+    DISKNAME="$1"
+
+    # This is all /proc IDE nastiness
+    if [ -f "/proc/ide/${DISKNAME}/media" ]
+    then
+        MEDIA="`cat "/proc/ide/${DISKNAME}/media"`"
+        if [ "$MEDIA" = "cdrom" -o "$MEDIA" = "tape" ]
+        then
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+
+#
+# scan_disks()
+# Scan disks to find any ASM disks and perhaps fix their ownership.
+#
+# Returns 0 on success, 1 on error, 2 on disabled.
+#
+scan_disks()
+{
+    if [ "$ORACLEASM_SCANBOOT" != "true" ]
+    then
+        return 2
+    fi
+
+    echo -n "Scanning system for ASM disks "
+    RC=0
+
+    awk '/^major/{next}/^ *$/{next}{print $4}' /proc/partitions |
+        while read DEVNAME
+        do
+            is_ide_disk "$DEVNAME" || continue
+            # Hell no we don't support devfs
+            OUTPUT="`asmtool -c "/dev/${DEVNAME}" 2>/dev/null`"
+            case "$OUTPUT" in
+            *is\ marked*)
+                perm_disk "/dev/${DEVNAME}" >/dev/null
+                if [ $? = 1 ]
+                then
+                    return 1
+                fi
+                ;;
+            *not\ marked*)
+                if [ "${ORACLEASM_CLEARBOOT:-true}" = "true" ]
+                then
+                    unperm_disk "/dev/${DEVNAME}" >/dev/null
+                    if [ $? = 1 ]
+                    then
+                        return 1
+                    fi
+                fi
+                ;;
+            *)
+                continue
+                ;;
+            esac
+        done
+}
 

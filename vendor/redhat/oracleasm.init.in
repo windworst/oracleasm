@@ -205,12 +205,21 @@ configure()
 }
 
 
+scandisks()
+{
+    scan_disks
+    if_fail "$?" "Unable to scan for ASM disks"
+}
+
+
 start()
 {
     link
 
     dev_create "${DEVASM}"
     if_fail "$?" "Unable to create ${DEVASM}"
+
+    scandisks
 
     if [ "$ORACLEASM_ENABLED" != "true" -o ! -r "${OBJPATH}/${MODNAME}.o" ]
     then
@@ -224,6 +233,7 @@ start()
     if_fail "$?" "Unable to mount the ASMlib driver filesystem"
 }
 
+
 stop()
 {
     unmount_device
@@ -232,6 +242,7 @@ stop()
     unload_module oracleasm
     if_fail "$?" "Unable to unload the ASM library driver"
 }
+
 
 
 case "$1" in
@@ -325,6 +336,10 @@ case "$1" in
         check_disk "$2"
         ;;
 
+    scandisks)
+        scandisks
+        ;;
+
     stop)
         stop
         ;;
@@ -335,8 +350,9 @@ case "$1" in
 	;;
 
     *)
-	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|markdisk|unmarkdisk|checkdisk|status}"
+	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|markdisk|unmarkdisk|checkdisk|scandisks|status}"
         exit 1
 esac
 
 exit 0
+

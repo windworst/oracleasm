@@ -14,3 +14,9 @@ ORACLEASM_UID=
 # ORACLEASM_GID: Default GID owning the /dev/oracleasm mount point.
 ORACLEASM_GID=
 
+# ORACLEASM_SCANBOOT: 'true' means fix disk perms on boot
+ORACLEASM_SCANBOOT=true
+
+# ORACLEASM_CLEARBOOT: 'true' means clean old disk perms on boot
+ORACLEASM_CLEARBOOT=true
+

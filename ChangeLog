@@ -1,6 +1,13 @@
 
 2003-12-03	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/common/oracleasm.init.functions: Add scan_disks().
+	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Add scandisks
+		support.
+	* vendor/common/oracleasm.sysconfig: Add boot scan variables.
+
+2003-12-03	Joel Becker <joel.becker@oracle.com>
+
 	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Fix no-module
 		exit.
 
