@@ -56,6 +56,7 @@
 
 /* Debugging is on */
 #undef DEBUG 
+#define DEBUG1 1
 #undef DEBUG_BROKEN
 
 #ifndef DEBUG
@@ -63,6 +64,13 @@
 #else
 #define dprintk printk
 #endif  /* DEBUG */
+
+#ifndef DEBUG1
+#define dprintk1(x...) do { ; } while(0)
+#else
+#define dprintk1 printk
+#endif  /* DEBUG1 */
+
 
 static struct super_operations osmfs_ops;
 static struct address_space_operations osmfs_aops;
@@ -1586,6 +1594,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	if (ioc->timeout) {
 		struct timespec ts;
 
+		dprintk1("Real timeout\n");
 		ret = -EFAULT;
 		if (copy_from_user(&ts, ioc->timeout, sizeof(ts)))
 			goto out;
@@ -1599,6 +1608,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 
 	ret = 0;
 	if (ioc->requests) {
+		dprintk1("Has requests; reqlen %ld\n", ioc->reqlen);
 		for (i = 0; i < ioc->reqlen; i++) {
 			if (get_user(iocp, ioc->requests + i))
 				return -EFAULT;
@@ -1609,6 +1619,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	}
 
 	if (ioc->waitreqs) {
+		dprintk1("Has waits; waitlen %ld\n", ioc->waitlen);
 		for (i = 0; i < ioc->waitlen; i++) {
 			if (get_user(iocp, ioc->waitreqs + i))
 				return -EFAULT;
@@ -1621,6 +1632,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	}
 
 	if (ioc->completions) {
+		dprintk1("Has completes; complen %ld\n", ioc->complen);
 		for (i = 0; i < ioc->complen; i++) {
 			ret = osm_complete_io(ofi, oi, &iocp);
 			if (ret)
@@ -1628,6 +1640,8 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 			if (iocp) {
 				ret = put_user(iocp,
 					       ioc->completions + i);
+                                if (ret)
+                                    goto out_to;
 				continue;
 			}
 
@@ -1635,6 +1649,11 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 
 			/* We had waiters that are full */
 			if (ioc->waitreqs)
+				break;
+
+			/* Early check - expensive stuff follows */
+			ret = -ETIMEDOUT;
+			if (to.timed_out)
 				break;
 
 			spin_lock_irq(&ofi->f_lock);
@@ -1677,6 +1696,16 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 		}
 		if (i >= ioc->complen)
 			status |= OSM_IO_FULL;
+#ifdef DEBUG1
+                else {
+                        if (get_user(iocp, ioc->completions + i)) {
+                                ret = -EFAULT;
+                        }
+			if (iocp)
+				dprintk1("Next completion pointer is not null.\n");
+                }
+#endif /* DEBUG1 */
+
 	}
 
 out_to:
