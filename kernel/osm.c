@@ -1924,8 +1924,6 @@ static inline int osm_complete_ios_thunk(struct osmfs_file_info *ofi,
 			continue;
 		}
 
-		i--; /* Reset this completion */
-
 		/* We had waiters that are full */
 		if (*status & OSM_IO_WAITED)
 			break;
@@ -1935,6 +1933,8 @@ static inline int osm_complete_ios_thunk(struct osmfs_file_info *ofi,
 			break;
 		if (*status & OSM_IO_IDLE)
 			break;
+
+		i--; /* Reset this completion */
 	}
 
 	return (ret ? ret : i);

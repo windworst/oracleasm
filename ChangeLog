@@ -1,6 +1,10 @@
 
 2003-06-24	Joel Becker <joel.becker@oracle.com>
 
+	* kernel/osm.c: Fix complete_ios_thunk like I fixed _native.
+
+2003-06-24	Joel Becker <joel.becker@oracle.com>
+
 	* Config.make.in: Add MCMODEL
 	* kernel/Makefile: Add MCMODEL
 	* configure.in: Add MCMODEL
