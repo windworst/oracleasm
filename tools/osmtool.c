@@ -87,10 +87,16 @@ static int open_disk(const char *disk_name)
     /* Second check, try not to write the wrong place */
     rc = fstat(fd, &stat_buf);
     if (rc)
+    {
+        close(fd);
         return -errno;
+    }
     
     if (!S_ISBLK(stat_buf.st_mode))
+    {
+        close(fd);
         return -ENOTBLK;
+    }
 
     return fd;
 }  /* open_disk() */
