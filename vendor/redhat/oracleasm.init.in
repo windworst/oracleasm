@@ -353,7 +353,7 @@ case "$1" in
             echo "Action \"renamedisk\" requires two arguments" >&2
             exit 1
         fi
-        OLDDISK="`upper_disk "$2"`"
+        OLDDISK="$2"
         NEWDISK="`upper_disk "$3"`"
         relabel_disk "$OLDDISK" "$NEWDISK"
         # We know this will error via asmtool
@@ -366,7 +366,7 @@ case "$1" in
             echo "Action \"renamedisk\" requires two arguments" >&2
             exit 1
         fi
-        OLDDISK="`upper_disk "$2"`"
+        OLDDISK="$2"
         NEWDISK="`upper_disk "$3"`"
         relabel_disk "$OLDDISK" "$NEWDISK" "-a force=yes"
         if [ $? = 1 ]

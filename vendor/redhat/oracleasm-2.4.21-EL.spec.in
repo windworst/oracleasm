@@ -21,12 +21,15 @@
 %endif
 
 %ifarch s390 s390x
-%define buildsmp 0
+%define buildsmp	0
 %endif
 %ifarch ppc64pseries ppc64iseries
-%define buildsmp 0
+%define buildsmp	0
 %endif
 %ifarch ia64
+%define buildsmp	0
+%endif
+%ifarch ia32e
 %define buildsmp	0
 %endif
 
@@ -37,7 +40,7 @@
 %define kver %{base}-15.EL
 
 # The minimum -support package required for the kernel bits.
-%define support_ver     1.0.1
+%define support_ver     1.0.2
 
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{abi}

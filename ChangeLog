@@ -1,4 +1,15 @@
 
+2004-05-17	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/redhat/oracleasm-2.4.21-EL.spec.in: Make base kernel
+		2.4.21-15.EL, and make support required 1.0.2.
+	* vendor/redhat/oracleasm-2.4.9-e.spec.in: Make support required
+		1.0.2.
+	* vendor/unitedlinux/oracleasm-2.4.21.spec-generic.in: Make
+		support required 1.0.2.
+	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Correct
+		upcasing errors.
+	
 2004-05-03	Joel Becker <joel.becker@oracle.com>
 
 	* configure.in: Make RPM_VERSION a command-line option.
