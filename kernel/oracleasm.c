@@ -1282,8 +1282,9 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 
 	r = asm_request_alloc();
 	if (!r) {
-		if (put_user(ASM_FREE | ASM_ERROR | ASM_LOCAL_ERROR |
-			     ASM_BUSY, &(user_iocp->status_asm_ioc)))
+		u16 status = ASM_FREE | ASM_ERROR | ASM_LOCAL_ERROR |
+			ASM_BUSY;
+		if (put_user(status, &(user_iocp->status_asm_ioc)))
 			return -EFAULT;
 		if (put_user(ASM_ERR_NOMEM, &(user_iocp->error_asm_ioc)))
 			return -EFAULT;
@@ -2164,6 +2165,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			/* Userspace checks a 0UL return */
 			if (asm_disk_open(afi, aii, kdv))
 			    dq.dq_rdev = 0;
+#warning Doesn't free disk on EFAULT
 			if (copy_to_user((struct oracleasm_disk_query *)arg,
 					 &dq, sizeof(dq)))
 			    return -EFAULT;
