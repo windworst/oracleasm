@@ -24,7 +24,8 @@
 
 /*
  * This is ugly.  SIZEOF_UNSIGNED_LONG comes from autoconf.
- * Do you have a better way?
+ * Do you have a better way?  I chose not to hand-cook an autoconf
+ * test because I'm lazy and it doesn't seem significantly better.
  */
 #ifndef BITS_PER_LONG
 # if SIZEOF_UNSIGNED_LONG == 4
