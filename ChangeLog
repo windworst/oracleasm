@@ -1,4 +1,9 @@
 
+2003-11-17	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/redhat/oracleasm.init.in: Fix 'status'.
+	* vendor/unitedlinux/oracleasm.init: Make work with common bits.
+
 2003-11-16	Joel Becker <joel.becker@oracle.com>
 
 	* documents/asm-install.txt: Reflect new oracleasm script.

@@ -251,7 +251,8 @@ case "$1" in
             success $"ASM is already loaded; status"
             echo
             echo -n $"Checking if $DEVASM is mounted: "
-            if grep '^none $DEVASM oracleasmfs' /proc/mounts >/dev/null 2>&1
+            DEVASMSEARCH="`echo $DEVASM | sed -e 's/\//\\\\\//g'`"
+            if grep "^oracleasmfs $DEVASMSEARCH oracleasmfs" /proc/mounts >/dev/null 3>&1
             then
                 success $"$DEVASM is already mounted; status"
                 echo

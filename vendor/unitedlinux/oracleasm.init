@@ -1,298 +1,204 @@
 #! /bin/sh
-# init fragment for oracleasm
+# init fragment for ocfs
 #
-# chkconfig: 2345 26 20
-# description: ASM ABI link fixup.
+### BEGIN INIT INFO
+# Provides: ocfs
+# Required-Start: $network
+# Required-Stop:
+# Default-Start: 2 3 5
+# Default-Stop:
+# Description: Load OCFS driver at system boot
+### END INIT INFO
 
 #
-# Note that the start priority is 26.  This is the same as raw devices.
-# It seemed appropriate.
+# Note that the start priority is after the network comes up.
+# There is no real automatic mounting yet.
 #
-#
-
-
-# Force LC_ALL=C
-export LC_ALL=C
 
 
 # Source init.d functions
-. /etc/init.d/functions
+. /etc/rc.status
 
+. /build/jlbec/osm/src-local/vendor/common/oracleasm.init.functions
+
+# Source networking configuration
+[ -f /etc/sysconfig/oracleasm ] && . /etc/sysconfig/oracleasm
+
+
+rc_reset
+
+DEVASM=/dev/oracleasm
+MODNAME=oracleasm
 
 KVER="`uname -r`"
 case "$KVER" in
-2.4.9-e.*)
-    BASE_VER=2.4.9-e
-    BASE_STR=2.4.9-e
+2.4.19-64GB-SMP|2.4.19-4GB-SMP|2.4.19-4GB)
+    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
     ;;
-2.4.18-e.*)
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Red Hat Advanced Server 2.1 for IA-64 is not suppported;"
-    echo
-    exit 1
-    ;;
-2.4.21-*.EL*)
-    BASE_VER=2.4.21-
-    BASE_STR=2.4.21-EL
+2.4.21-111-default|2.4.21-111-smp)
+    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
     ;;
 *)
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
-    echo
-    exit 1
-    ;;
-esac
-    
-EVER="${KVER#${BASE_VER}}"
-ETYPE=""
-case "$EVER" in
-*hugemem)
-    ETYPE=hugemem
-    ;;
-*smp)
-    ETYPE=smp
-    ;;
-*enterprise)
-    if test "$BASE_VER" = "2.4.9-e"
-    then
-        ETYPE=enterprise
-    fi
-    ;;
-*summit)
-    if test "$BASE_VER" = "2.4.9-e"
-    then
-        ETYPE=summit
-    fi
-    ;;
-*[0-9])
-    ETYPE=up
-    ;;
-*[0-9].EL)
-    # UP on RHEL 3
-    ETYPE=up
+    echo -n "Checking for United Linux Enterprise kernel:"
+    false
+    rc_status -v
+    rc_exit
     ;;
 esac
 
-if test -z "$ETYPE"
-then
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Kernel ${KVER} is not a Red Hat enerprise release;"
-    echo
-    exit 1
-fi
+test -r "$MODPATH/oracleasm.o" || exit 5
 
-case "$EVER" in
-*.EL)
-    EVER="${EVER%.EL}"
-    ;;
-*)
-    ;;
-esac
 
-if test "$ETYPE" = "up"
-then
-    ETYPE=""
-fi
-case "$BASE_STR" in
-2.4.21-EL)
-    EVER="${EVER%.EL${ETYPE}}"
-    ;;
-*)
-    EVER="${EVER%${ETYPE}}"
-    ;;
-esac
 
-check_ver()
+if_fail()
 {
-    VERNUM="$1"
-    case "$VERNUM" in
-    [0-9])
-        ;;
-    [1-9][0-9])
-        ;;
-    [1-9][0-9][0-9])
-        ;;
-    *)
-        echo -n "Checking for Red Hat enterprise kernel: "
-        failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
-        echo
-        exit 1
-        ;;
-    esac
-}
-
-EMAJOR=0
-EMINOR=0
-EMICRO=0
-EVER="${EVER#.}"
-EMAJOR="${EVER%%.*}"
-check_ver $EMAJOR
-ETMP="${EVER#${EMAJOR}}"
-ETMP="${ETMP#.}"
-if test -n "$ETMP"
-then
-    EMINOR="${ETMP%%.*}"
-    check_ver $EMINOR
-    ETMP="${ETMP#${EMINOR}}"
-    ETMP="${ETMP#.}"
-fi
-if test -n "$ETMP"
-then
-    EMICRO="${ETMP%%.*}"
-    check_ver $EMICRO
-    ETMP="${ETMP#${EMICRO}}"
-    ETMP="${ETMP#.}"
-fi
-if test -n "$ETMP"
-then
-    echo -n "Checking for Red Hat enterprise kernel: "
-    failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
-    echo
-    exit 1
-fi
-
-# This is for path happiness...
-if test "$ETYPE" != ""
-then
-    ETYPE="${ETYPE}-"
-fi
-MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
-OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/oracleasm"
-DEVASM="/dev/oracleasm"
-
-test -r "$OBJPATH/oracleasm.o" || exit 0
-
-
-dev_create()
-{
-    if [ -e "$DEVASM" ]
+    RC="$1"
+    if [ "$RC" = "0" ]
     then
-        if [ -d "$DEVASM" ]
-        then
-            return
-        fi
-        echo -n "Checking for $DEVASM "
-        failure $"File $DEVASM is not a directory;"
-        echo
-        exit 1
-    fi
-
-    echo -n "Creating $DEVASM mount point "
-    mkdir "$DEVASM" 2>/dev/null
-    if [ $? != 0 ]
+        true
+	rc_status -v
+        return
+    elif [ "$RC" = "2" ]
     then
-        failure $"Unable to create directory %DEVASM;"
-        echo
-        exit 1
+        return
     fi
-    success
-    echo
+    false
+    rc_status -v
+    rc_exit
 }
 
 
-module_link()
+configure()
 {
-    # Assume any symlink is OK - caveat emptor for non-RPM users
-    test -L "${MODPATH}/oracleasm.o" && return
-
-    echo -n "Linking ASM module into the module path "
-
-    # Same deal for modules that are physically there
-    if test -f "${MODPATH}/oracleasm.o" ; then
-        EXISTVER="`modinfo "${MODPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
-        if test -n "${EXISTVER}" ; then
-            ABIVER="`modinfo "${OBJPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
-
-            echo
-            echo "Leaving existing ASM module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
-            success
-            echo
-            return
-        else
-            # The existing module is too old - pre-ABI packaging
-            echo
-            echo "Warning: Moving ancient oracleasm.o out of the way"
-            mv -f "${MODPATH}/oracleasm.o" "${MODPATH}/oracleasm.o.preABI" >/dev/null 2>&1
-            if test "$?" != 0 ; then
-                failure $"Unable to move ancient ASM module out of the way"
-                echo
-                exit 1
-            fi
-        fi
-    fi
-
-    if test ! -d "$MODPATH" ; then
-        if test -e "${MODPATH}"; then
-            failure $"Path \"${MODPATH}\" already exists, but is not a directory"
-            echo
-            exit 1
-        else
-            mkdir -p "$MODPATH" >/dev/null 2>&1
-            if test $? != 0; then
-                failure $"Unable to create directory \"${MODPATH}\""
-                echo
-                exit 1
-            fi
-        fi
-    fi
-
-    ln -s "${OBJPATH}/oracleasm.o" "${MODPATH}/oracleasm.o" >/dev/null 2>&1
-    if test $? != 0; then
-        failure $"Unable to create symbolic link \"${MODPATH}/oracleasm.o\""
-        echo
-        exit 1
-    fi
-    depmod -a
-
-    success
-    echo
+    configure_ask
+    write_sysconfig
+    if_fail $? "Unable to write the driver configuration"
 }
+
+
+start()
+{
+    dev_create "${DEVASM}"
+    if_fail "$?" "Unable to create ${DEVASM}"
+
+    if [ "$ORACLEASM_ENABLED" != "true" ]
+    then
+        exit 0
+    fi
+
+    load_module "${MODNAME}"
+    if_fail "$?" "Unable to load the ASMlib driver module"
+
+    mount_device
+    if_fail "$?" "Unable to mount the ASMlib driver filesystem"
+}
+
+stop()
+{
+    unmount_device
+    if_fail "$?" "Unable to unmount the ASMlib driver filesystem"
+
+    unload_module oracleasm
+    if_fail "$?" "Unable to unload the ASM library driver"
+}
+
 
 case "$1" in
     start)
-        module_link
-        dev_create
-        # Should it load and mount?
-        RETVAL=0
+        start
 	;;
 	
-    link)
-	module_link
-        dev_create
-        RETVAL=0
-        ;;
-
     status)
         echo -n $"Checking if ASM is loaded: "
 	if grep '^oracleasm ' /proc/modules >/dev/null 2>&1
         then
-            success $"ASM is already loaded; status"
-            echo
+            rc_status -v
             echo -n $"Checking if $DEVASM is mounted: "
-            if grep '^none $DEVASM oracleasmfs' /proc/mounts >/dev/null 2>&1
+            DEVASMSEARCH="`echo $DEVASM | sed -e 's/\//\\\\\//g'`"
+            if grep "^oracleasmfs $DEVASMSEARCH oracleasmfs" /proc/mounts >/dev/null 2>&1
             then
-                success $"$DEVASM is already mounted; status"
-                echo
-                exit 0
+                rc_status -v
+                rc_exit
             else
-                failure $"$DEVASM is not mounted; status"
-                echo
-                exit 1
+                rc_status -v
+                rc_exit
             fi
         else
-            failure $"ASM is not loaded; status"
-            echo
-            exit 1
+            false
+            rc_status -v
+            rc_exit
         fi
         ;;
 
-    stop|restart)
-        RETVAL=0
+    configure)
+        configure
+        if [ "$ORACLEASM_ENABLED" = "true" ]
+        then
+            start
+        else
+            stop
+        fi
+        ;;
+
+    enable)
+        ORACLEASM_ENABLED=true
+        write_sysconfig
+        if_fail $? "Unable to write the driver configuration"
+        start
+        ;;
+
+    disable)
+        ORACLEASM_ENABLED=false
+        write_sysconfig
+        if_fail $? "Unable to write the driver configuration"
+        stop
+        ;;
+
+    stop)
+        stop
+        ;;
+
+    restart)
+        stop
+        start
 	;;
 
     *)
-	echo "Usage: $0 {start|stop|restart|link|status}"
-        RETVAL=1
+	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|status}"
+        exit 1
 esac
 
-exit $RETVAL
+exit 0
+
+case "$1" in
+    start)
+        fstab_check
+
+        echo -n $"Loading OCFS:"
+
+        # Note that UnitedLinux doesn't have NETWORKING=no
+
+        if grep '^ocfs ' /proc/modules >/dev/null 2>&1; then
+            rc_status -v
+            rc_exit
+        fi
+
+        "$LOAD_OCFS"
+        rc_status -v
+        ;;
+        
+    status)
+        echo -n $"Checking if OCFS is loaded: "
+        grep '^ocfs ' /proc/modules >/dev/null 2>&1
+        rc_status -v
+        ;;
+
+    stop|force-reload|restart)
+	;;
+
+    *)
+	echo "Usage: $0 {start|stop|status|restart|force-reload}"
+        exit 1
+esac
+
+rc_exit
