@@ -1,6 +1,10 @@
 
 2004-01-28	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/unitedlinux/oracleasm-2.4.19*: Not supporting <SP3.
+
+2004-01-28	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: Make 1.0.0.
 
 2004-01-28	Joel Becker <joel.becker@oracle.com>
