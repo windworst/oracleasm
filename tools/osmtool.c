@@ -224,6 +224,7 @@ int main(int argc, char *argv[])
     int i, fd, rc;
     OsmtoolOperation op = OSMTOOL_CHECK;
 
+    /* Simple programs merely require simple option parsing */
     if (argc < 2)
         print_usage(1);
 
