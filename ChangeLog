@@ -1,6 +1,10 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: 0.9.0 for the ASM half-change.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* Makefile: Change RPM specfile names.
 	* configure.in: Change specfile names.
 	* redhat/Makefile: Reference new specfile names.
