@@ -1,0 +1,11 @@
+README.bugs
+
+Bugs fixed by release.
+
+oracleasm 1.0.2
+---------------
+######: Unable to change a raw device ASM disk to use ASMLib
+
+oracleasm 1.0.1
+---------------
+######: Oracle unable to handle lowercase names
