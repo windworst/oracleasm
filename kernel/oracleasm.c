@@ -432,7 +432,7 @@ static struct inode *asmfs_alloc_inode(struct super_block *sb)
 	spin_lock_irq(&asb->asmfs_lock);
 	if (!asb->max_inodes || asb->free_inodes > 0) {
 		asb->free_inodes--;
-		spin_unlock(&asb->asmfs_lock);
+		spin_unlock_irq(&asb->asmfs_lock);
 	} else {
 		spin_unlock_irq(&asb->asmfs_lock);
 		kmem_cache_free(asmfs_inode_cachep, aii);
