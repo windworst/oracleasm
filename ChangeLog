@@ -1,6 +1,11 @@
 
 2003-12-17	Joel Becker <joel.becker@oracle.com>
 
+	* tools/asmscan.c: Scanning workie.
+	* tools/asmtool.c: Some changes for scanning.
+
+2003-12-17	Joel Becker <joel.becker@oracle.com>
+
 	* vendor/*/*.spec.in: OSM -> ASM.
 
 2003-12-17	Joel Becker <joel.becker@oracle.com>

@@ -44,6 +44,7 @@
  */
 #define ASMFS_MAGIC     0x958459f6
 #define DEV_PREFIX      "/dev/"
+#define PROC_IDE_FORMAT "/proc/ide/%s/media"
 
 
 
@@ -94,8 +95,22 @@ static int as_exclude_device(struct list_head *exclude_list,
                              const char *dev_name);
 static int as_order_device(struct list_head *order_list,
                            const char *dev_name);
+static int as_ide_disk(const char *dev_name);
 static int scan_devices(struct list_head *order_list,
                       struct list_head *exclude_list);
+static int collect_asmtool(pid_t pid,
+                           int out_fd[], int err_fd[],
+                           char *output, int *outlen,
+                           char *errput, int *errlen);
+static int exec_asmtool(char *args[], int out_fd[], int err_fd[]);
+static int run_asmtool(char *args[],
+                       char **output, int *outlen,
+                       char **errput, int *errlen);
+static int needs_clean(const char *manager, const char *disk_name);
+static int delete_disk(const char *manager, const char *disk_name);
+static int clean_disks(const char *manager);
+static int make_disks(const char *manager,
+                      struct list_head *order_list);
 static int is_manager(const char *filename);
 static int parse_options(int argc, char *argv[], char **manager,
                          struct list_head *order_list,
@@ -298,6 +313,41 @@ static int as_order_device(struct list_head *order_list,
 }  /* as_order_device() */
 
 
+static int as_ide_disk(const char *dev_name)
+{
+    FILE *f;
+    int is_disk = 1;
+    size_t len;
+    char *proc_name;
+
+    len = strlen(PROC_IDE_FORMAT) + strlen(dev_name);
+    proc_name = (char *)malloc(sizeof(char) * len);
+    if (!proc_name)
+        return 0;
+
+    snprintf(proc_name, len, PROC_IDE_FORMAT, dev_name);
+    
+    /* If not ide, file won't exist */
+    f = fopen(proc_name, "r");
+    if (f)
+    {
+        if (fgets(proc_name, len, f))
+        {
+            /* IDE devices we don't want to probe */
+            if (!strncmp(proc_name, "cdrom", strlen("cdrom")) ||
+                !strncmp(proc_name, "tape", strlen("tape")))
+                is_disk = 0;
+        }
+        fclose(f);
+    }
+
+    free(proc_name);
+
+    return is_disk;
+}  /* as_ide_disk() */
+
+
+/* Um, wow, this is, like, one big hardcode */
 static int scan_devices(struct list_head *order_list,
                       struct list_head *exclude_list)
 {
@@ -339,6 +389,9 @@ static int scan_devices(struct list_head *order_list,
 
         if (*name && major)
         {
+            if (!as_ide_disk(name))
+                continue;
+
             if (as_exclude_device(exclude_list, name))
                 continue;
 
@@ -363,10 +416,10 @@ out_free:
 
 static int collect_asmtool(pid_t pid,
                            int out_fd[], int err_fd[],
-                           char *output, int outlen,
-                           char *errput, int errlen)
+                           char *output, int *outlen,
+                           char *errput, int *errlen)
 {
-    int status, rc;
+    int status, rc, tot;
     pid_t wait_pid;
 
     while ((wait_pid = wait(&status)) != pid)
@@ -374,6 +427,44 @@ static int collect_asmtool(pid_t pid,
 
     close(out_fd[1]); close(err_fd[1]);
 
+    tot = 0;
+    while (1)
+    {
+        rc = read(out_fd[0], output + tot, *outlen - tot);
+        if (!rc)
+            break;
+        else if (rc < 0)
+        {
+            if ((rc == EINTR) || (rc == EAGAIN))
+                continue;
+            goto out;
+        }
+
+        tot += rc;
+    }
+    output[*outlen > tot ? tot : *outlen - 1] = '\0';
+    *outlen = tot;
+
+    tot = 0;
+    while (1)
+    {
+        rc = read(err_fd[0], errput + tot, *errlen - tot);
+        if (!rc)
+            break;
+        else if (rc < 0)
+        {
+            if ((rc == EINTR) || (rc == EAGAIN))
+                continue;
+            goto out;
+        }
+
+        tot += rc;
+    }
+    errput[*errlen > tot ? tot : *errlen - 1] = '\0';
+    *errlen = tot;
+
+    if (!rc)
+        rc = status;
 
 out:
     close(out_fd[0]); close(err_fd[0]);
@@ -381,7 +472,38 @@ out:
 }  /* collect_asmtool() */
 
 
-static int run_asmtool(const char *args[],
+static int exec_asmtool(char *args[], int out_fd[], int err_fd[])
+{
+    int rc;
+
+    args[0] = "asmtool";  /* FIXME: Do something pathlike */
+
+    close(out_fd[0]); close(err_fd[0]);
+
+    if (out_fd[1] != STDOUT_FILENO)
+    {
+        rc = dup2(out_fd[1], STDOUT_FILENO);
+        if (rc < 0)
+            _exit(-errno);
+        close(out_fd[1]);
+    }
+
+    if (err_fd[1] != STDERR_FILENO)
+    {
+        rc = dup2(err_fd[1], STDERR_FILENO);
+        if (rc < 0)
+            _exit(-errno);
+        close(err_fd[1]);
+    }
+
+    rc = execvp(args[0], args);
+    /* Shouldn't get here */
+
+    return rc;
+}  /* exec_asmtool() */
+
+
+static int run_asmtool(char *args[],
                        char **output, int *outlen,
                        char **errput, int *errlen)
 {
@@ -393,8 +515,6 @@ static int run_asmtool(const char *args[],
     /* Caller must leave args[0] NULL */
     if (!args || args[0])
         return -EINVAL;
-
-    args[0] = "asmtool";  /* FIXME: Do something pathlike */
 
     *output = (char *)malloc(sizeof(char) * put_size);
     if (!*output)
@@ -437,13 +557,126 @@ static int run_asmtool(const char *args[],
     /* These calls close the pipes */
     if (pid)
         rc = collect_asmtool(pid, out_fd, err_fd,
-                             *output, *outlen,
-                             *errput, *errlen);
+                             *output, outlen,
+                             *errput, errlen);
     else
         rc = exec_asmtool(args, out_fd, err_fd);
 
     return rc;
 }  /* run_asmtool() */
+
+
+static int needs_clean(const char *manager, const char *disk_name)
+{
+    int rc;
+    char *output, *errput;
+    int outlen, errlen;
+    char * args[] =
+    {
+        NULL,  /* filled in later with the program */
+        "-I",
+        "-l",
+        (char *)manager,
+        "-n",
+        (char *)disk_name,
+        NULL
+    };
+
+    rc = run_asmtool(args, &output, &outlen, &errput, &errlen);
+    if (rc < 0)
+    {
+        fprintf(stderr,
+                "asmscan: Error running asmtool on disk \"%s\": %s\n",
+                disk_name, strerror(-rc));
+    }
+    else if (WIFEXITED(rc))
+    {
+        if (WEXITSTATUS(rc))
+        {
+            if (!strstr(errput, "Unable to"))
+                return 1;
+            if (strstr(errput, "No such device"))
+                return 1;
+            if (strstr(errput, "Invalid argument"))  /* Bad IDE lseek */
+                return 1;
+            fprintf(stderr,
+                    "Error on %s (%d): %s\n",
+                    disk_name, WEXITSTATUS(rc), errput);
+        }
+        else if (!strstr(output, "valid ASM disk"))
+        {
+            fprintf(stdout,
+                    "Output on %s: %s\n",
+                    disk_name, output);
+            return 1;
+        }
+    }
+    else if (WIFSIGNALED(rc))
+    {
+        fprintf(stderr,
+                "asmscan: asmtool query of disk \"%s\" killed by signal %d\n",
+                disk_name, WTERMSIG(rc));
+    }
+    else
+    {
+        fprintf(stderr,
+                "asmscan: Unknown error running asmtool on disk \"%s\"\n",
+                disk_name);
+    }
+
+    return 0;
+}  /* needs_clean() */
+
+
+static int delete_disk(const char *manager, const char *disk_name)
+{
+    int rc;
+    char *output, *errput;
+    int outlen, errlen;
+    char * args[] =
+    {
+        NULL,  /* filled in later with the program */
+        "-D",
+        "-l",
+        (char *)manager,
+        "-n",
+        (char *)disk_name,
+        NULL
+    };
+
+    rc = run_asmtool(args, &output, &outlen, &errput, &errlen);
+    if (rc < 0)
+    {
+        fprintf(stderr,
+                "asmscan: Error running asmtool on disk \"%s\": %s\n",
+                disk_name, strerror(-rc));
+    }
+    else if (WIFEXITED(rc))
+    {
+        rc = WEXITSTATUS(rc);
+        if (rc)
+        {
+            fprintf(stderr,
+                    "Unable to delete invalid disk \"%s\": %s\n",
+                    disk_name, strerror(-rc));
+        }
+    }
+    else if (WIFSIGNALED(rc))
+    {
+        fprintf(stderr,
+                "asmscan: asmtool delete of disk \"%s\" killed by signal %d\n",
+                disk_name, WTERMSIG(rc));
+        rc = -EINTR;
+    }
+    else
+    {
+        fprintf(stderr,
+                "asmscan: Unknown error running asmtool on disk \"%s\"\n",
+                disk_name);
+    }
+
+    return rc;
+}  /* delete_disk() */
 
 
 static int clean_disks(const char *manager)
@@ -468,15 +701,182 @@ static int clean_disks(const char *manager)
         if (!strcmp(d_ent->d_name, ".") || !strcmp(d_ent->d_name, ".."))
             continue;
 
-        disk_path = asm_disk_path(manager, d_ent->d_name);
-        fprintf(stdout, "Existing disk: %s\n", disk_path);
-        free(disk_path);
+        rc = needs_clean(manager, d_ent->d_name);
+        if (!rc)
+            continue;
+
+        fprintf(stdout, "Cleaning disk \"%s\"\n", d_ent->d_name);
+        rc = delete_disk(manager, d_ent->d_name);
     }
 
-    rc = 0;
 out:
     return rc;
 }  /* clean_disks() */
+
+static int device_is_disk(const char *manager, const char *device,
+                          char **disk_name)
+{
+    int rc;
+    char *output, *errput, *ptr;
+    int outlen, errlen;
+    char * args[] =
+    {
+        NULL,  /* filled in later with the program */
+        "-I",
+        "-l",
+        (char *)manager,
+        "-n",
+        (char *)device,
+        "-a",
+        "label",
+        NULL
+    };
+
+    rc = run_asmtool(args, &output, &outlen, &errput, &errlen);
+    if (rc < 0)
+    {
+        fprintf(stderr,
+                "asmscan: Error running asmtool on device \"%s\": %s\n",
+                device, strerror(-rc));
+    }
+    else if (WIFEXITED(rc))
+    {
+        if (WEXITSTATUS(rc))
+        {
+            if (strstr(errput, "not marked"))
+                return 0;
+            if (strstr(errput, "No such"))
+                return 0;
+            if (strstr(errput, "Invalid argument"))  /* Bad IDE lseek */
+                return 0;
+            fprintf(stderr,
+                    "asmscan: Error on %s (%d): %s\n",
+                    device, WEXITSTATUS(rc), errput);
+        }
+        else
+        {
+            if (strstr(output, "is marked"))
+            {
+                ptr = strrchr(output, '"');
+                if (!ptr)
+                    return 0;  /* Should error */
+                *ptr = '\0';
+                ptr = strrchr(output, '"');
+                if (!ptr)
+                    return 0;  /* Again, error */
+                *disk_name = strdup(ptr + 1);
+                return 1;
+            }
+            
+            fprintf(stdout,
+                    "Output on %s: %s\n",
+                    device, output);
+        }
+    }
+    else if (WIFSIGNALED(rc))
+    {
+        fprintf(stderr,
+                "asmscan: asmtool query of device \"%s\" killed by signal %d\n",
+                device, WTERMSIG(rc));
+    }
+    else
+    {
+        fprintf(stderr,
+                "asmscan: Unknown error running asmtool on device \"%s\"\n",
+                device);
+    }
+
+    return 0;
+}  /* device_is_disk() */
+
+
+static int instantiate_disk(const char *manager,
+                            const char *disk_name,
+                            const char *device)
+{
+    int rc;
+    char *output, *errput;
+    int outlen, errlen;
+    char * args[] =
+    {
+        NULL,  /* filled in later with the program */
+        "-C",
+        "-l",
+        (char *)manager,
+        "-n",
+        (char *)disk_name,
+        "-s",
+        (char *)device,
+        "-a",
+        "mark=no",
+        NULL
+    };
+
+    rc = run_asmtool(args, &output, &outlen, &errput, &errlen);
+    if (rc < 0)
+    {
+        fprintf(stderr,
+                "asmscan: Error running asmtool to create disk \"%s\": %s\n",
+                disk_name, strerror(-rc));
+    }
+    else if (WIFEXITED(rc))
+    {
+        rc = WEXITSTATUS(rc);
+        if (rc)
+        {
+            if (!strstr(errput, "File exists"))
+            {
+                fprintf(stderr,
+                        "asmscan: Unable to create disk \"%s\": %s\n",
+                        disk_name, strerror(-rc));
+            }
+            else
+                rc = 0;
+        }
+    }
+    else if (WIFSIGNALED(rc))
+    {
+        fprintf(stderr,
+                "asmscan: asmtool creation of disk \"%s\" killed by signal %d\n",
+                disk_name, WTERMSIG(rc));
+        rc = -EINTR;
+    }
+    else
+    {
+        fprintf(stderr,
+                "asmscan: Unknown error running asmtool on disk \"%s\"\n",
+                disk_name);
+    }
+
+    return rc;
+}
+
+
+static int make_disks(const char *manager, struct list_head *order_list)
+{
+    int rc;
+    char *disk_name;
+    struct list_head *pos_l, *pos_d;
+    ASMScanPattern *pattern;
+    ASMScanDevice *device;
+
+    list_for_each(pos_l, order_list) {
+        pattern = list_entry(pos_l, ASMScanPattern, sp_list);
+        list_for_each(pos_d, &pattern->sp_matches) {
+            device = list_entry(pos_d, ASMScanDevice, sd_list);
+            rc = device_is_disk(manager, device->sd_path, &disk_name);
+            if (rc)
+            {
+                fprintf(stdout,
+                        "Instantating disk \"%s\"\n", disk_name);
+                rc = instantiate_disk(manager, disk_name,
+                                      device->sd_path);
+            }
+        }
+    }
+
+    return 0;
+}  /* make_disks() */
 
 
 static int is_manager(const char *filename)
@@ -617,38 +1017,16 @@ int main(int argc, char *argv[])
         goto out;
 
     rc = scan_devices(&order_list, &exclude_list);
+    if (rc)
+        goto out;
 
-    {
-        struct list_head *pos_l, *pos_d;
-        ASMScanPattern *pattern;
-        ASMScanDevice *device;
+    rc = make_disks(manager, &order_list);
 
-        list_for_each(pos_l, &exclude_list) {
-            pattern = list_entry(pos_l, ASMScanPattern, sp_list);
-            fprintf(stdout, "Excluded by \"%s\":\n", 
-                    pattern->sp_pattern);
-            list_for_each(pos_d, &pattern->sp_matches) {
-                device = list_entry(pos_d, ASMScanDevice, sd_list);
-                fprintf(stdout, "\t%s (%s)\n",
-                        device->sd_name, device->sd_path);
-            }
-        }
-        list_for_each(pos_l, &order_list) {
-            pattern = list_entry(pos_l, ASMScanPattern, sp_list);
-            fprintf(stdout, "Ordered by \"%s\":\n", 
-                    pattern->sp_pattern);
-            list_for_each(pos_d, &pattern->sp_matches) {
-                device = list_entry(pos_d, ASMScanDevice, sd_list);
-                fprintf(stdout, "\t%s (%s)\n",
-                        device->sd_name, device->sd_path);
-            }
-        }
-    }
 out:
     as_clean_pattern_list(&order_list);
     as_clean_pattern_list(&exclude_list);
 
-    return 0;
+    return rc;
 }  /* main() */
 
 

@@ -392,8 +392,8 @@ static char *asm_disk_id(struct asm_disk_label *adl)
 static int delete_disk_by_name(const char *manager, const char *disk,
                                ASMToolAttrs *attrs)
 {
-    int rc, fd;
-    char *asm_disk, *id;
+    int rc, fd = -1;
+    char *asm_disk;
     struct asm_disk_label adl;
 
     rc = -ENOMEM;
@@ -409,51 +409,40 @@ static int delete_disk_by_name(const char *manager, const char *disk,
     rc = open_disk(asm_disk);
     if (rc < 0)
     {
-        fprintf(stderr, "Unable to open ASM disk \"%s\": %s\n",
-                disk, strerror(-rc));
-        goto out;
+        switch (rc)
+        {
+            /* Things that mean we know it's bad */
+            case -ENXIO:
+            case -ENODEV:
+                goto out_del;
+
+            default:
+                fprintf(stderr, "Unable to open ASM disk \"%s\": %s\n",
+                        disk, strerror(-rc));
+                goto out;
+        }
     }
     fd = rc;
 
     rc = read_disk(fd, &adl);
     if (rc)
     {
-        fprintf(stderr,
-                "asmtool: Unable to query ASM disk \"%s\": %s\n",
-                disk, strerror(-rc));
-        goto out_close;
+        switch (rc)
+        {
+            case -EINVAL:
+            case -EBADF:
+                goto out_del;
+
+            default:
+                fprintf(stderr,
+                        "asmtool: Unable to query ASM disk \"%s\": %s\n",
+                        disk, strerror(-rc));
+                goto out_close;
+        }
     }
 
     rc = check_disk(&adl, disk);
-    if (rc)
-    {
-        if (rc == -ESRCH)
-        {
-            id = asm_disk_id(&adl);
-            if (!id)
-            {
-                fprintf(stderr,
-                        "asmtool: ASM disk label mismatch: %s\n",
-                        strerror(-rc));
-            }
-            else
-            {
-                fprintf(stderr,
-                        "asmtool: Device of ASM disk \"%s\" is actually labeled for ASM disk \"%s\"\n",
-                        disk, id);
-                free(id);
-            }
-            goto out_close;
-        }
-        else if (rc != -ENXIO)
-        {
-            fprintf(stderr,
-                    "asmtool: Unable to query ASM disk \"%s\": %s\n",
-                    disk, strerror(-rc));
-            goto out_close;
-        }
-    }
-    else
+    if (!rc)
     {
         rc = unmark_disk(fd, &adl);
         if (rc && (rc != -ESRCH))
@@ -465,10 +454,12 @@ static int delete_disk_by_name(const char *manager, const char *disk,
         }
     }
 
+out_del:
     rc = unlink_disk(manager, disk);
 
 out_close:
-    close(fd);
+    if (fd > -1)
+        close(fd);
 
 out:
     return rc;
@@ -874,7 +865,7 @@ static int get_info_asmdisk_by_name(const char *manager,
     {
         if (rc == -ENXIO)
         {
-            fprintf(stdout,
+            fprintf(stderr,
                     "asmtool: ASM disk \"%s\" defines an unmarked device\n",
                     disk);
         }
@@ -969,7 +960,7 @@ static int get_info_asmdisk_by_device(const char *manager,
     }
     else if (rc == -ENXIO)
     {
-        fprintf(stdout,
+        fprintf(stderr,
                 "asmtool: Disk \"%s\" is not marked an ASM disk\n",
                 target);
     }
