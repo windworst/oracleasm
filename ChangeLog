@@ -1,6 +1,18 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* include/linux/{osm,asm}compat32.h: Rename osmcompat32.h to
+		asmcompat32.h.
+	* include/linux/Makefile: Reference asmcompat32.h.
+	* kernel/oracleasm.c: Reference asmcompat32.h.
+	* kernel/Makefile: Reference asmcompat32.h.
+	* libosm/asmlib.c: Reference asmcompat32.h.
+	* libosm/Makefile: Reference asmcompat32.h.
+	* test/asmbad.c: Reference asmcompat32.h.
+	* test/sizes.c: Reference asmcompat32.h.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* include/linux/{osm,asm}kernel.h: Rename osmkernel.h to
 		asmkernel.h.
 	* include/linux/Makefile: Reference asmkernel.h.

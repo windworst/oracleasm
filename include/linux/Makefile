@@ -18,7 +18,7 @@ HEADERS =		\
 	osmabi.h	\
 	osmdisk.h	\
 	asmkernel.h	\
-	osmcompat32.h
+	asmcompat32.h
 DIST_FILES = $(HEADERS)
 
 

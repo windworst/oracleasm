@@ -9,7 +9,7 @@
 
 /*
   NAME
-    osmcompat32.h - Oracle Storage Manager ID macros
+    asmcompat32.h - Oracle Automatic Storage Management library ID macros
     
   DESCRIPTION
   
@@ -19,8 +19,8 @@
 */
 
 
-#ifndef _OSMCOMPAT32_H
-#define _OSMCOMPAT32_H
+#ifndef _ASMCOMPAT32_H
+#define _ASMCOMPAT32_H
 
 /*
  * This is ugly.  SIZEOF_UNSIGNED_LONG comes from autoconf.
@@ -45,5 +45,5 @@
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
 
-#endif  /* _OSMCOMPAT32_H */
+#endif  /* _ASMCOMPAT32_H */
 
