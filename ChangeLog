@@ -1,6 +1,10 @@
 
 2003-12-07	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/common/oracleasm.init.functions: Call new asmtool.
+
+2003-12-07	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: Bump to 0.10.0 for reworking disk labels.
 	* tools/asmtool.c: Totally new asmtool code.
 	* kernel/oracleasm.c: Handle new disk label structure.

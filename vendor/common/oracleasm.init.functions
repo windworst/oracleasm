@@ -441,14 +441,15 @@ EOF
 #
 mark_disk()
 {
-    if [ "$#" -lt "1" -o -z "$1" ]
+    if [ "$#" -lt "2" -o -z "$1" -o -z "$2" ]
     then
-        echo "mark_disk(): Requires an argument" >&2
+        echo "mark_disk(): Requires two arguments" >&2
         return 1
     fi
     DISKNAME="$1"
+    LABEL="$2"
    
-    OUTPUT="`asmtool -m "${DISKNAME}" 2>&1`"
+    OUTPUT="`asmtool -M -l "${DISKNAME}" -a label="${LABEL}" 2>&1`"
     if [ $? != 0 ]
     then
         echo -n "Marking disk \"$DISKNAME\" as an ASM disk "
@@ -481,7 +482,7 @@ unmark_disk()
     fi
     DISKNAME="$1"
    
-    OUTPUT="`asmtool -u "${DISKNAME}" 2>&1`"
+    OUTPUT="`asmtool -U -l "${DISKNAME}" 2>&1`"
     if [ $? != 0 ]
     then
         echo -n "Unmarking disk \"$DISKNAME\" as an ASM disk "
@@ -512,7 +513,7 @@ check_disk()
     fi
     DISKNAME="$1"
 
-    asmtool -c "$DISKNAME" | sed -e 's/^asmtool: //'
+    asmtool -C -l "$DISKNAME" | sed -e 's/^asmtool: //'
 }
 
 
@@ -645,7 +646,7 @@ scan_disks()
         do
             is_ide_disk "$DEVNAME" || continue
             # Hell no we don't support devfs
-            OUTPUT="`asmtool -c "/dev/${DEVNAME}" 2>/dev/null`"
+            OUTPUT="`asmtool -C -l "/dev/${DEVNAME}" 2>/dev/null`"
             case "$OUTPUT" in
             *is\ marked*)
                 perm_disk "/dev/${DEVNAME}" >/dev/null
