@@ -30,7 +30,10 @@
 #define OSMLIB_MINOR 1
 #define OSMLIB_MICRO 0
 
-#define REAL_IID(_iid)  ((unsigned long)((_iid) & 0xFFFFFFFFULL))
+#define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
+#define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
+#define REAL_IID(_iid)          (LOW_UB4((_iid)))
+#define REAL_HANDLE(_hand)      (LOW_UB4((_hand)))
 
 
 /*
@@ -44,6 +47,7 @@
 
 /* ioctls on /dev/osm/<iid> */
 #define OSMIOC_ISDISK           _IOW(OSM_IOCTL_BASE, 2, int)
-
+#define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, unsigned long)
+#define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, unsigned long)
 
 #endif  /* _OSMPRIVATE_H */

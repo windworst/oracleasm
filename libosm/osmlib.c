@@ -210,6 +210,7 @@ out:
 osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
 {
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
+    osm_name_private *pname = (osm_name_private *)name;
     osm_erc err;
     glob_t *globbuf;
     char *path;
@@ -233,16 +234,16 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
         if (fd >= 0)
         {
             rc = fstat(fd, &stat_buf);
-            if (!rc) 
+            if (!rc && S_ISBLK(stat_buf.st_mode)) 
             {
                 rc = ioctl(priv->fd, OSMIOC_ISDISK, &(stat_buf.st_rdev));
                 if (!rc)
                 {
-                    rc = ioctl(fd, BLKGETSIZE, &(name->size_osm_name));
+                    rc = ioctl(fd, BLKGETSIZE, &(pname->size_osm_name));
                     if (!rc)
                     {
                         rc = ioctl(fd, BLKSSZGET,
-                                   &(name->blksz_osm_name));
+                                   &(pname->blksz_osm_name));
                         if (!rc)
                         {
                             close(fd);
@@ -265,11 +266,12 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     len = strlen(path);
     if (len >= OSM_MAXPATH)
         len = OSM_MAXPATH -1;
-    memmove(name->path_osm_name,
+    memmove(pname->path_osm_name,
             globbuf->gl_pathv[priv->discover_index], len);
-    name->path_osm_name[len] = '\0';
-    name->label_osm_name[0] = '\0';
-    name->interface_osm_name = (OSM_IO | OSM_OSNAME | OSM_SIZE);
+    pname->path_osm_name[len] = '\0';
+    pname->label_osm_name[0] = '\0';
+    pname->interface_osm_name = (OSM_IO | OSM_OSNAME | OSM_SIZE);
+    pname->reserved_osm_name_low = stat_buf.st_rdev;
 
 
     priv->discover_index++;
@@ -283,13 +285,38 @@ end_glob:
 
 clear_name:
     if (to_clear)
-        memset(name, 0, sizeof(*name));
+        memset(pname, 0, sizeof(*pname));
 
     err = OSM_ERR_NONE;
 
 out:
     return err;
 }  /* osm_fetch() */
+
+
+osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
+{
+    osm_ctx_private *priv = (osm_ctx_private *)ctx;
+    osm_name_private *pname = (osm_name_private *)name;
+    osm_erc err;
+    int rc;
+    unsigned long handle;
+
+    err = OSM_ERR_INVAL;
+    if (!priv || !pname || !hand ||
+        !pname->blksz_osm_name || !(pname->interface_osm_name & OSM_IO))
+        goto out;
+
+    handle = pname->reserved_osm_name_low;
+    rc = ioctl(priv->fd, OSMIOC_OPENDISK, &handle);
+
+    *hand = handle;
+
+    err = OSM_ERR_NONE;
+
+out:
+    return err;
+}  /* osm_open() */
 
 
 /*
@@ -329,3 +356,28 @@ osm_erc osm_error(osm_ctx ctx, osm_erc errcode,
 out:
     return err;
 }  /* osm_error() */
+
+
+/* Stub implementation, no real cancel */
+osm_erc osm_cancel(osm_ctx ctx, osm_ioc *ioc)
+{
+    osm_ctx_private *priv = (osm_ctx_private *)ctx;
+
+    if (!priv || !ioc || (ioc->status_osm_ioc & OSM_FREE))
+        return OSM_ERR_INVAL;
+
+    ioc->status_osm_ioc |= OSM_CANCELLED;
+
+    return 0;
+}  /* osm_cancel() */
+
+
+void osm_posted(osm_ctx ctx)
+{
+    osm_ctx_private *priv = (osm_ctx_private *)ctx;
+
+    if (!priv)
+        return;
+
+    priv->posted++;
+}  /* osm_posted() */

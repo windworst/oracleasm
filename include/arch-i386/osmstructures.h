@@ -41,6 +41,7 @@ struct _osm_ctx_private
     int fd;
     int discover_index;
     void *discover_cache;
+    char posted;
 };
 
 
@@ -74,8 +75,8 @@ struct _osm_name_private
           ub4 reserved_osm_name_4_0, reserved_osm_name_4_1;
       } reserved_osm_name_4;
   } reserved_osm_name_u;
-#define reserved_osm_name_high reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_0
-#define reserved_osm_name_low reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_1
+#define reserved_osm_name_high reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_4_0
+#define reserved_osm_name_low reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_4_1
 };
 
 

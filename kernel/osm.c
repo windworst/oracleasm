@@ -82,13 +82,113 @@ struct osmfs_sb_info {
 #define OSMFS_SB(sb) ((struct osmfs_sb_info *)((sb)->u.generic_sbp))
 
 
+#define OSM_HASH_BUCKETS 1024
 /*
  * osmfs inode data in memory
  */
 struct osmfs_inode_info {
+	spinlock_t i_lock;
+	struct list_head disk_hash[OSM_HASH_BUCKETS];
 };
 
 #define OSMFS_INODE(_i) ((struct osmfs_inode_info *)((_i->u.generic_ip)))
+
+
+/*
+ * osm disk info
+ */
+struct osm_disk_info {
+	struct list_head d_hash;
+	kdev_t dev;
+	atomic_t d_count;
+};
+
+
+/*
+ * Hashing.  Here's the problem.  When node 2 opens a disk, we need to
+ * find out if node 1 has opened it already.  If so, we have to get the
+ * handle node1 got so that the handles are identical.  Now, in 2.4 with
+ * 128 disks, a list of current disk handles is easy to scan.  As 2.5
+ * comes forward with thousands of disks, it doesn't get so hot.  The
+ * only semi-sure way to know a disk is the same is via the device
+ * major and minor.  Hence, a lookup on major/minor.  However, that's a
+ * lookup array of 64K items in 2.4 and 4GB in 2.5.  You could try to
+ * only map certain majors, but given that a 20bit minor in 2.5 has 64K
+ * disks, it still doesn't work.  So we hash.  Figuring a system with
+ * 16K disks (a lot, at least for now), a hash that drops things into
+ * 1024 buckets creates collision lists that are only 64 entries.  Even
+ * in somewhat bad cases we don't get many more entries per list.
+ *
+ * All that means that we're going to use a simple hash based on that
+ * 1024 bucket table.  The hash?  kdev_t & 0x37777 (last 14 bits).
+ * Come up with a better one.  Come up with a better search.  This isn't
+ * set in stone, it's just a start.
+ */
+#define OSM_HASH_DISK(dev) ((dev) & 0x37777)
+
+
+static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, kdev_t dev)
+{
+	struct list_head *l, *p;
+	struct osm_disk_info *d = NULL;
+	
+	spin_lock(&oi->i_lock);
+	l = &(oi->disk_hash[OSM_HASH_DISK(dev)]);
+	if (list_empty(l))
+		goto out;
+
+	list_for_each(p, l) {
+		d = list_entry(l, struct osm_disk_info, d_hash);
+		if (d->dev == dev) {
+			atomic_inc(&d->d_count);
+			break;
+		}
+		d = NULL;
+	}
+
+out:
+	spin_unlock(&oi->i_lock);
+	return d;
+}  /* osm_find_disk() */
+
+
+static inline struct osm_disk_info *osm_add_disk(struct osmfs_inode_info *oi, kdev_t dev)
+{
+	struct list_head *l, *p;
+	struct osm_disk_info *d, *n;
+
+	/* FIXME: Maybe a kmem_cache_t later */
+	n = kmalloc(sizeof(*n), GFP_KERNEL);
+	if (!n)
+		return NULL;
+
+	d = NULL;
+	spin_lock(&oi->i_lock);
+	l = &(oi->disk_hash[OSM_HASH_DISK(dev)]);
+
+	if (list_empty(l))
+		goto out;
+
+	list_for_each(p, l) {
+		d = list_entry(l, struct osm_disk_info, d_hash);
+		if (d->dev == dev)
+			break;
+		d = NULL;
+	}
+out:
+	if (!d) {
+		n->dev = dev;
+		atomic_set(&n->d_count, 1);
+
+		list_add(&n->d_hash, l);
+		d = n;
+	}
+	else
+		kfree(n);
+	spin_unlock(&oi->i_lock);
+
+	return d;
+}  /* osm_add_disk() */
 
 
 /*
@@ -239,6 +339,7 @@ static struct dentry * osmfs_lookup(struct inode *dir, struct dentry *dentry)
 
 struct inode *osmfs_get_inode(struct super_block *sb, int mode, int dev)
 {
+	int i;
 	struct inode * inode;
 	struct osmfs_inode_info *oi;
 
@@ -250,6 +351,11 @@ struct inode *osmfs_get_inode(struct super_block *sb, int mode, int dev)
 	if (inode) {
 		oi = kmalloc(sizeof(struct osmfs_inode_info),
 			     GFP_KERNEL);
+
+		for (i = 0; i < OSM_HASH_BUCKETS; i++)
+			INIT_LIST_HEAD(&(oi->disk_hash[i]));
+
+		spin_lock_init(&oi->i_lock);
 		OSMFS_INODE(inode) = oi;
 		if (!oi)
 		{
@@ -555,15 +661,35 @@ static int osmfs_remount(struct super_block * sb, int * flags, char * data)
 	return 0;
 }
 
+static unsigned long osm_disk_open(struct osmfs_inode_info *oi, kdev_t dev)
+{
+	struct osm_disk_info *d;
+
+	d = osm_find_disk(oi, dev);
+	if (!d)
+		d = osm_add_disk(oi, dev);
+
+	return d ? (unsigned long)dev : 0;
+}  /* osm_disk_open() */
+
+static int osm_disk_close(struct osmfs_inode_info *oi, unsigned long handle)
+{
+	struct osm_disk_info *d;
+
+	return 0;
+}  /* osm_close_disk() */
+
+
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
 	kdev_t kdv;
 	struct gendisk *g;
 	int drive, first_minor, dev;
+	unsigned long handle;
+	struct osmfs_inode_info *oi;
 
 	switch (cmd) {
 		default:
-			printk("ENOTTY in file ioctl\n");
 			return -ENOTTY;
 			break;
 
@@ -579,6 +705,22 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			first_minor = (drive << g->minor_shift);
 			if (first_minor != MINOR(kdv))
 				return -EINVAL;
+			break;
+
+		case OSMIOC_OPENDISK:
+			if (get_user(handle, (unsigned long *)arg))
+				return -EFAULT;
+			kdv = to_kdev_t(handle);
+			oi = OSMFS_INODE(inode);
+			handle = osm_disk_open(oi, kdv);
+			return put_user(handle, (unsigned long *)arg);
+			break;
+
+		case OSMIOC_CLOSEDISK:
+			if (get_user(handle, (unsigned long *)arg))
+				return -EFAULT;
+			oi = OSMFS_INODE(inode);
+			return osm_disk_close(oi, handle);
 			break;
 	}
 
