@@ -256,6 +256,11 @@ int main(int argc, char *argv[])
             continue;
         }
 
+        /*
+         * This maze of twisty if()s (all alike) is merely to avoid
+         * gotos.  Every operation here, good or bad, has to drop out
+         * to the close() at the bottom.
+         */
         rc = check_disk(fd);
         if (!rc)
         {
