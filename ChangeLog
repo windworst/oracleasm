@@ -1,6 +1,10 @@
 
 2003-11-20	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: 0.9.1
+
+2003-11-20	Joel Becker <joel.becker@oracle.com>
+
 	* vendor/unitedlinux/oracleasm-2.4.21-111.spec.in: Added
 		non-x86_64 targets.
 	* vendor/unitedlinux/oracleasm-2.4.21-{107,138}.spec.in: Added.
