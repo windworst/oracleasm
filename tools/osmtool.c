@@ -9,11 +9,11 @@
 
 /*
   NAME
-    osmtool.c - Oracle Storage Manager user tool
+    asmtool.c - Oracle Storage Manager user tool
     
   DESCRIPTION
   
-  This is the main source file for the OSM user tool.
+  This is the main source file for the ASM user tool.
  */
 
 #include <stdio.h>
@@ -26,7 +26,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-/* Ugh, have to include all this just to get osmprivate.h.*/
 #include <linux/types.h>
 #include "oratypes.h"
 #include "osmlib.h"
@@ -39,9 +38,9 @@
  */
 typedef enum
 {
-    OSMTOOL_CHECK,
-    OSMTOOL_MARK,
-    OSMTOOL_UNMARK
+    ASMTOOL_CHECK,
+    ASMTOOL_MARK,
+    ASMTOOL_UNMARK
 } OsmtoolOperation;
 
 
@@ -56,16 +55,16 @@ static void print_usage(int rc)
     FILE *output = rc ? stderr : stdout;
 
     fprintf(output,
-            "Usage: osmtool {-m|-u|-c} <disk1> ...\n"
-            "       osmtool -h\n"
-            "       osmtool -V\n");
+            "Usage: asmtool {-m|-u|-c} <disk1> ...\n"
+            "       asmtool -h\n"
+            "       asmtool -V\n");
     exit(rc);
 }  /* print_usage() */
 
 
 static void print_version()
 {
-    fprintf(stderr, "osmtool version %s\n", VERSION);
+    fprintf(stderr, "asmtool version %s\n", VERSION);
     exit(0);
 }
 
@@ -107,19 +106,19 @@ static int open_disk(const char *disk_name)
 static int check_disk(int fd)
 {
     int rc, tot;
-    char buf[OSM_DISK_LABEL_SIZE];  /* Why malloc? */
+    char buf[ASM_DISK_LABEL_SIZE];  /* Why malloc? */
 
     if (fd < 0)
         return -EINVAL;
 
-    rc = lseek(fd, OSM_DISK_LABEL_OFFSET, SEEK_SET);
+    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
     if (rc < 0)
         return -errno;
 
     tot = 0;
-    while (tot < OSM_DISK_LABEL_SIZE)
+    while (tot < ASM_DISK_LABEL_SIZE)
     {
-        rc = read(fd, buf + tot, OSM_DISK_LABEL_SIZE - tot);
+        rc = read(fd, buf + tot, ASM_DISK_LABEL_SIZE - tot);
         if (!rc)
             break;
         if (rc < 0)
@@ -132,11 +131,11 @@ static int check_disk(int fd)
         tot += rc;
     }
 
-    if (tot < OSM_DISK_LABEL_SIZE)
+    if (tot < ASM_DISK_LABEL_SIZE)
         return -ENOSPC;
 
-    /* Already an OSM disk */
-    if (!memcmp(buf, OSM_DISK_LABEL, OSM_DISK_LABEL_SIZE))
+    /* Already an ASM disk */
+    if (!memcmp(buf, ASM_DISK_LABEL, ASM_DISK_LABEL_SIZE))
         return -EEXIST;
 
     return 0;
@@ -146,21 +145,21 @@ static int check_disk(int fd)
 static int mark_disk(int fd)
 {
     int rc, tot;
-    char buf[OSM_DISK_LABEL_SIZE];
+    char buf[ASM_DISK_LABEL_SIZE];
 
     if (fd < 0)
         return -EINVAL;
 
-    rc = lseek(fd, OSM_DISK_LABEL_OFFSET, SEEK_SET);
+    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
     if (rc < 0)
         return -errno;
 
-    memcpy(buf, OSM_DISK_LABEL, OSM_DISK_LABEL_SIZE);
+    memcpy(buf, ASM_DISK_LABEL, ASM_DISK_LABEL_SIZE);
 
     tot = 0;
-    while (tot < OSM_DISK_LABEL_SIZE)
+    while (tot < ASM_DISK_LABEL_SIZE)
     {
-        rc = write(fd, buf + tot, OSM_DISK_LABEL_SIZE - tot);
+        rc = write(fd, buf + tot, ASM_DISK_LABEL_SIZE - tot);
         if (!rc)
             break;
         if (rc < 0)
@@ -173,7 +172,7 @@ static int mark_disk(int fd)
         tot += rc;
     }
 
-    if (tot < OSM_DISK_LABEL_SIZE)
+    if (tot < ASM_DISK_LABEL_SIZE)
         return -ENOSPC;
 
     return 0;
@@ -183,21 +182,21 @@ static int mark_disk(int fd)
 static int unmark_disk(int fd)
 {
     int rc, tot;
-    char buf[OSM_DISK_LABEL_SIZE];
+    char buf[ASM_DISK_LABEL_SIZE];
 
     if (fd < 0)
         return -EINVAL;
 
-    rc = lseek(fd, OSM_DISK_LABEL_OFFSET, SEEK_SET);
+    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
     if (rc < 0)
         return -errno;
 
-    memcpy(buf, OSM_DISK_LABEL_CLEAR, OSM_DISK_LABEL_SIZE);
+    memcpy(buf, ASM_DISK_LABEL_CLEAR, ASM_DISK_LABEL_SIZE);
 
     tot = 0;
-    while (tot < OSM_DISK_LABEL_SIZE)
+    while (tot < ASM_DISK_LABEL_SIZE)
     {
-        rc = write(fd, buf + tot, OSM_DISK_LABEL_SIZE - tot);
+        rc = write(fd, buf + tot, ASM_DISK_LABEL_SIZE - tot);
         if (!rc)
             break;
         if (rc < 0)
@@ -210,7 +209,7 @@ static int unmark_disk(int fd)
         tot += rc;
     }
 
-    if (tot < OSM_DISK_LABEL_SIZE)
+    if (tot < ASM_DISK_LABEL_SIZE)
         return -ENOSPC;
 
     return 0;
@@ -224,7 +223,7 @@ static int unmark_disk(int fd)
 int main(int argc, char *argv[])
 {
     int i, fd, rc;
-    OsmtoolOperation op = OSMTOOL_CHECK;
+    OsmtoolOperation op = ASMTOOL_CHECK;
 
     /* Simple programs merely require simple option parsing */
     if (argc < 2)
@@ -240,11 +239,11 @@ int main(int argc, char *argv[])
 
     i = 2;
     if (!strcmp(argv[1], "-m"))
-        op = OSMTOOL_MARK;
+        op = ASMTOOL_MARK;
     else if (!strcmp(argv[1], "-u"))
-        op = OSMTOOL_UNMARK;
+        op = ASMTOOL_UNMARK;
     else if (!strcmp(argv[1], "-c"))
-        op = OSMTOOL_CHECK;
+        op = ASMTOOL_CHECK;
     else if (argv[1][0] == '-')
         print_usage(1);
     else
@@ -255,7 +254,7 @@ int main(int argc, char *argv[])
         fd = open_disk(argv[i]);
         if (fd < 0)
         {
-            fprintf(stderr, "osmtool: Unable to open \"%s\": %s\n",
+            fprintf(stderr, "asmtool: Unable to open \"%s\": %s\n",
                     argv[i], strerror(-fd));
             continue;
         }
@@ -268,10 +267,10 @@ int main(int argc, char *argv[])
         rc = check_disk(fd);
         if (!rc)
         {
-            if (op != OSMTOOL_MARK)
+            if (op != ASMTOOL_MARK)
             {
                 fprintf(stdout,
-                        "osmtool: Disk \"%s\" is not marked an OSM disk\n",
+                        "asmtool: Disk \"%s\" is not marked an ASM disk\n",
                         argv[i]);
             }
             else
@@ -280,23 +279,23 @@ int main(int argc, char *argv[])
                 if (rc)
                 {
                     fprintf(stderr,
-                            "osmtool: Unable to mark \"%s\": %s\n",
+                            "asmtool: Unable to mark \"%s\": %s\n",
                             argv[i], strerror(-rc));
                 }
                 else
                 {
                     fprintf(stdout,
-                            "osmtool: Marked \"%s\" successfully\n",
+                            "asmtool: Marked \"%s\" successfully\n",
                             argv[i]);
                 }
             }
         }
         else if (rc == -EEXIST)
         {
-            if (op != OSMTOOL_UNMARK)
+            if (op != ASMTOOL_UNMARK)
             {
                 fprintf(stdout,
-                        "osmtool: Disk \"%s\" is marked an OSM disk\n",
+                        "asmtool: Disk \"%s\" is marked an ASM disk\n",
                         argv[i]);
             }
             else
@@ -305,20 +304,20 @@ int main(int argc, char *argv[])
                 if (rc)
                 {
                     fprintf(stderr,
-                            "osmtool: Unable to unmark \"%s\": %s\n",
+                            "asmtool: Unable to unmark \"%s\": %s\n",
                             argv[i], strerror(-rc));
                 }
                 else
                 {
                     fprintf(stdout,
-                            "osmtool: Unarked \"%s\" successfully\n",
+                            "asmtool: Unarked \"%s\" successfully\n",
                             argv[i]);
                 }
             }
         }
         else
         {
-            fprintf(stderr, "osmtool: Unable to check \"%s\": %s\n",
+            fprintf(stderr, "asmtool: Unable to check \"%s\": %s\n",
                     argv[i], strerror(-rc));
         }
 

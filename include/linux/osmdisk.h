@@ -29,9 +29,9 @@
  * disk.  The first 8 bytes are "ORCLDISK".  The remaining 24 bytes
  * are reserved for future use.
  */
-#define OSM_DISK_LABEL          "ORCLDISK"
-#define OSM_DISK_LABEL_CLEAR    "ORCLCLRD"
-#define OSM_DISK_LABEL_SIZE     8
-#define OSM_DISK_LABEL_OFFSET   32
+#define ASM_DISK_LABEL          "ORCLDISK"
+#define ASM_DISK_LABEL_CLEAR    "ORCLCLRD"
+#define ASM_DISK_LABEL_SIZE     8
+#define ASM_DISK_LABEL_OFFSET   32
 
 #endif  /* _OSMDISK_H */

@@ -1,6 +1,16 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* include/linux/osmabi.h: Rename everything to ASM.
+	* include/linux/osmdisk.h: Rename everything to ASM.
+	* include/linux/osmkernel.h: Rename everything to ASM.
+	* kernel/oracleasm.c: Rename everything to ASM.
+	* libosm/osmlib.c: Rename internal calls and stuff to ASM.
+	* test/sizes.c: Rename things to ASM.
+	* tools/osmtool.c: Rename to ASM.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* kernel/Makefile: Move osm.c oracleasm.c.
 	* kernel/osm.c: Moved to oracleasm.c.
 	* kernel/oracleasm.c: Moved from osm.c.

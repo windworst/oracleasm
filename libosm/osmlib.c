@@ -87,7 +87,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
 {
     uword ret;
     int fd, rc;
-    struct osm_get_iid new_iid;
+    struct oracleasm_get_iid new_iid;
 
     if (len)
         snprintf(name, len, "%s, version %s", OSMLIB_NAME, VERSION);
@@ -108,8 +108,8 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
     if (fd < 0)
         goto out;
 
-    new_iid.gi_version = OSM_ABI_VERSION;
-    rc = ioctl(fd, OSMIOC_GETIID, &new_iid);
+    new_iid.gi_version = ASM_ABI_VERSION;
+    rc = ioctl(fd, ASMIOC_GETIID, &new_iid);
     close(fd);
     if (rc)
         goto out;
@@ -131,32 +131,32 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
 {
     osm_erc err;
     osm_ctx_private *priv;
-    struct osm_get_iid real_iid;
+    struct oracleasm_get_iid real_iid;
     int fd, rc;
     char *osm_file;
 
-    err = OSM_ERR_INVAL;
+    err = ASM_ERR_INVAL;
     if (*ctxp)
         goto out;
 
-    err = OSM_ERR_PERM;
+    err = ASM_ERR_PERM;
     fd = open(DEVASM, O_RDONLY);
     if (fd < 0)
         goto out;
 
     real_iid.gi_iid = iid;
-    real_iid.gi_version = OSM_ABI_VERSION;
-    rc = ioctl(fd, OSMIOC_CHECKIID, &real_iid);
+    real_iid.gi_version = ASM_ABI_VERSION;
+    rc = ioctl(fd, ASMIOC_CHECKIID, &real_iid);
     close(fd);
     if (rc)
         goto out;
 
     /* real_iid will be set to zero if it was invalid */
-    err = OSM_ERR_BADIID;
+    err = ASM_ERR_BADIID;
     if (!real_iid.gi_iid)
         goto out;
 
-    err = OSM_ERR_NOMEM;
+    err = ASM_ERR_NOMEM;
     priv = (osm_ctx_private *)malloc(sizeof(*priv));
     if (!priv)
         goto out;
@@ -170,7 +170,7 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
             HIGH_UB4(real_iid.gi_iid),
             LOW_UB4(real_iid.gi_iid));
 
-    err = OSM_ERR_PERM;
+    err = ASM_ERR_PERM;
     priv->fd = open(osm_file, O_RDWR | O_CREAT, 0700);
     free(osm_file);
     if (priv->fd < 0)
@@ -180,7 +180,7 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
     priv->discover_cache = NULL;
 
     *ctxp = (osm_ctx *)priv;
-    err = OSM_ERR_NONE;
+    err = ASM_ERR_NONE;
     goto out;
 
 out_free_ctx:
@@ -196,7 +196,7 @@ osm_erc osm_fini(osm_ctx ctx)
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
 
     if (!priv)
-        return OSM_ERR_INVAL;
+        return ASM_ERR_INVAL;
 
     if (priv->fd >= 0)
         close(priv->fd);
@@ -215,7 +215,7 @@ osm_erc osm_discover(osm_ctx ctx, oratext *setdesc)
     glob_t *globbuf;
     int rc;
 
-    err = OSM_ERR_INVAL;
+    err = ASM_ERR_INVAL;
     if (!priv)
         goto out;
     if (!setdesc)
@@ -225,7 +225,7 @@ osm_erc osm_discover(osm_ctx ctx, oratext *setdesc)
     if (*setdesc == '\0')
         setdesc = "*";
 
-    err = OSM_ERR_NOMEM;
+    err = ASM_ERR_NOMEM;
     globbuf = (glob_t *)malloc(sizeof(*globbuf));
     if (!globbuf)
         goto out;
@@ -244,7 +244,7 @@ osm_erc osm_discover(osm_ctx ctx, oratext *setdesc)
         priv->discover_index = 0;
     }
     
-    err = OSM_ERR_NONE;
+    err = ASM_ERR_NONE;
 
 out:
     return err;
@@ -259,9 +259,9 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     char *path = NULL;
     int rc, fd, len, to_clear;
     struct stat stat_buf;
-    struct osm_disk_query dq;
+    struct oracleasm_disk_query dq;
 
-    err = OSM_ERR_INVAL;
+    err = ASM_ERR_INVAL;
     if (!priv)
         goto out;
 
@@ -282,7 +282,7 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
             {
                 dq.dq_rdev = (__u64)stat_buf.st_rdev;
                 dq.dq_maxio = 0;
-                rc = ioctl(priv->fd, OSMIOC_QUERYDISK, &dq);
+                rc = ioctl(priv->fd, ASMIOC_QUERYDISK, &dq);
                 if (!rc)
                 {
                     name->size_osm_name = lseek64(fd, 0ULL, SEEK_END);
@@ -334,7 +334,7 @@ clear_name:
     if (to_clear)
         memset(name, 0, sizeof(*name));
 
-    err = OSM_ERR_NONE;
+    err = ASM_ERR_NONE;
 
 out:
     return err;
@@ -346,10 +346,10 @@ osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
     osm_erc err;
     int rc, fd;
-    struct osm_disk_query handle;
+    struct oracleasm_disk_query handle;
     struct stat stat_buf;
 
-    err = OSM_ERR_INVAL;
+    err = ASM_ERR_INVAL;
     if (!priv || !name || !hand ||
         !name->blksz_osm_name || !(name->interface_osm_name & OSM_IO))
         goto out;
@@ -365,48 +365,48 @@ osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
             case EROFS:
             case EMFILE:
             case ENFILE:
-                err = OSM_ERR_PERM;
+                err = ASM_ERR_PERM;
                 break;
 
             case ENOMEM:
-                err = OSM_ERR_NOMEM;
+                err = ASM_ERR_NOMEM;
                 break;
 
             case EINVAL:
-                err = OSM_ERR_INVAL;
+                err = ASM_ERR_INVAL;
                 break;
 
             default:
-                err = OSM_ERR_NODEV;
+                err = ASM_ERR_NODEV;
                 break;
         }
 
         goto out;
     }
 
-    err = OSM_ERR_INVAL;
+    err = ASM_ERR_INVAL;
     rc = fstat(fd, &stat_buf);
     if (rc)
         goto out_close;
-    err = OSM_ERR_NODEV;
+    err = ASM_ERR_NODEV;
     if (!S_ISBLK(stat_buf.st_mode) ||
         ((__u64)stat_buf.st_rdev != name->reserved_osm_name)) 
         goto out_close;
 
     /* FIXME: need to handle fatal errors when the kernel can tell */
-    err = OSM_ERR_PERM;
+    err = ASM_ERR_PERM;
     handle.dq_rdev = name->reserved_osm_name;
-    rc = ioctl(priv->fd, OSMIOC_OPENDISK, &handle);
+    rc = ioctl(priv->fd, ASMIOC_OPENDISK, &handle);
     if (rc)
         goto out_close;
 
-    err = OSM_ERR_NOMEM;
+    err = ASM_ERR_NOMEM;
     if (!handle.dq_rdev)
         goto out_close;
 
     *hand = handle.dq_rdev;
 
-    err = OSM_ERR_NONE;
+    err = ASM_ERR_NONE;
 
 out_close:
     close(fd);
@@ -421,19 +421,19 @@ osm_erc osm_close(osm_ctx ctx, osm_handle hand)
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
     osm_erc err;
     int rc;
-    struct osm_disk_query handle = {hand, 0};
+    struct oracleasm_disk_query handle = {hand, 0};
 
-    err = OSM_ERR_INVAL;
+    err = ASM_ERR_INVAL;
     if (!priv || !hand)
         goto out;
 
     /* FIXME: need to handle fatal errors when the kernel can tell */
-    err = OSM_ERR_INVAL;
-    rc = ioctl(priv->fd, OSMIOC_CLOSEDISK, &handle);
+    err = ASM_ERR_INVAL;
+    rc = ioctl(priv->fd, ASMIOC_CLOSEDISK, &handle);
     if (rc)
         goto out;
 
-    err = OSM_ERR_NONE;
+    err = ASM_ERR_NONE;
 
 out:
     return err;
@@ -448,27 +448,27 @@ osm_erc osm_io(osm_ctx ctx,
 {
     osm_erc err;
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
-    struct osmio io;
+    struct oracleasm_io io;
     struct timespec ts;
     int rc;
 
     if (!priv)
-        return OSM_ERR_INVAL;
+        return ASM_ERR_INVAL;
 
     /* Clearing statusp */
     *statusp = 0;
 
     /* io.handle = what? */
-    io.oi_requests = (__u64)(unsigned long)requests;
-    io.oi_reqlen = reqlen;
-    io.oi_waitreqs = (__u64)(unsigned long)waitreqs;
-    io.oi_waitlen = waitlen;
-    io.oi_completions = (__u64)(unsigned long)completions;
-    io.oi_complen = complen;
+    io.io_requests = (__u64)(unsigned long)requests;
+    io.io_reqlen = reqlen;
+    io.io_waitreqs = (__u64)(unsigned long)waitreqs;
+    io.io_waitlen = waitlen;
+    io.io_completions = (__u64)(unsigned long)completions;
+    io.io_complen = complen;
     if (timeout == OSM_WAIT)
-        io.oi_timeout = (__u64)(unsigned long)NULL;
+        io.io_timeout = (__u64)(unsigned long)NULL;
     else if (waitlen)
-        return OSM_ERR_INVAL;
+        return ASM_ERR_INVAL;
     else
     {
         if (timeout == OSM_NOWAIT)
@@ -478,11 +478,11 @@ osm_erc osm_io(osm_ctx ctx,
             ts.tv_sec = timeout / 1000000;
             ts.tv_nsec = (timeout % 1000000) * 1000;
         }
-        io.oi_timeout = (__u64)(unsigned long)&ts;
+        io.io_timeout = (__u64)(unsigned long)&ts;
     }
-    io.oi_statusp = (__u64)(unsigned long)statusp;
+    io.io_statusp = (__u64)(unsigned long)statusp;
 
-    rc = ioctl(priv->fd, OSMIOC_IODISK, &io);
+    rc = ioctl(priv->fd, ASMIOC_IODISK, &io);
 
     if (rc)
     {
@@ -490,42 +490,42 @@ osm_erc osm_io(osm_ctx ctx,
         {
             default:
                 fprintf(stderr, "OSM: Invalid error of %d!\n", errno);
-                err = OSM_ERR_INVAL;
+                err = ASM_ERR_INVAL;
                 break;
     
             case EFAULT:
-                err = OSM_ERR_FAULT;
+                err = ASM_ERR_FAULT;
                 break;
     
             case EIO:
-                err = OSM_ERR_IO;
+                err = ASM_ERR_IO;
                 break;
     
             case ENODEV:
-                err = OSM_ERR_NODEV;
+                err = ASM_ERR_NODEV;
                 break;
     
             case ENOMEM:
-                err = OSM_ERR_NOMEM;
+                err = ASM_ERR_NOMEM;
                 break;
     
             case EINVAL:
-                err = OSM_ERR_INVAL;
+                err = ASM_ERR_INVAL;
                 break;
                 
             case EINTR:
-                err = OSM_ERR_NONE;
+                err = ASM_ERR_NONE;
                 *statusp |= OSM_IO_POSTED;
                 break;
 
             case ETIMEDOUT:
-                err = OSM_ERR_NONE;
+                err = ASM_ERR_NONE;
                 *statusp |= OSM_IO_TIMEOUT;
                 break;
 	}
     }
     else
-        err = OSM_ERR_NONE;
+        err = ASM_ERR_NONE;
 
     return err;
 }  /* osm_io() */
@@ -536,19 +536,19 @@ osm_erc osm_io(osm_ctx ctx,
  */
 const oratext *osm_errstr_pos[] =
 {
-    "No error",                         /* OSM_ERR_NONE */
-    "Operation not permitted",          /* OSM_ERR_PERM */
-    "Out of memory",                    /* OSM_ERR_NOMEM */
-    "I/O Error",                        /* OSM_ERR_IO */
+    "No error",                         /* ASM_ERR_NONE */
+    "Operation not permitted",          /* ASM_ERR_PERM */
+    "Out of memory",                    /* ASM_ERR_NOMEM */
+    "I/O Error",                        /* ASM_ERR_IO */
 };
 
 const oratext *osm_errstr_neg[] = 
 {
-    "No error",                         /* OSM_ERR_NONE */
-    "Invalid argument",                 /* OSM_ERR_INVAL */
-    "Invalid IID",                      /* OSM_ERR_BADIID */
-    "No such device",                   /* OSM_ERR_NODEV */
-    "Invalid address",                  /* OSM_ERR_FAULT */
+    "No error",                         /* ASM_ERR_NONE */
+    "Invalid argument",                 /* ASM_ERR_INVAL */
+    "Invalid IID",                      /* ASM_ERR_BADIID */
+    "No such device",                   /* ASM_ERR_NODEV */
+    "Invalid address",                  /* ASM_ERR_FAULT */
 };
 
 
@@ -557,16 +557,16 @@ osm_erc osm_error(osm_ctx ctx, osm_erc errcode,
 {
     osm_erc err;
 
-    err = OSM_ERR_INVAL;
+    err = ASM_ERR_INVAL;
     if (!errbuf || (eblen < 1))
         goto out;
 
-    if (errcode >= OSM_ERR_NONE)
+    if (errcode >= ASM_ERR_NONE)
         snprintf(errbuf, eblen, "%s", osm_errstr_pos[errcode]);
     else
         snprintf(errbuf, eblen, "%s", osm_errstr_neg[-errcode]);
 
-    err = OSM_ERR_NONE;
+    err = ASM_ERR_NONE;
 
 out:
     return err;
@@ -579,7 +579,7 @@ osm_erc osm_ioerror(osm_ctx ctx, osm_ioc *ioc,
     osm_erc errcode;
 
     if (!ioc)
-        return OSM_ERR_INVAL;
+        return ASM_ERR_INVAL;
 
     errcode = ioc->error_osm_ioc;
 
@@ -600,7 +600,7 @@ osm_erc osm_cancel(osm_ctx ctx, osm_ioc *ioc)
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
 
     if (!priv || !ioc || (ioc->status_osm_ioc & OSM_FREE))
-        return OSM_ERR_INVAL;
+        return ASM_ERR_INVAL;
 
     ioc->status_osm_ioc |= OSM_CANCELLED;
 
@@ -617,6 +617,6 @@ void osm_dump(osm_ctx ctx)
     if (!priv)
         return;
 
-    ioctl(priv->fd, OSMIOC_DUMP, 0);
+    ioctl(priv->fd, ASMIOC_DUMP, 0);
 }  /* osm_dump() */
 #endif
