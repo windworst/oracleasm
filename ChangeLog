@@ -1,4 +1,8 @@
 
+2004-01-16	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/Makefile: Silly "ent" vs "enterprise".
+
 2004-01-07	Joel Becker <joel.becker@oracle.com>
 
 	* *: Seperate out Open code.
