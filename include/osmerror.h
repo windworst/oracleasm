@@ -28,6 +28,7 @@
  */
 enum _OsmErrors
 {
+    OSM_ERR_NODEV       = -3,   /* Invalid device */
     OSM_ERR_BADIID      = -2,   /* Invalid IID */
     OSM_ERR_INVAL       = -1,   /* Invalid argument */
     OSM_ERR_NONE        = 0,    /* No error */

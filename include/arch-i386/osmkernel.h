@@ -94,12 +94,12 @@ struct _osm_ioc {
 	__u8		operation_osm_ioc;
 	__u8		priority_osm_ioc;
 	__u16		hint_osm_ioc;
-	osm_ioc	*link_osm_ioc;
+	osm_ioc	       *link_osm_ioc;
 	__u64   	disk_osm_ioc;
 	__u64		first_osm_ioc;
 	__u32		rcount_osm_ioc;
 	unsigned long	buffer_osm_ioc;
-	osm_check	*check_osm_ioc;
+	osm_check      *check_osm_ioc;
 	__u16		content_offset_osm_ioc;
 	__u16		content_repeat_osm_ioc;
 	__u32		content_osm_ioc;

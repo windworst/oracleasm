@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2002 Oracle Corporation.  All rights reserved.
  *
- * This driver's filesystem code is based on the osmfs filesystem.
+ * This driver's filesystem code is based on the ramfs filesystem.
  * Copyright information for the original source appears below.  This
  * file is released under the GNU General Public License.
  */
@@ -19,18 +19,6 @@
  */
 
 
-/*
- * defines, because we don't want to have link problems
- */
-#define get_page_map		o_get_page_map
-#define mm_follow_page		o_mm_follow_page
-#define map_user_kvec		o_map_user_kvec
-#define mm_map_user_kvec	o_mm_map_user_kvec
-#define unmap_kvec		o_unmap_kvec
-#define free_kvec		o_free_kvec
-#define memcpy_from_kvec_dst	o_memcpy_from_kvec_dst
-#define memcpy_to_kvec_dst	o_memcpy_to_kvec_dst
-
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/pagemap.h>
@@ -40,6 +28,7 @@
 #include <linux/highmem.h>
 #include <linux/slab.h>
 #include <linux/genhd.h>
+#include <linux/blk.h>
 #include <linux/blkdev.h>
 
 #include <asm/uaccess.h>
@@ -47,8 +36,13 @@
 
 #include "arch/osmkernel.h"
 #include "osmprivate.h"
-#include "kiovec.c"
-#include "blk.c"
+#include "osmerror.h"
+
+#if defined(RED_HAT_LINUX_KERNEL)
+#include "blk-rhas21.c"
+#else
+#error No blk-<ver>.c file!
+#endif
 
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
@@ -139,7 +133,7 @@ struct osmfs_inode_info {
 struct osm_disk_info {
 	struct osmfs_inode_info *d_inode;
 	struct list_head d_hash;
-	kdev_t dev;
+	kdev_t d_dev;
 	atomic_t d_count;
 	struct list_head d_open;	/* List of assocated osm_disk_heads */
 	struct list_head d_ios;
@@ -173,7 +167,7 @@ struct osm_request {
 	kvec_cb_t r_cb;				/* kvec info */
 	struct buffer_head *r_bh;		/* Assocated buffers */
 	struct buffer_head *r_bhtail;		/* tail of buffers */
-	unsigned long r_bh_count;		/* Number of bufferss */
+	unsigned long r_bh_count;		/* Number of buffers */
 	atomic_t r_io_count;			/* Atomic count */
 };
 
@@ -231,8 +225,8 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 
 	list_for_each(p, l) {
 		d = list_entry(p, struct osm_disk_info, d_hash);
-		printk("OSM: Comparing device 0x%.8lX\n", (unsigned long) d->dev);
-		if (d->dev == dev) {
+		printk("OSM: Comparing device 0x%.8lX\n", (unsigned long) d->d_dev);
+		if (d->d_dev == dev) {
 			atomic_inc(&d->d_count);
 			break;
 		}
@@ -267,14 +261,14 @@ static inline struct osm_disk_info *osm_add_disk(struct osmfs_inode_info *oi, kd
 
 	list_for_each(p, l) {
 		d = list_entry(l, struct osm_disk_info, d_hash);
-		if (d->dev == dev)
+		if (d->d_dev == dev)
 			break;
 		d = NULL;
 	}
 out:
 	if (!d) {
 		n->d_inode = oi;
-		n->dev = dev;
+		n->d_dev = dev;
 		atomic_set(&n->d_count, 1);
 		INIT_LIST_HEAD(&n->d_open);
 		INIT_LIST_HEAD(&n->d_ios);
@@ -296,7 +290,7 @@ static inline void osm_put_disk(struct osm_disk_info *d)
 		BUG();
 
 	if (atomic_dec_and_test(&d->d_count)) {
-		printk("OSM: Freeing disk 0x%.8lX\n", (unsigned long)d->dev);
+		printk("OSM: Freeing disk 0x%.8lX\n", (unsigned long)d->d_dev);
 		if (!list_empty(&d->d_open))
 			BUG();
 
@@ -320,7 +314,7 @@ static void osmdump_file(struct osmfs_file_info *ofi)
 		h = list_entry(p, struct osm_disk_head, h_flist);
 		d = h->h_disk;
 		printk("OSM: 	0x%p [0x%02X, 0x%02X]\n",
-		       d, MAJOR(d->dev), MINOR(d->dev));
+		       d, MAJOR(d->d_dev), MINOR(d->d_dev));
 	}
 	spin_lock(&ofi->f_lock);
 	printk("OSM: Pending I/Os:\n");
@@ -328,7 +322,7 @@ static void osmdump_file(struct osmfs_file_info *ofi)
 		r = list_entry(p, struct osm_request, r_list);
 		d = r->r_disk;
 		printk("OSM:	0x%p (against [0x%02X, 0x%02X])\n",
-		       r, MAJOR(d->dev), MINOR(d->dev));
+		       r, MAJOR(d->d_dev), MINOR(d->d_dev));
 	}
 
 	printk("OSM: Complete I/Os:\n");
@@ -363,7 +357,7 @@ static void osmdump_inode(struct osmfs_inode_info *oi)
 		list_for_each(p, hash) {
 			d = list_entry(p, struct osm_disk_info, d_hash);
 			printk("OSM: 	0x%p, [0x%02X, 0x%02X]\n",
-			       d, MAJOR(d->dev), MINOR(d->dev));
+			       d, MAJOR(d->d_dev), MINOR(d->d_dev));
 			printk("OSM:	Owners:\n");
 			list_for_each(q, &d->d_open) {
 				h = list_entry(q, struct osm_disk_head,
@@ -940,7 +934,7 @@ static void osm_finish_io(struct osm_request *r)
 	list_del(&r->r_list);
 	list_add(&r->r_list, &ofi->f_complete);
 	r->r_status |= (OSM_COMPLETED | OSM_FREE);
-	if (r->r_error < 0)
+	if (r->r_error != 0)
 		r->r_status |= OSM_ERROR;
 	spin_unlock(&ofi->f_lock);
 }  /* osm_finish_io() */
@@ -949,13 +943,55 @@ static void osm_finish_io(struct osm_request *r)
 static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 {
 	struct osm_request *r = _req;
+	ssize_t err = 0;
 	
 	if (!r)
 		BUG();
 
-	unmap_kvec(vec, 0);
-	free_kvec(vec);
-	r->r_cb.vec = NULL;
+	if (res < 0) {
+		err = res;
+		res = 0;
+	}
+
+	while (r->r_bh) {
+		struct buffer_head *tmp = r->r_bh;
+		r->r_bh = tmp->b_reqnext;
+		if (!err) {
+		       	if (buffer_uptodate(tmp))
+				res += tmp->b_size;
+			else
+				err = -EIO;
+		}
+		kmem_cache_free(bh_cachep, tmp);
+	}
+	r->r_bhtail = NULL;
+
+	if (vec) {
+		unmap_kvec(vec, 0);
+		free_kvec(vec);
+		r->r_cb.vec = NULL;
+	}
+
+	switch (err) {
+		default:
+			BUG();
+			break;
+
+		case 0:
+			break;
+
+		case -ENODEV:
+			r->r_error = OSM_ERR_NODEV;
+			break;
+
+		case -ENOMEM:
+			r->r_error = OSM_ERR_NOMEM;
+			break;
+
+		case -EINVAL:
+			r->r_error = OSM_ERR_INVAL;
+			break;
+	}
 
 	osm_finish_io(r);
 }  /* osm_end_kvec_io() */
@@ -967,8 +1003,6 @@ static int osm_submit_request(int rw, struct osm_request *r,
 	request_queue_t *q;
 	struct request *req;
 
-	/* FIXME: io_req_lock */
-
 	q = blk_get_queue(r->r_bh->b_rdev);
 	if (!q) {
 		printk(KERN_ERR
@@ -977,6 +1011,9 @@ static int osm_submit_request(int rw, struct osm_request *r,
 	}
 
 	req = get_request_wait(q, rw);
+
+	IO_REQUEST_LOCK(q);
+
 	req->cmd = rw;
 	req->errors = 0;
 	req->hard_sector = req->sector = first;
@@ -990,9 +1027,152 @@ static int osm_submit_request(int rw, struct osm_request *r,
 	req->rq_dev = r->r_bh->b_rdev;
 	req->start_time = jiffies;
 
-	/* FIXME: add_request() */
+	/* FIXME: Do something smarter than "add to end" */
+	add_request(q, req, q->queue_head.prev);
+
+	IO_REQUEST_UNLOCK(q);
+
 	return 0;
 }  /* osm_submit_request() */
+
+
+static void osm_end_buffer_io(struct buffer_head *bh, int uptodate)
+{
+	struct osm_request *r;
+
+	mark_buffer_uptodate(bh, uptodate);
+
+	r = bh->b_private;
+	unlock_buffer(bh);
+
+	if (atomic_dec_and_test(&r->r_io_count)) {
+		osm_end_kvec_io(r, r->r_cb.vec, 0);
+	}
+}  /* osm_end_buffer_io() */
+
+
+static int osm_build_io(int rw, struct osm_request *r,
+			unsigned long blknr, unsigned long nr)
+{
+	struct kvec	*vec = r->r_cb.vec;
+	struct kveclet	*veclet;
+	int		err;
+	int		length;
+	kdev_t		dev = r->r_disk->d_dev;
+	unsigned	sector_size = get_hardsect_size(dev);
+	int		i;
+
+	if (!vec->nr)
+		BUG();
+
+	/* 
+	 * First, do some alignment and validity checks 
+	 */
+	length = 0;
+	for (veclet=vec->veclet, i=0; i < vec->nr; i++,veclet++) {
+		length += veclet->length;
+		if ((veclet->offset & (sector_size-1)) ||
+		    (veclet->length & (sector_size-1)) ||
+		    ((veclet->length + veclet->offset) > PAGE_SIZE)) {
+			printk("OSM: osm_build_io: tuple[%d]->offset=0x%x length=0x%x sector_size: 0x%x\n", i, veclet->offset, veclet->length, sector_size);
+			return -EINVAL;
+		}
+	}
+
+	/* We deal in blocks, so this should be valid */
+	if (length != (nr * sector_size))
+		BUG();
+
+	/* 
+	 * OK to walk down the iovec doing page IO on each page we find. 
+	 */
+	err = 0;
+
+	if (!nr) {
+		printk("OSM: osm_build_io: !i\n");
+		return -EINVAL;
+	}
+
+	r->r_bh_count = 0;
+
+	/* This is massaged from fs/buffer.c.  Blame Ben. */
+	/* This is ugly.  FIXME. */
+	for (i=0, veclet=vec->veclet; i<vec->nr; i++,veclet++) {
+		struct page *page = veclet->page;
+		unsigned offset = veclet->offset;
+		unsigned length = veclet->length;
+		unsigned iosize = PAGE_SIZE;
+	       
+		if (length < PAGE_SIZE)
+			iosize = sector_size;
+
+		if (!page)
+			BUG();
+
+		while (length > 0) {
+			struct buffer_head *tmp;
+			tmp = kmem_cache_alloc(bh_cachep, GFP_NOIO);
+			err = -ENOMEM;
+			if (!tmp)
+				goto error;
+
+			tmp->b_dev = B_FREE;
+			tmp->b_size = iosize;
+			set_bh_page(tmp, page, offset);
+			tmp->b_this_page = tmp;
+
+			init_buffer(tmp, osm_end_buffer_io, NULL);
+			tmp->b_dev = dev;
+			tmp->b_blocknr = blknr;
+			blknr += (iosize / sector_size);
+			tmp->b_state = (1 << BH_Mapped) | (1 << BH_Lock)
+					| (1 << BH_Req);
+			tmp->b_private = r;
+
+			if (rw == WRITE) {
+				set_bit(BH_Uptodate, &tmp->b_state);
+				clear_bit(BH_Dirty, &tmp->b_state);
+			}
+
+			tmp->b_reqnext = NULL;
+			if (r->r_bh) {
+				r->r_bhtail->b_reqnext = tmp;
+				r->r_bhtail = tmp;
+			} else {
+				r->r_bh = r->r_bhtail = tmp;
+			}
+			r->r_bh_count++;
+
+			length -= iosize;
+			offset += iosize;
+
+#if 0  /* Um, this shouldn't matter, should it? */
+			if (offset >= PAGE_SIZE) {
+				offset = 0;
+				break;
+			}
+
+			if (brw_cb->nr >= blocks)
+				goto submit;
+#endif
+		} /* End of block loop */
+	} /* End of page loop */		
+
+	atomic_set(&r->r_io_count, r->r_bh_count);
+
+	return 0;
+
+error:
+	/* Walk bh list, freeing them */
+	while (r->r_bh) {
+		struct buffer_head *tmp = r->r_bh;
+		r->r_bh = tmp->b_reqnext;
+		kmem_cache_free(bh_cachep, tmp);
+	}
+	r->r_bhtail = NULL;
+
+	return err;
+}  /* osm_build_io() */
 
 
 static int osm_submit_io(struct osmfs_file_info *ofi, 
@@ -1017,28 +1197,33 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	r->r_status = 0;
 	r->r_file = ofi;
 	r->r_ioc = ioc;
+	r->r_error = 0;
+	r->r_bh = NULL;
+	r->r_bhtail = NULL;
+	r->r_cb.vec = NULL;
 	
-	ret = -EINVAL;
+	ret = -ENODEV;
 	d = osm_find_disk(oi, REAL_HANDLE(tmp.disk_osm_ioc));
 	if (!d)
-		goto out_free;
+		goto out_error;
 
 	r->r_disk = d;
 
-	count = tmp.rcount_osm_ioc * get_hardsect_size(d->dev);
+	count = tmp.rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
 	/* linux only supports unsigned long size sector numbers */
+	ret = -EINVAL;
 	if (tmp.status_osm_ioc ||
 	    (tmp.buffer_osm_ioc != (unsigned long)tmp.buffer_osm_ioc) ||
 	    (tmp.first_osm_ioc != (unsigned long)tmp.first_osm_ioc) ||
 	    (tmp.rcount_osm_ioc != (unsigned long)tmp.rcount_osm_ioc) ||
 	    (count > OSM_MAX_IOSIZE) ||
 	    (count < 0))
-		return -EINVAL;
+		goto out_error;
 
 	switch (tmp.operation_osm_ioc) {
 		default:
-			return -EINVAL;
+			goto out_error;
 			break;
 
 		case OSM_READ:
@@ -1061,9 +1246,15 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	r->r_cb.data = r;
 	r->r_cb.fn = osm_end_kvec_io;
 	if (IS_ERR(r->r_cb.vec)) {
-		/* FIXME: Clean up */
-		goto out;
+		ret = PTR_ERR(r->r_cb.vec);
+		r->r_cb.vec = NULL;
+		goto out_error;
 	}
+
+	ret = osm_build_io(rw, r,
+			   tmp.first_osm_ioc, tmp.rcount_osm_ioc);
+	if (ret)
+		goto out_error;
 
 	lock_oi(oi);
 	list_add(&r->r_queue, &d->d_ios);
@@ -1075,16 +1266,16 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	ret = osm_submit_request(rw, r,
 				 tmp.first_osm_ioc, tmp.rcount_osm_ioc);
-	if (ret)
-		osm_finish_io(r);
-	else
-		r->r_status |= OSM_SUBMITTED;
+	if (ret) 
+		goto out_error;
+
+	r->r_status |= OSM_SUBMITTED;
 
 	ret = osm_update_user_ioc(r);
 	goto out;
 
-out_free:
-	osm_request_free(r);
+out_error:
+	osm_end_kvec_io(r, r->r_cb.vec, ret);
 
 out:
 	return ret;
@@ -1219,6 +1410,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	__u32 status = 0;
 	osm_ioc *iocp;
 
+#if 0
 	/* HACK HACK HACK */
 	/* Without actual I/O, this fakes I/O completion */
 
@@ -1227,6 +1419,10 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	hack_io(ofi);
 	printk("Post-hack_io()\n");
 	osmdump_file(ofi);
+#else
+	printk("OSM: Entering osm_do_io()\n");
+	osmdump_file(ofi);
+#endif
 
 	/* END HACK */
 
@@ -1342,7 +1538,7 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 		h = list_entry(p, struct osm_disk_head, h_flist);
 		d = h->h_disk;
 		/* FIXME: Should wait on outstanding I/O */
-		osm_disk_close(ofi, oi, d->dev);
+		osm_disk_close(ofi, oi, d->d_dev);
 	}
 
 	/* FIXME: Clean up things that hang off of ofi */

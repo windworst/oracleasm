@@ -397,6 +397,7 @@ const oratext *osm_errstr_neg[] =
     "No error",                         /* OSM_ERR_NONE */
     "Invalid argument",                 /* OSM_ERR_INVAL */
     "Invalid IID",                      /* OSM_ERR_BADIID */
+    "No such device",                   /* OSM_ERR_NODEV */
 };
 
 

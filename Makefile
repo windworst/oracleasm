@@ -26,8 +26,12 @@ OSMTEST_LDFLAGS = libosm/libosm.a # -L libosm -losm
 CPPFLAGS = -g -O2 -Wall
 
 KERNEL_INCLUDES = -I $(KERNEL_INCLUDE_PATH) $(OSMLIB_INCLUDES)
-KERNEL_DEFS = -D__KERNEL__ -DMODULE -DLINUX
+KERNEL_DEFS = -D__KERNEL__ -DMODULE -DLINUX -DRED_HAT_LINUX_KERNEL=1
 KERNEL_CPPFLAGS = $(KERNEL_INCLUDES) $(KERNEL_DEFS)
+
+# FIXME: Needs selection
+KVEC_FILE = kernel/kiovec-rhas21.c
+BLK_FILE = kernel/blk-rhas21.c
 
 all: kernel/osm.o libosm/libosm.so test/osmtest-bin
 
@@ -44,7 +48,7 @@ $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
 $(OSMLIB_OBJS): %.o: %.c
 	$(CC) $(CPPFLAGS) $(OSMLIB_CPPFLAGS) -c -o $@ $<
 
-kernel/osm.o: include/osmprivate.h kernel/kiovec.c kernel/blk.c
+kernel/osm.o: include/osmprivate.h $(KVEC_FILE) $(BLK_FILE)
 kernel/osm.o: kernel/osm.c
 	$(CC) $(CPPFLAGS) $(KERNEL_CPPFLAGS) -c -o $@ $<
 
