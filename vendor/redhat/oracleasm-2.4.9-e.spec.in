@@ -33,7 +33,7 @@ Packager: Joel Becker <joel.becker@oracle.com>
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel >= %{kver}
-Requires: oracleasm-support >= 0.6.1
+Requires: oracleasm-support >= 0.9.0
 BuildRequires: kernel-source >= %{kver}
 
 
@@ -50,7 +50,7 @@ Summary: The Oracle Automatic Storage Management library driver for SMP systems.
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 Requires: kernel-smp >= %{kver}
-Requires: oracleasm-support >= 0.6.1
+Requires: oracleasm-support >= 0.9.0
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
@@ -67,7 +67,7 @@ Summary: The Oracle Automatic Storage Management library driver for enterprise s
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 Requires: kernel-enterprise >= %{kver}
-Requires: oracleasm-support >= 0.6.1
+Requires: oracleasm-support >= 0.9.0
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
@@ -85,7 +85,7 @@ Summary: The Oracle Automatic Storage Management library driver for summit based
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 Requires: kernel-summit >= %{kver}
-Requires: oracleasm-support >= 0.6.1
+Requires: oracleasm-support >= 0.9.0
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
@@ -103,7 +103,7 @@ Summary: The Oracle Automatic Storage Management library driver for debugging sy
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 Requires: kernel-debug >= %{kver}
-Requires: oracleasm-support >= 0.6.1
+Requires: oracleasm-support >= 0.9.0
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
@@ -196,9 +196,9 @@ make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}-debug-ABI/oraclea
 %endif
 
 
-cd ../tools
-make
 cd ../libosm
+make
+cd ../tools
 make
 
 %if %{buildsummit}

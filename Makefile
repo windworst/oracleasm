@@ -43,6 +43,24 @@ rhel3_srpm: dist
 rhel3_rpm: rhel3_srpm
 	rpmbuild --rebuild --target i686 "oracleasm-2.4.21-EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
+ul10_smp_%_srpm: dist
+	rpm -bs --define "_sourcedir `realpath $(TOPDIR)`" --define "_srcrpmdir `realpath $(TOPDIR)`" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-64GB-SMP-$(patsubst ul10_smp_%_srpm,%,$@).spec
+
+ul10_smp_%_rpm: ul10_smp_%_srpm
+	rpm --rebuild --target i586 "oracleasm-2.4.19-64GB-SMP-$(patsubst ul10_smp_%_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+
+ul10_psmp_%_srpm: dist
+	rpm -bs --define "_sourcedir `realpath $(TOPDIR)`" --define "_srcrpmdir `realpath $(TOPDIR)`" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-4GB-SMP-$(patsubst ul10_psmp_%_srpm,%,$@).spec
+
+ul10_psmp_%_rpm: ul10_psmp_%_srpm
+	rpm --rebuild --target i586 "oracleasm-2.4.19-4GB-SMP-$(patsubst ul10_psmp_%_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+
+ul10_dflt_%_srpm: dist
+	rpm -bs --define "_sourcedir `realpath $(TOPDIR)`" --define "_srcrpmdir `realpath $(TOPDIR)`" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-4GB-$(patsubst ul10_dflt_%_srpm,%,$@).spec
+
+ul10_dflt_%_rpm: ul10_dflt_%_srpm
+	rpm --rebuild --target i586 "oracleasm-2.4.19-4GB-$(patsubst ul10_dflt_%_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+
 
 #
 # Include this at the very end of the Makefile

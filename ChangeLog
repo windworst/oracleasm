@@ -1,31 +1,39 @@
 
-2003-11-17	Joel Becker <joel.becker@oracle.com>
+2003-11-18	Joel Becker <joel.becker@oracle.com>
+
+	* Makefile: Add magic UL10 targets.
+	* configure.in: Add UL10SP2 specfiles.
+	* vendor/unitedlinux/*.spec.in: Added.
+	* vendor/unitedlinux/oracleasm.init.in: Fix rc.d ordering.
+	* vendor/redhat/*.spec.in: Fix support dependancy.
+
+2003-11-18	Joel Becker <joel.becker@oracle.com>
 
 	* configure.in: Add vendor/unitedlinux/oracleasm.init
 		substitution.
 	* vendor/unitedlinux/oracleasm.init{,.in}: Move to .in.
 
-2003-11-17	Joel Becker <joel.becker@oracle.com>
+2003-11-18	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/redhat/oracleasm.init.in: Fix 'status'.
 	* vendor/unitedlinux/oracleasm.init: Make work with common bits.
 
-2003-11-16	Joel Becker <joel.becker@oracle.com>
+2003-11-17	Joel Becker <joel.becker@oracle.com>
 
 	* documents/asm-install.txt: Reflect new oracleasm script.
 
-2003-11-16	Joel Becker <joel.becker@oracle.com>
+2003-11-17	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/redhat/*.spec.in: Use %attr for perms, and %config
 		for /etc/sysconfig/oracleasm.
 
-2003-11-16	Joel Becker <joel.becker@oracle.com>
+2003-11-17	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/redhat/*.spec.in: Perms on oracleasm.ini
 	* vendor/redhat/oracleasm.init.in: Start on enable, and vice
 		versa.
 
-2003-11-16	Joel Becker <joel.becker@oracle.com>
+2003-11-17	Joel Becker <joel.becker@oracle.com>
 
 	* configure.in: Substitute vendor/redhat/oracleasm.init.
 	* vendor/redhat/Makefile: Move oracleasm.init to
@@ -34,7 +42,7 @@
 	* vendor/redhat/oracleasm.init{,.in}: Rename oracleasm.init to
 		oracleasm.init.in.
 
-2003-11-16	Joel Becker <joel.becker@oracle.com>
+2003-11-17	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/common/Makefile: Add oracleasm.sysconfig.
 	* vendor/redhat/oracleasm-2.4.21-EL.spec.in: Add all the new
@@ -44,7 +52,7 @@
 	* vendor/redhat/oracleasm.init: A path that will soon become
 		configure bits.
 
-2003-11-16	Joel Becker <joel.becker@oracle.com>
+2003-11-17	Joel Becker <joel.becker@oracle.com>
 
 	* configure.in: Clean up force32 echo.
 	* include/linux/asmcompat32.h: sys_ioctl() prototype.

@@ -1,9 +1,9 @@
 #! /bin/sh
-# init fragment for ocfs
+# init fragment for asmlib
 #
 ### BEGIN INIT INFO
-# Provides: ocfs
-# Required-Start: $network
+# Provides: oracleasm
+# Required-Start: hwscan
 # Required-Stop:
 # Default-Start: 2 3 5
 # Default-Stop:
