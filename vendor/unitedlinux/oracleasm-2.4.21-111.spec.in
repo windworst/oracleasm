@@ -1,0 +1,247 @@
+#
+# Spec file for oracleasm
+#
+
+# Macros
+# This one is hardcoded because, well, it belongs there
+%define _prefix /usr
+# Because RPM is dumb
+%define _unpackaged_files_terminate_build 0
+
+# Turn on's and off's (summit and debug not used but added
+# for future proofing)
+%define builddeflt	1
+%define buildsmp	1
+%define buildnuma	1
+
+
+
+# This must be changed to the minimum ABI compat kernel version expected
+%define base		2.4.21
+%define sver		111
+%define kver		%{base}-%{sver}
+
+Summary: The Oracle Automatic Storage Management library driver.
+Name: oracleasm-%{kver}
+Version: @DIST_VERSION@
+Release: @RPM_VERSION@
+Copyright: GPL
+Group: System Environment/Kernel
+Source: asmlib-@DIST_VERSION@.tar.gz
+URL: http://oss.oracle.com/
+Distribution: Oracle
+Vendor: Oracle Corporation
+Packager: Joel Becker <joel.becker@oracle.com>
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: k_deflt = %{kver}
+Requires: oracleasm-support >= 0.9.0
+BuildRequires: kernel-source = %{kver}
+
+
+BuildRoot: %{_tmppath}/asmlib-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+
+
+%description
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for the default kernel.
+
+%if %{builddeflt}
+%package deflt
+Summary: The Oracle Automatic Storage Management library driver for SMP systems.
+Group: System Environment/Kernel
+AutoReqProv: no
+Provides: oracleasm = %{version}
+Requires: k_deflt = %{kver}
+Requires: oracleasm-support >= 0.9.0
+BuildRequires: kernel-source = %{kver}
+
+%description deflt
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for the default kernel.
+%endif
+
+
+%if %{buildsmp}
+%package smp
+Summary: The Oracle Automatic Storage Management library driver for SMP systems.
+Group: System Environment/Kernel
+AutoReqProv: no
+Provides: oracleasm = %{version}
+Requires: k_smp = %{kver}
+Requires: oracleasm-support >= 0.9.0
+BuildRequires: kernel-source = %{kver}
+
+
+%description smp
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for symmetric multiprocessor kernels.
+%endif
+
+
+%if %{buildnuma}
+%package numa
+Summary: The Oracle Automatic Storage Management library driver for hugemem systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: k_numa = %{kver}
+Requires: oracleasm-support >= 0.9.0
+BuildRequires: kernel-source = %{kver}
+
+
+%description numa
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for NUMA kernels.
+%endif
+
+
+%package -n oracleasm-lib
+Summary: Userspace library for Oracle Automatic Storage Management
+Group: System Environment/Kernel
+AutoReqProv: no
+Requires: glibc >= 2.2.4
+
+%description -n oracleasm-lib
+The Oracle userspace library for Oracle Automatic Storage Management
+
+%package -n oracleasm-support
+Summary: Tools for managing the Oracle Automatic Storage Management library
+Group: System Environment/Kernel
+AutoReqProv: no
+Requires: glibc >= 2.2.4
+
+
+%description -n oracleasm-support
+Tools to manage the Oracle Automatic Storage Management library
+
+
+%prep
+%setup -n asmlib-%{version}
+
+
+%build
+
+%if %{builddeflt}
+KPATH="/usr/src/linux-%{kver}-include/default"
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
+cd kernel
+make
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}-default/kernel/drivers/addon/oracleasm" install 
+make clean
+cd ..
+%endif
+
+%if %{buildnuma}
+KPATH="/usr/src/linux-%{kver}-include/numa"
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
+cd kernel
+make
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}-numa/kernel/drivers/addon/oracleasm" install 
+make clean
+cd ..
+%endif
+
+%if %{buildsmp}
+KPATH="/usr/src/linux-%{kver}-include/smp"
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
+cd kernel
+make
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}-smp/kernel/drivers/addon/oracleasm" install 
+make clean
+cd ..
+%endif
+
+make
+
+
+
+%install
+
+mkdir -p $RPM_BUILD_ROOT/etc/init.d
+cp -f vendor/unitedlinux/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
+mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
+cp -f vendor/common/oracleasm.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/oracleasm
+mkdir -p $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm
+cp -f vendor/common/oracleasm.init.functions $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm/oracleasm.init.functions
+
+if [ "%{_lib}" = "lib64" ]
+then
+    BPL=64
+elif [ "${RPM_ARCH}" = "ia64" ]
+then
+    BPL=64
+else
+    BPL=32
+fi
+mkdir -p ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1
+cp libosm/libosm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
+
+cd tools
+make DESTDIR="$RPM_BUILD_ROOT" install
+
+
+%clean
+rm -rf "$RPM_BUILD_ROOT"
+
+
+%post -n oracleasm-support
+chkconfig --add oracleasm
+
+
+%if %{builddeflt}
+%post deflt
+depmod -a
+
+%files deflt
+%defattr(-,root,root)
+/lib/modules/%{kver}-default/kernel/drivers/addon/oracleasm
+%endif
+
+%if %{buildsmp}
+%post smp
+depmod -a
+
+%files smp
+%defattr(-,root,root)
+/lib/modules/%{kver}-smp/kernel/drivers/addon/oracleasm
+%endif
+
+%if %{buildnuma}
+%post numa
+depmod -a
+
+%files numa
+%defattr(-,root,root)
+/lib/modules/%{kver}-numa/kernel/drivers/addon/oracleasm
+%endif
+
+%files -n oracleasm-lib
+%defattr(-,root,root)
+/opt/extapi
+
+%files -n oracleasm-support
+%defattr(-,root,root)
+/usr/sbin/asmtool
+/usr/%{_lib}/oracleasm/oracleasm.init.functions
+%attr(0755,root,root) /etc/init.d/oracleasm
+%config /etc/sysconfig/oracleasm
+
+
+
+%changelog
+* Wed Nov 19 2003 Joel Becker <joel.becker@oracle.com>
+- Make the UL SP3 changes.
+
+* Wed Nov 12 2003 Joel Becker <joel.becker@oracle.com>
+- Start the ASM rename.
+
+* Thu Oct 30 2003 Joel Becker <joel.becker@oracle.com>
+- Created EL3 version
+
+* Mon Jun 23 2003 Joel Becker <joel.becker@oracle.com>
+- Added osm-lib bits
+
+* Fri Jun 20 2003 Joel Becker <joel.becker@oracle.com>
+- Initial RPM
+

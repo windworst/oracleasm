@@ -1,4 +1,13 @@
 
+2003-11-19	Joel Becker <joel.becker@oracle.com>
+
+	* Makefile: Add UL10SP3 magic target.
+	* configure.in: Add UL10SP3-111 specfile.
+	* vendor/unitedlinux/oracleasm-2.4.21-111.spec.in: Added.
+	* vendor/unitedlinux/Makefile: Add oracleasm-2.4.21-111.spec.in.
+	* documents/asm-install.txt: A couple name changes.
+	* include/linux/asmcompat32.h: More I-hate-ioctl32.h.
+
 2003-11-18	Joel Becker <joel.becker@oracle.com>
 
 	* Makefile: Add magic UL10 targets.

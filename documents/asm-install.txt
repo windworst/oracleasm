@@ -41,7 +41,7 @@ asm-2.4.9-e-enterprise package.  So, to installing these packages on Red
 Hat Advanced Server 2.1 on an Intel x86 machine, you would use the
 command:
 
-	rpm -Uvh osm-support-1.0.0-1.i686.rpm osm-lib-1.0.0-1.i686.rpm osm-2.4.9-e-enterprise-1.0.0-1.i686.rpm
+	rpm -Uvh oracleasm-support-1.0.0-1.i686.rpm oracleasm-lib-1.0.0-1.i686.rpm oracleasm-2.4.9-e-enterprise-1.0.0-1.i686.rpm
 
 If you were on a different machine, the package names would be slightly
 different, replacing 'i686' with the appropriate architecture.

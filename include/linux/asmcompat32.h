@@ -66,8 +66,10 @@
 #  if !defined(CONFIG_COMPAT) && \
 	(LINUX_VERSION_CODE > KERNEL_VERSION(2,4,18))
 #   define CONFIG_COMPAT 1
+#   ifndef CONFIG_UNITEDLINUX_KERNEL  /* ARGH! */
 extern long sys_ioctl(unsigned int fd, unsigned int cmd,
                       unsigned long arg);
+#   endif  /* CONFIG_UNITEDLINUX_KERNEL */
 #   if defined(__x86_64__)
 #    include <asm/ioctl32.h>
 #   else
