@@ -215,6 +215,7 @@ static inline struct inode *ASMFS_F2I(struct file *file)
 struct asm_disk_info {
 	struct asmfs_inode_info *d_inode;
 	struct block_device *d_bdev;	/* Block device we I/O to */
+	int d_max_sectors;		/* Maximum sectors per I/O */
 	int d_live;			/* Is the disk alive? */
 	atomic_t d_ios;			/* Count of in-flight I/Os */
 	struct list_head d_open;	/* List of assocated asm_disk_heads */
@@ -724,6 +725,34 @@ static int asmfs_remount(struct super_block * sb, int * flags, char * data)
 	return 0;
 }
 
+/*
+ * Compute the maximum number of sectors the bdev can handle in one bio,
+ * as a power of two.
+ */
+static int compute_max_sectors(struct block_device *bdev)
+{
+	int max_pages, max_sectors, pow_two_sectors;
+
+	struct request_queue *q;
+
+	q = bdev_get_queue(bdev);
+	max_pages = q->max_sectors >> (PAGE_SHIFT - 9);
+	if (max_pages > BIO_MAX_PAGES)
+		max_pages = BIO_MAX_PAGES;
+	if (max_pages > q->max_phys_segments)
+		max_pages = q->max_phys_segments;
+	if (max_pages > q->max_hw_segments)
+		max_pages = q->max_hw_segments;
+	max_pages--; /* Handle I/Os that straddle a page */
+
+	max_sectors = max_pages << (PAGE_SHIFT - 9);
+
+	/* Why is fls() 1-based???? */
+	pow_two_sectors = 1 << (fls(max_sectors) - 1);
+
+	return pow_two_sectors;
+}
+
 static int asm_open_disk(struct file *file, struct block_device *bdev)
 {
 	int ret;
@@ -764,6 +793,7 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 			BUG();
 
 		d->d_bdev = bdev;
+		d->d_max_sectors = compute_max_sectors(bdev);
 		d->d_live = 1;
 		unlock_new_inode(disk_inode);
 	} else {
@@ -2128,34 +2158,6 @@ out:
 	iid_info->gi_abi.ai_status = ret;
 
 	return size;
-}
-
-/*
- * Compute the maximum number of sectors the bdev can handle in one bio,
- * as a power of two.
- */
-static int compute_max_sectors(struct block_device *bdev)
-{
-	int max_pages, max_sectors, pow_two_sectors;
-
-	struct request_queue *q;
-
-	q = bdev_get_queue(bdev);
-	max_pages = q->max_sectors >> (PAGE_SHIFT - 9);
-	if (max_pages > BIO_MAX_PAGES)
-		max_pages = BIO_MAX_PAGES;
-	if (max_pages > q->max_phys_segments)
-		max_pages = q->max_phys_segments;
-	if (max_pages > q->max_hw_segments)
-		max_pages = q->max_hw_segments;
-	max_pages--; /* Handle I/Os that straddle a page */
-
-	max_sectors = max_pages << (PAGE_SHIFT - 9);
-
-	/* Why is fls() 1-based???? */
-	pow_two_sectors = 1 << (fls(max_sectors) - 1);
-
-	return pow_two_sectors;
 }
 
 static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
