@@ -27,6 +27,7 @@
 #include <linux/locks.h>
 #include <linux/highmem.h>
 #include <linux/slab.h>
+#include <linux/genhd.h>
 
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
@@ -556,6 +557,31 @@ static int osmfs_remount(struct super_block * sb, int * flags, char * data)
 
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
+	kdev_t kdv;
+	struct gendisk *g;
+	int drive, first_minor, dev;
+
+	switch (cmd) {
+		default:
+			printk("ENOTTY in file ioctl\n");
+			return -ENOTTY;
+			break;
+
+		case OSMIOC_ISDISK:
+			if (get_user(dev, (int *)arg))
+				return -EFAULT;
+			kdv = to_kdev_t(dev);
+			printk("Checking disk %d,%d\n", MAJOR(kdv), MINOR(kdv));
+			g = get_gendisk(kdv);
+			if (!g)
+				return -ENXIO;
+			drive = (MINOR(kdv) >> g->minor_shift);
+			first_minor = (drive << g->minor_shift);
+			if (first_minor != MINOR(kdv))
+				return -EINVAL;
+			break;
+	}
+
 	return 0;
 }
 
@@ -604,7 +630,7 @@ static struct file_operations osmfs_file_operations = {
 	/*llseek:		generic_file_llseek,*/
 	ioctl:		osmfs_file_ioctl,
 	/*mmap:		generic_file_mmap,*/
-	fsync:		osmfs_sync_file,
+	/*fsync:	osmfs_sync_file,*/
 };
 
 static struct file_operations osmfs_dir_operations = {

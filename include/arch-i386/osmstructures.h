@@ -39,6 +39,8 @@ struct _osm_ctx_private
     osm_iid iid;
     ub4 app;
     int fd;
+    int discover_index;
+    void *discover_cache;
 };
 
 

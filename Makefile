@@ -12,7 +12,10 @@ OSMLIB_OBJS = libosm/osmlib.o
 OSMLIB_INCLUDES = -I include
 OSMLIB_CPPFLAGS = -DLINUX $(OSMLIB_INCLUDES)
 
-OSMLIB_HEADERS = include/osmlib.h include/arch/osmstructures.h
+OSMLIB_HEADERS =			\
+	include/osmlib.h		\
+	include/arch/osmstructures.h	\
+	include/osmprivate.h
 
 OSMTEST_SRCS = test/osmtest.c
 OSMTEST_OBJS = test/osmtest.o
@@ -41,6 +44,7 @@ $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
 $(OSMLIB_OBJS): %.o: %.c
 	$(CC) $(CPPFLAGS) $(OSMLIB_CPPFLAGS) -c -o $@ $<
 
+kernel/osm.o: include/osmprivate.h
 kernel/osm.o: kernel/osm.c
 	$(CC) $(CPPFLAGS) $(KERNEL_CPPFLAGS) -c -o $@ $<
 
