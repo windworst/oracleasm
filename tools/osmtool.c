@@ -30,7 +30,8 @@
 #include <linux/types.h>
 #include <oratypes.h>
 #include <osmlib.h>
-#include "osmprivate.h"
+#include "linux/osmabi.h"
+#include "linux/osmdisk.h"
 
 
 

@@ -33,9 +33,23 @@
 #include <oratypes.h>
 #include <osmlib.h>
 #include "osmerror.h"
-#include "arch/osmstructures.h"
-#include "osmprivate.h"
+#include "asm/osmstructures.h"
+#include "linux/osmabi.h"
+#include "linux/osmdisk.h"
 
+
+/*
+ * Defines
+ */
+#define OSMLIB_NAME "OSM Library - Generic Linux"
+#define OSMLIB_MAJOR 0
+#define OSMLIB_MINOR 7
+#define OSMLIB_MICRO 0
+
+
+/*
+ * Functions
+ */
 
 
 uword osm_version(ub4 *version, osm_iid *iid, oratext *name,

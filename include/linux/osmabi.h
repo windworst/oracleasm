@@ -9,7 +9,7 @@
 
 /*
   NAME
-    osmprivate.h - Oracle Storage Manager internal library header
+    osmabi.h - Oracle Storage Manager kernel<->user ABI
     
   DESCRIPTION
   
@@ -19,26 +19,8 @@
 */
 
 
-#ifndef _OSMPRIVATE_H
-#define _OSMPRIVATE_H
-
-/*
- * Defines
- */
-#define OSMLIB_NAME "OSM Library - Generic Linux"
-#define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
-#define OSMLIB_MINOR 6
-#define OSMLIB_MICRO 1
-
-/*
- * Disk label.  This is a 32 byte quantity at offset 32 (0x20) on the 
- * disk.  The first 8 bytes are "ORCLDISK".  The remaining 24 bytes
- * are reserved for future use.
- */
-#define OSM_DISK_LABEL          "ORCLDISK"
-#define OSM_DISK_LABEL_CLEAR    "ORCLCLRD"
-#define OSM_DISK_LABEL_SIZE     8
-#define OSM_DISK_LABEL_OFFSET   32
+#ifndef _OSMABI_H
+#define _OSMABI_H
 
 /*
  * Max I/O is 64K.  Why 64?  Because the MegaRAID card supports only
@@ -56,6 +38,11 @@
 
 /*
  * Structures
+ */
+
+/*
+ * osm_ioc is defined for userspace in osmlib.h and for
+ * kernelspace in linux/osmstructures.h
  */
 struct osmio
 {
@@ -98,5 +85,5 @@ struct osm_disk_query
 #define OSMIOC_DUMP             _IO(OSM_IOCTL_BASE, 16)
 
 
-#endif  /* _OSMPRIVATE_H */
+#endif  /* _OSMABI_H */
 

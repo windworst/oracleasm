@@ -14,19 +14,19 @@ OSMLIB_CPPFLAGS = -DLINUX $(OSMLIB_INCLUDES)
 
 OSMLIB_HEADERS =			\
 	include/osmlib.h		\
-	include/arch/osmstructures.h	\
-	include/osmprivate.h		\
+	include/asm/osmstructures.h	\
+	include/linux/osmabi.h		\
 	include/osmerror.h
 
 COMMON_HEADERS =				\
 	include/osmlib.h			\
 	include/oratypes.h			\
 	include/osmerror.h			\
-	include/osmprivate.h			\
+	include/linux/osmabi.h			\
 
 ARCH_X86_HEADERS =				\
-	include/arch-i386/osmkernel.h		\
-	include/arch-i386/osmstructures.h
+	include/linux/osmkernel.h		\
+	include/asm-i386/osmstructures.h
 
 OSMTOOL_SRCS = tools/osmtool.c
 OSMTOOL_OBJS = tools/osmtool.o
@@ -121,7 +121,7 @@ $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
 $(OSMLIB_OBJS): %.o: %.c
 	$(CC) $(CPPFLAGS) $(OSMLIB_CPPFLAGS) -c -o $@ $<
 
-kernel/osm.o: include/osmprivate.h 
+kernel/osm.o: include/linux/osmabi.h 
 kernel/osm.o: kernel/osm.c
 	$(CC) $(CPPFLAGS) $(KERNEL_CPPFLAGS) -c -o $@ $<
 

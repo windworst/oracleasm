@@ -34,8 +34,9 @@
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
 
-#include "arch/osmkernel.h"
-#include "osmprivate.h"
+#include "linux/osmkernel.h"
+#include "linux/osmabi.h"
+#include "linux/osmdisk.h"
 #include "osmerror.h"
 
 

@@ -37,9 +37,6 @@ typedef struct _osm_ctx_private osm_ctx_private;
 struct _osm_ctx_private
 {
     osm_iid iid;
-#if 0  /* wither app? */
-    ub4 app;
-#endif
     int fd;
     int discover_index;
     void *discover_cache;
