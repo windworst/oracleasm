@@ -5,7 +5,6 @@
 # Macros
 # This one is hardcoded because, well, it belongs there
 %define _prefix /usr
-%define libdir /usr/lib
 
 # Turn on's and off's (summit and debug not used but added
 # for future proofing)
@@ -244,8 +243,8 @@ mkdir -p $RPM_BUILD_ROOT/etc/init.d
 cp -f vendor/redhat/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
 mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
 cp -f vendor/common/oracleasm.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/oracleasm
-mkdir -p $RPM_BUILD_ROOT%{libdir}/oracleasm
-cp -f vendor/common/oracleasm.init.functions $RPM_BUILD_ROOT%{libdir}/oracleasm/oracleasm.init.functions
+mkdir -p $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm
+cp -f vendor/common/oracleasm.init.functions $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm/oracleasm.init.functions
 
 if [ "%{_lib}" = "lib64" ]
 then
@@ -324,7 +323,7 @@ chkconfig oracleasm on
 %files -n oracleasm-support
 %defattr(-,root,root)
 /usr/sbin/asmtool
-%{libdir}/oracleasm/oracleasm.init.functions
+/usr/%{_lib}/oracleasm/oracleasm.init.functions
 %attr(0755,root,root) /etc/init.d/oracleasm
 %config /etc/sysconfig/oracleasm
 
