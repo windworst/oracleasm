@@ -38,10 +38,11 @@
  */
 typedef enum
 {
+    ASMTOOL_NOOP,
     ASMTOOL_CHECK,
     ASMTOOL_MARK,
     ASMTOOL_UNMARK
-} OsmtoolOperation;
+} ASMToolOperation;
 
 
 
@@ -50,12 +51,24 @@ typedef enum
  */
 
 
+/*
+ * strnlen() is useful, and it's under __USE_GNU
+ */
+static inline size_t strnlen(const char *s, size_t size)
+{
+    char *p = memchr(s, '\0', size);
+    return p ? p - s : size;
+}  /* strnlen() */
+
+
 static void print_usage(int rc)
 {
     FILE *output = rc ? stderr : stdout;
 
     fprintf(output,
-            "Usage: asmtool {-m|-u|-c} <disk1> ...\n"
+            "Usage: asmtool -M -l <disk1> -a <attribute> ...\n"
+            "       asmtool -U -l <disk1>\n"
+            "       asmtool -C -l <disk1> [-a <attribute>] ...\n"
             "       asmtool -h\n"
             "       asmtool -V\n");
     exit(rc);
@@ -103,12 +116,11 @@ static int open_disk(const char *disk_name)
 }  /* open_disk() */
 
 
-static int check_disk(int fd)
+static int read_disk(int fd, struct asm_disk_label *adl)
 {
     int rc, tot;
-    char buf[ASM_DISK_LABEL_SIZE];  /* Why malloc? */
 
-    if (fd < 0)
+    if ((fd < 0) || !adl)
         return -EINVAL;
 
     rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
@@ -116,9 +128,9 @@ static int check_disk(int fd)
         return -errno;
 
     tot = 0;
-    while (tot < ASM_DISK_LABEL_SIZE)
+    while (tot < sizeof(struct asm_disk_label))
     {
-        rc = read(fd, buf + tot, ASM_DISK_LABEL_SIZE - tot);
+        rc = read(fd, adl + tot, sizeof(struct asm_disk_label) - tot);
         if (!rc)
             break;
         if (rc < 0)
@@ -131,90 +143,224 @@ static int check_disk(int fd)
         tot += rc;
     }
 
-    if (tot < ASM_DISK_LABEL_SIZE)
+    if (tot < sizeof(struct asm_disk_label))
         return -ENOSPC;
 
-    /* Already an ASM disk */
-    if (!memcmp(buf, ASM_DISK_LABEL, ASM_DISK_LABEL_SIZE))
-        return -EEXIST;
+    return 0;
+}
+
+
+static int write_disk(int fd, struct asm_disk_label *adl)
+{
+    int rc, tot;
+
+    if ((fd < 0) || !adl)
+        return -EINVAL;
+
+    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
+    if (rc < 0)
+        return -errno;
+
+    tot = 0;
+    while (tot < sizeof(struct asm_disk_label))
+    {
+        rc = write(fd, adl + tot, sizeof(struct asm_disk_label) - tot);
+        if (!rc)
+            break;
+        if (rc < 0)
+        {
+            if ((errno == EAGAIN) || (errno == EINTR))
+                continue;
+            else
+                return -errno;
+        }
+        tot += rc;
+    }
+
+    if (tot < sizeof(struct asm_disk_label))
+        return -ENOSPC;
+
+    return 0;
+}
+
+
+static int check_disk(struct asm_disk_label *adl, const char *label)
+{
+    int tot;
+
+    if (!adl)
+        return -EINVAL;
+
+    /* Not an ASM disk */
+    if (memcmp(adl->dl_tag, ASM_DISK_LABEL_MARKED, sizeof(adl->dl_tag)))
+        return -ENXIO;
+
+    if (label)
+    {
+        tot = strnlen(label, sizeof(adl->dl_id));
+        if (tot != strnlen(adl->dl_id, sizeof(adl->dl_id)))
+            return -ESRCH;
+        if (memcmp(adl->dl_id, label, tot))
+            return -ESRCH;
+    }
 
     return 0;
 }  /* check_disk() */
 
 
-static int mark_disk(int fd)
+static int mark_disk(int fd, struct asm_disk_label *adl,
+                     const char *label)
 {
-    int rc, tot;
-    char buf[ASM_DISK_LABEL_SIZE];
+    int rc;
+    size_t len;
 
-    if (fd < 0)
+    if ((fd < 0) || !adl || !label)
         return -EINVAL;
 
-    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
-    if (rc < 0)
-        return -errno;
-
-    memcpy(buf, ASM_DISK_LABEL, ASM_DISK_LABEL_SIZE);
-
-    tot = 0;
-    while (tot < ASM_DISK_LABEL_SIZE)
+    rc = check_disk(adl, label);
+    if (!rc)
+        return -EEXIST;
+    if ((rc == -ENXIO) || (rc == -ESRCH))
     {
-        rc = write(fd, buf + tot, ASM_DISK_LABEL_SIZE - tot);
-        if (!rc)
-            break;
-        if (rc < 0)
-        {
-            if ((errno == EAGAIN) || (errno == EINTR))
-                continue;
-            else
-                return -errno;
-        }
-        tot += rc;
+        memcpy(adl->dl_tag, ASM_DISK_LABEL_MARKED, sizeof(adl->dl_tag));
+
+        memset(adl->dl_id, 0, sizeof(adl->dl_id));
+        len = strnlen(label, sizeof(adl->dl_id));
+        memcpy(adl->dl_id, label, len);
+
+        rc = write_disk(fd, adl);
     }
 
-    if (tot < ASM_DISK_LABEL_SIZE)
-        return -ENOSPC;
-
-    return 0;
+    return rc;
 }  /* mark_disk() */
 
 
-static int unmark_disk(int fd)
+static int unmark_disk(int fd, struct asm_disk_label *adl)
 {
-    int rc, tot;
-    char buf[ASM_DISK_LABEL_SIZE];
+    int rc;
 
-    if (fd < 0)
+    if ((fd < 0) || !adl)
         return -EINVAL;
 
-    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
-    if (rc < 0)
-        return -errno;
-
-    memcpy(buf, ASM_DISK_LABEL_CLEAR, ASM_DISK_LABEL_SIZE);
-
-    tot = 0;
-    while (tot < ASM_DISK_LABEL_SIZE)
+    rc = check_disk(adl, NULL);
+    if (rc == -ENXIO)
+        return -ESRCH;
+    if (!rc)
     {
-        rc = write(fd, buf + tot, ASM_DISK_LABEL_SIZE - tot);
-        if (!rc)
-            break;
-        if (rc < 0)
-        {
-            if ((errno == EAGAIN) || (errno == EINTR))
-                continue;
-            else
-                return -errno;
-        }
-        tot += rc;
+        memcpy(adl->dl_tag, ASM_DISK_LABEL_CLEAR, sizeof(adl->dl_tag));
+        memset(adl->dl_id, 0, sizeof(adl->dl_id));
+
+        rc = write_disk(fd, adl);
     }
 
-    if (tot < ASM_DISK_LABEL_SIZE)
-        return -ENOSPC;
+    return rc;
+}  /* unmark_disk() */
+
+
+
+extern char *optarg;
+extern int optopt;
+extern int opterr;
+int parse_options(int argc, char *argv[], ASMToolOperation *op,
+                  char **disk, char **label)
+{
+    int c;
+    char *attr, *val;
+
+    opterr = 0;
+    while((c = getopt(argc, argv, ":hVMUCl:a:")) != EOF)
+    {
+        switch(c)
+        {
+            case 'h':
+                print_usage(0);
+                break;
+
+            case 'V':
+                print_version();
+                break;
+
+            case 'M':
+                if (*op != ASMTOOL_NOOP)
+                    return -EINVAL;
+                *op = ASMTOOL_MARK;
+                break;
+
+            case 'U':
+                if (*op != ASMTOOL_NOOP)
+                    return -EINVAL;
+                *op = ASMTOOL_UNMARK;
+                break;
+
+            case 'C':
+                if (*op != ASMTOOL_NOOP)
+                    return -EINVAL;
+                *op = ASMTOOL_CHECK;
+                break;
+
+            case 'l':
+                if (!optarg || !*optarg)
+                    return -EINVAL;
+                *disk = optarg;
+                break;
+
+            case 'a':
+                if (!optarg || !*optarg)
+                    return -EINVAL;
+                attr = optarg;
+                val = strchr(attr, '=');
+                if (val)
+                {
+                    *val = '\0';
+                    val += 1;
+                }
+                if (strcmp(attr, "label"))
+                {
+                    fprintf(stderr,
+                            "asmtool: Unknown attribute: \"%s\"\n",
+                            attr);
+                    return -EINVAL;
+                }
+                *label = val ? val : "";
+                break;
+
+            case '?':
+                fprintf(stderr, "asmtool: Invalid option: \'-%c\'\n",
+                        optopt);
+                print_usage(1);
+                break;
+
+            case ':':
+                fprintf(stderr,
+                        "asmtool: Option \'-%c\' requires an argument\n",
+                        optopt);
+                print_usage(1);
+                break;
+
+            default:
+                return -EINVAL;
+                break;
+        }
+    }
+
+    if (*op == ASMTOOL_NOOP)
+    {
+        fprintf(stderr, "You must specify an operation.\n");
+        return -EINVAL;
+    }
+    if (!disk || !*disk)
+    {
+        fprintf(stderr, "You must specify a disk.\n");
+        return -EINVAL;
+    }
+    if ((*op == ASMTOOL_MARK) && (!label || !*label))
+    {
+        fprintf(stderr, "You must specify a disk ID.\n");
+        return -EINVAL;
+    }
 
     return 0;
-}  /* mark_disk() */
-
+}  /* parse_options() */
 
 
 /*
@@ -222,107 +368,133 @@ static int unmark_disk(int fd)
  */
 int main(int argc, char *argv[])
 {
-    int i, fd, rc;
-    OsmtoolOperation op = ASMTOOL_CHECK;
+    int fd, rc;
+    char *disk = NULL, *label = NULL;
+    struct asm_disk_label adl;
+    ASMToolOperation op = ASMTOOL_NOOP;
 
-    /* Simple programs merely require simple option parsing */
-    if (argc < 2)
-        print_usage(1);
+    rc = parse_options(argc, argv, &op, &disk, &label);
+    if (rc)
+        print_usage(rc);
 
-    if (!strcmp(argv[1], "-h") ||
-        !strcmp(argv[1], "--help"))
-        print_usage(0);
-
-    if (!strcmp(argv[1], "-V") ||
-        !strcmp(argv[1], "--version"))
-        print_version();
-
-    i = 2;
-    if (!strcmp(argv[1], "-m"))
-        op = ASMTOOL_MARK;
-    else if (!strcmp(argv[1], "-u"))
-        op = ASMTOOL_UNMARK;
-    else if (!strcmp(argv[1], "-c"))
-        op = ASMTOOL_CHECK;
-    else if (argv[1][0] == '-')
-        print_usage(1);
-    else
-        i = 1;
-
-    for (; i < argc; i++)
+    fd = open_disk(disk);
+    if (fd < 0)
     {
-        fd = open_disk(argv[i]);
-        if (fd < 0)
-        {
-            fprintf(stderr, "asmtool: Unable to open \"%s\": %s\n",
-                    argv[i], strerror(-fd));
-            continue;
-        }
+        fprintf(stderr, "asmtool: Unable to open \"%s\": %s\n",
+                disk, strerror(-fd));
+    }
 
-        /*
-         * This maze of twisty if()s (all alike) is merely to avoid
-         * gotos.  Every operation here, good or bad, has to drop out
-         * to the close() at the bottom.
-         */
-        rc = check_disk(fd);
-        if (!rc)
-        {
-            if (op != ASMTOOL_MARK)
-            {
-                fprintf(stdout,
-                        "asmtool: Disk \"%s\" is not marked an ASM disk\n",
-                        argv[i]);
-            }
-            else
-            {
-                rc = mark_disk(fd);
-                if (rc)
-                {
-                    fprintf(stderr,
-                            "asmtool: Unable to mark \"%s\": %s\n",
-                            argv[i], strerror(-rc));
-                }
-                else
-                {
-                    fprintf(stdout,
-                            "asmtool: Marked \"%s\" successfully\n",
-                            argv[i]);
-                }
-            }
-        }
-        else if (rc == -EEXIST)
-        {
-            if (op != ASMTOOL_UNMARK)
+    rc = read_disk(fd, &adl);
+    if (rc)
+    {
+        fprintf(stdout,
+                "asmtool: Unable to read disk \"%s\": %s\n",
+                disk, strerror(-rc));
+        goto out_close;
+    }
+
+    switch (op)
+    {
+        case ASMTOOL_MARK:
+            rc = mark_disk(fd, &adl, label);
+            if (rc == -EEXIST)
             {
                 fprintf(stdout,
                         "asmtool: Disk \"%s\" is marked an ASM disk\n",
-                        argv[i]);
+                        disk);
+            }
+            else if (rc)
+            {
+                fprintf(stderr,
+                        "asmtool: Unable to mark \"%s\": %s\n",
+                        disk, strerror(-rc));
             }
             else
             {
-                rc = unmark_disk(fd);
-                if (rc)
+                fprintf(stdout,
+                        "asmtool: Marked \"%s\" successfully\n",
+                        disk);
+            }
+            break;
+
+        case ASMTOOL_UNMARK:
+            rc = unmark_disk(fd, &adl);
+            if (rc == -ESRCH)
+            {
+                fprintf(stdout,
+                        "asmtool: Disk \"%s\" is not marked an ASM disk\n",
+                        disk);
+            }
+            else if (rc)
+            {
+                fprintf(stderr,
+                        "asmtool: Unable to unmark \"%s\": %s\n",
+                        disk, strerror(-rc));
+            }
+            else
+            {
+                fprintf(stdout,
+                        "asmtool: Unarked \"%s\" successfully\n",
+                        disk);
+            }
+            break;
+
+        case ASMTOOL_CHECK:
+            rc = check_disk(&adl, label);
+            if (!rc)
+            {
+                fprintf(stdout,
+                        "asmtool: Disk \"%s\" is marked an ASM disk\n",
+                        disk);
+            }
+            else if (rc == -ENXIO)
+            {
+                fprintf(stdout,
+                        "asmtool: Disk \"%s\" is not marked an ASM disk\n",
+                        disk);
+            }
+            else if (rc == -ESRCH)
+            {
+                if (*label)
                 {
-                    fprintf(stderr,
-                            "asmtool: Unable to unmark \"%s\": %s\n",
-                            argv[i], strerror(-rc));
+                    fprintf(stdout,
+                            "asmtool: Disk \"%s\" is marked an ASM disk, but does not match the label \"%s\"\n",
+                            disk, label);
                 }
                 else
                 {
+                    char *id = (char *)malloc(sizeof(char) *
+                                              (sizeof(adl.dl_id) + 1));
+                    if (!id)
+                    {
+                        fprintf(stderr,
+                                "asmtool: Unable to allocate memory\n");
+                        goto out_close;
+                    }
+
+                    memcpy(id, adl.dl_id, sizeof(adl.dl_id));
+                    id[sizeof(adl.dl_id)] = '\0';
+
                     fprintf(stdout,
-                            "asmtool: Unarked \"%s\" successfully\n",
-                            argv[i]);
+                            "asmtool: Disk \"%s\" is marked an ASM disk with the label \"%s\"\n",
+                            disk, id);
+                    free(id);
                 }
             }
-        }
-        else
-        {
-            fprintf(stderr, "asmtool: Unable to check \"%s\": %s\n",
-                    argv[i], strerror(-rc));
-        }
+            else
+            {
+                fprintf(stderr, "asmtool: Unable to check disk \"%s\": %s\n",
+                        disk, strerror(-rc));
+            }
+            break;
 
-        close(fd);
+        default:
+            fprintf(stderr, "Invalid operation\n");
+            break;
     }
+
+out_close:
+    close(fd);
 
     return 0;
 }  /* main() */

@@ -269,6 +269,7 @@ static int asm_validate_disk(kdev_t dev)
 {
 	struct buffer_head *bh;
 	int blocksize, hblock, ret;
+	struct asm_disk_label *adl;
 
 	blocksize = BLOCK_SIZE;
 	hblock = get_hardsect_size(dev);
@@ -278,9 +279,11 @@ static int asm_validate_disk(kdev_t dev)
 	if (!(bh = bread(dev, 0, blocksize)))
 		return -ENXIO;
 
+	adl = (struct asm_disk_label *)(bh->b_data +
+					ASM_DISK_LABEL_OFFSET);
 	ret = 0;
-	if (memcmp(bh->b_data + ASM_DISK_LABEL_OFFSET, ASM_DISK_LABEL,
-		   ASM_DISK_LABEL_SIZE))
+	if (memcmp(adl->dl_tag, ASM_DISK_LABEL_MARKED,
+		   sizeof(adl->dl_tag)))
 		ret = -EPERM;
 	
 	brelse(bh);
@@ -668,6 +671,11 @@ static int asmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int d
 	return error;
 }
 
+static int asmfs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+{
+	return asmfs_mknod(dir, dentry, mode | S_IFDIR, 0);
+}
+
 static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode)
 {
 	return asmfs_mknod(dir, dentry, mode | S_IFREG, 0);
@@ -724,6 +732,8 @@ static int asmfs_unlink(struct inode * dir, struct dentry *dentry)
 	}
 	return retval;
 }
+
+#define asmfs_rmdir asmfs_unlink
 
 static void asmfs_delete_inode(struct inode *inode)
 {
@@ -835,7 +845,7 @@ static int asmfs_remount(struct super_block * sb, int * flags, char * data)
 	reset_limits(asb, &params);
 
 	printk(KERN_DEBUG
-               "ASM: oracleasmfs remounted with options: %s\n", 
+ 	       "ASM: oracleasmfs remounted with options: %s\n", 
 	       data ? (char *)data : "<defaults>" );
 	printk(KERN_DEBUG "ASM:	maxinstances=%ld\n",
 	       asb->max_inodes);
@@ -2202,7 +2212,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case ASMIOC_QUERYDISK:
 			LOG("ASM: Operation is ASMIOC_QUERYDISK\n");
 			if (copy_from_user(&dq,
-                                           (struct oracleasm_disk_query *)arg,
+					   (struct oracleasm_disk_query *)arg,
 					   sizeof(dq)))
 				return -EFAULT;
 			kdv = to_kdev_t(dq.dq_rdev);
@@ -2229,7 +2239,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case ASMIOC_OPENDISK:
 			LOG("ASM: Operation is ASMIOC_OPENDISK\n");
 			if (copy_from_user(&dq,
-                                           (struct oracleasm_disk_query *)arg,
+					   (struct oracleasm_disk_query *)arg,
 					   sizeof(dq)))
 				return -EFAULT;
 			kdv = to_kdev_t(dq.dq_rdev);
@@ -2253,7 +2263,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case ASMIOC_CLOSEDISK:
 			LOG("ASM: Operation is ASMIOC_CLOSEDISK\n");
 			if (copy_from_user(&dq,
-                                           (struct oracleasm_disk_query *)arg,
+					   (struct oracleasm_disk_query *)arg,
 					   sizeof(dq)))
 				return -EFAULT;
 			LOG("ASM: Closing handle 0x%.8lX\n", (unsigned long)dq.dq_rdev);
@@ -2264,7 +2274,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case ASMIOC_IODISK32:
 			LOG("ASM: Operation is ASMIOC_IODISK32\n");
 			if (copy_from_user(&io,
-                                           (struct oracleasm_io *)arg,
+					   (struct oracleasm_io *)arg,
 					   sizeof(io)))
 				return -EFAULT;
 			return asm_do_io(afi, aii, &io, ASM_BPL_32);
@@ -2274,7 +2284,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case ASMIOC_IODISK64:
 			LOG("ASM: Operation is ASM_IODISK64\n");
 			if (copy_from_user(&io,
-                                           (struct oracleasm_io *)arg,
+					   (struct oracleasm_io *)arg,
 					   sizeof(io)))
 				return -EFAULT;
 			return asm_do_io(afi, aii, &io, ASM_BPL_64);
@@ -2365,6 +2375,8 @@ static struct inode_operations asmfs_dir_inode_operations = {
 	.create		= asmfs_create,
 	.lookup		= asmfs_lookup,
 	.unlink		= asmfs_unlink,
+	.mkdir		= asmfs_mkdir,
+	.mknod		= asmfs_mknod,
 };
 
 static struct super_operations asmfs_ops = {
@@ -2465,7 +2477,7 @@ static int compat_ioctls [] = {
  * handler for register_ioctl32_conversion().
  */
 static int sys_ioctl_wrapper(unsigned int fd, unsigned int cmd,
-                             unsigned long arg, struct file *filp) {
+			     unsigned long arg, struct file *filp) {
     return sys_ioctl(fd, cmd, arg);
 }
 

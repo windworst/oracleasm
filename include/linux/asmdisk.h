@@ -29,9 +29,13 @@
  * disk.  The first 8 bytes are "ORCLDISK".  The remaining 24 bytes
  * are reserved for future use.
  */
-#define ASM_DISK_LABEL          "ORCLDISK"
+#define ASM_DISK_LABEL_MARKED   "ORCLDISK"
 #define ASM_DISK_LABEL_CLEAR    "ORCLCLRD"
-#define ASM_DISK_LABEL_SIZE     8
 #define ASM_DISK_LABEL_OFFSET   32
+
+struct asm_disk_label {
+	char dl_tag[8];
+	char dl_id[24];
+};
 
 #endif  /* _ASMDISK_H */
