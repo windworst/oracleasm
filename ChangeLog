@@ -1,6 +1,13 @@
 
 2003-11-13	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: vendor subdir.
+	* vendor/common/Makefile: Added.
+	* vendor/unitedlinux/Makefile: Added.
+	* vendor/unitedlinux/oracleasm.init: Added.
+
+2003-11-13	Joel Becker <joel.becker@oracle.com>
+
 	* Makefile: Add vendor subdir.
 	* vendor: Add vendor subdir.
 	* redhat: Moved to vendor/redhat.

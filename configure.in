@@ -250,6 +250,6 @@ GCCINC=$gccdir
 AC_SUBST(GCCINC)
 
 AC_OUTPUT([Config.make
-redhat/oracleasm-2.4.9-e.spec
-redhat/oracleasm-2.4.21-EL.spec
+vendor/redhat/oracleasm-2.4.9-e.spec
+vendor/redhat/oracleasm-2.4.21-EL.spec
 ])
