@@ -1349,7 +1349,10 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 			break;
 	}
 	
-	/* FIXME: More size checks */
+	/* Not really an error, but hey, it's and end_io call */
+	ret = 0;
+	if (count == 0)
+		goto out_error;
 
 	r->r_cb.vec = map_user_kvec(rw, tmp.buffer_osm_ioc, count);
 	r->r_cb.data = r;

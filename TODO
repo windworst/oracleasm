@@ -1,2 +1,2 @@
 
-o Check for size==0 and ENXIO in I/O path.
+o Threadsafe the request code
