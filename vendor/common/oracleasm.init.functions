@@ -483,6 +483,44 @@ make_disk()
 
 
 #
+# relabel_disk()
+# Relabels an ASM disk.
+#
+# Returns 0 on success, 1 on error.
+#
+relabel_disk()
+{
+    if [ "$#" -lt "2" -o -z "$1" -o -z "$2" ]
+    then
+        echo "relabel_disk(): Requires two arguments" >&2
+        return 1
+    fi
+    OLDDISK="$1"
+    NEWLABEL="$2"
+    FORCE="$3"
+
+    if [ -z "$FORCE" ]
+    then
+        REDIR=''
+    else
+        REDIR='2>&1'
+    fi
+    OUTPUT="`asmtool -H -l "${ORACLE_ASMMANAGER}" -n "${OLDDISK}" -a "label=${NEWLABEL}" $FORCE $REDIR`"
+    if [ $? != 0 ]
+    then
+        if [ -z "$FORCE" ]
+        then
+            echo "If you really wish to change the label, rerun with the force-renamedisk command." >&2
+        fi
+        echo -n "Renaming disk \"$OLDDISK\" to \"$NEWLABEL\" "
+        return 1
+    fi
+    echo -n "Renaming disk \"$OLDDISK\" to \"$NEWLABEL\" "
+    return 0
+}
+
+
+#
 # remove_disk()
 # Removes the  ASM disk.
 #

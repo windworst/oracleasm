@@ -1,4 +1,14 @@
 
+2004-04-15	Joel Becker <joel.becker@oracle.com>
+
+	* TAXES
+	* vendor/redhat/oracleasm.init.in: Added the renamedisk and
+		force-renamedisk commands.
+	* vendor/common/oracleasm.init.functions: Added the relabel_disk
+		function.
+	* tools/asmtool.c: Error when the user trys to name something
+		as itself.
+
 2004-04-14	Joel Becker <joel.becker@oracle.com>
 
 	* tools/asmtool.c: Add rename by name.

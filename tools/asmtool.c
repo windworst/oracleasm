@@ -159,6 +159,11 @@ static int get_info_asmdisk(const char *manager, char *object,
                             ASMToolAttrs *attrs);
 static int get_info(const char *manager, char *object,
                     const char *stype, ASMToolAttrs *attrs);
+static int change_attr_asmdisk_by_name(const char *manager, char *disk,
+                                       ASMToolAttrs *attrs);
+static int change_attr_asmdisk_by_device(const char *manager,
+                                         const char *target,
+                                         ASMToolAttrs *attrs);
 static int is_manager(const char *filename);
 static int list_managers();
 static int parse_options(int argc, char *argv[], ASMToolOperation *op,
@@ -1041,11 +1046,6 @@ out:
     return rc;
 }  /* get_info() */
 
-static int change_attr_asmdisk_by_name(const char *manager, char *disk,
-                                       ASMToolAttrs *attrs);
-static int change_attr_asmdisk_by_device(const char *manager,
-                                         const char *target,
-                                         ASMToolAttrs *attrs);
 
 static int change_attr_asmdisk_by_name(const char *manager, char *disk,
                                        ASMToolAttrs *attrs)
@@ -1099,9 +1099,14 @@ static int change_attr_asmdisk_by_name(const char *manager, char *disk,
         goto out_free_label;
     }
 
-    rc = 0;
+    rc = -EEXIST;
     if (!strcmp(disk, label))
-        goto out_free_label;  /* Nothing to do */
+    {
+        fprintf(stderr,
+                "asmtool: Disk is already named \"%s\"\n",
+                label);
+        goto out_free_label;
+    }
 
     rc = -ENOMEM;
     asm_disk = asm_disk_path(manager, disk);
@@ -1307,7 +1312,13 @@ static int change_attr_asmdisk_by_device(const char *manager,
         goto out_close;
     }
     if (!rc)
-        goto out_close;  /* No need to change identical label */
+    {
+        rc = -EEXIST;
+        fprintf(stderr,
+                "asmtool: Device \"%s\" is already labeled \"%s\"\n",
+                target, label);
+        goto out_close;
+    }
 
     rc = -ENOMEM;
     id = asm_disk_id(&adl);  /* id, btw, is the *old* label */
@@ -1406,6 +1417,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
         goto out_free;
     }
     close(rc);
+    rc = 0;
 
 out_free:
     free(id);

@@ -347,6 +347,36 @@ case "$1" in
         if_fail $? "Unable to delete disk \"$UPDISK\""
         ;;
 
+    renamedisk)
+        if [ -z "$2" -o -z "$3" ]
+        then
+            echo "Action \"renamedisk\" requires two arguments" >&2
+            exit 1
+        fi
+        OLDDISK="$2"
+        NEWDISK="$3"
+        relabel_disk "$OLDDISK" "$NEWDISK"
+        # We know this will error via asmtool
+        if_fail 1 "Unable to rename disk \"$OLDDIST\"" >&2
+        ;;
+    
+    force-renamedisk)
+        if [ -z "$2" -o -z "$3" ]
+        then
+            echo "Action \"renamedisk\" requires two arguments" >&2
+            exit 1
+        fi
+        OLDDISK="$2"
+        NEWDISK="$3"
+        relabel_disk "$OLDDISK" "$NEWDISK" "-a force=yes"
+        if [ $? = 1 ]
+        then
+            if_fail 1 "Unable to rename disk \"$OLDDISK\"" >&2
+        fi
+        perm_disk "${ORACLE_ASMMANAGER}/disks/$NEWDISK"
+        if_fail $? "Unable to change ownership of disk \"$NEWDISK\""
+        ;;
+
     listdisks)
         ls -1 "${ORACLE_ASMMANAGER}/disks/"
         ;;
