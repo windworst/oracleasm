@@ -221,6 +221,34 @@ void submit_bh_blknr(int rw, struct buffer_head * bh)
 }
 #endif
 
+
+/*
+ * Validate that someone made this block device happy for OSM
+ */
+static int osm_validate_disk(kdev_t dev)
+{
+	struct buffer_head *bh;
+	int blocksize, hblock, ret;
+
+	blocksize = BLOCK_SIZE;
+	hblock = get_hardsect_size(dev);
+	if (blocksize < hblock)
+		blocksize = hblock;
+
+	if (!(bh = bread(dev, 0, blocksize)))
+		return -ENXIO;
+
+	ret = 0;
+	if (memcmp(bh->b_data + OSM_DISK_LABEL_OFFSET, OSM_DISK_LABEL,
+		   OSM_DISK_LABEL_SIZE))
+		ret = -EPERM;
+	
+	brelse(bh);
+
+	return ret;
+}  /* osm_validate_disk() */
+
+
 /*
  * Hashing.  Here's the problem.  When node 2 opens a disk, we need to
  * find out if node 1 has opened it already.  If so, we have to get the
@@ -1832,6 +1860,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 	struct osmfs_inode_info *oi = OSMFS_INODE(inode);
 	struct osmio ioc;
 	struct osm_disk_query dq;
+	int ret;
 
 	switch (cmd) {
 		default:
@@ -1848,6 +1877,10 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
 				return -EINVAL;
 
+                        ret = osm_validate_disk(kdv);
+			if (ret)
+				return ret;
+
 			dq.dq_maxio = OSM_MAX_IOSIZE;
 			if (copy_to_user((struct osm_disk_query *)arg,
 					 &dq, sizeof(dq)))
@@ -1858,6 +1891,11 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (get_user(handle, (unsigned long *)arg))
 				return -EFAULT;
 			kdv = to_kdev_t(handle);
+
+                        ret = osm_validate_disk(kdv);
+			if (ret)
+				return ret;
+
 			handle = osm_disk_open(ofi, oi, kdv);
 			dprintk("OSM: Opened handle 0x%.8lX\n", handle);
 			return put_user(handle, (unsigned long *)arg);

@@ -61,16 +61,10 @@ KERNEL_INCLUDES = -I $(KERNEL_INCLUDE_PATH) $(OSMLIB_INCLUDES)
 KERNEL_DEFS = -D__KERNEL__ -DMODULE -DLINUX #-DRED_HAT_LINUX_KERNEL=1
 KERNEL_CPPFLAGS = $(KERNEL_INCLUDES) $(KERNEL_DEFS)
 
-# FIXME: Needs selection
-BLK_SRCS = 			\
-	kernel/blk-rhas21.c
-BLK_FILE = kernel/blk-rhas21.c
-
 OSM_SOURCES =			\
 	$(OSMLIB_SRCS)		\
 	$(OSMTEST_SRCS)		\
 	$(OSMTEST_MULTI_SRCS)	\
-	$(BLK_SRCS)		\
 	$(KERNEL_SRCS)
 
 TEST_WRAPPERS =			\
@@ -103,7 +97,7 @@ dist:
 	@cp $(ARCH_X86_HEADERS) $(DISTNAME)/include/arch-i386
 	@cp $(OSMLIB_SRCS) $(DISTNAME)/libosm
 	@cp $(OSMTEST_SRCS) $(OSMTEST_MULTI_SRCS) $(OSMPROFILE_SRCS) $(TEST_WRAPPERS) $(DISTNAME)/test
-	@cp $(KERNEL_SRCS) $(BLK_SRCS) $(DISTNAME)/kernel
+	@cp $(KERNEL_SRCS) $(DISTNAME)/kernel
 	tar -czvf $(DISTNAME).tar.gz $(DISTNAME)
 	@rm -rf $(DISTNAME)
 
@@ -124,7 +118,7 @@ $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
 $(OSMLIB_OBJS): %.o: %.c
 	$(CC) $(CPPFLAGS) $(OSMLIB_CPPFLAGS) -c -o $@ $<
 
-kernel/osm.o: include/osmprivate.h $(BLK_FILE)
+kernel/osm.o: include/osmprivate.h 
 kernel/osm.o: kernel/osm.c
 	$(CC) $(CPPFLAGS) $(KERNEL_CPPFLAGS) -c -o $@ $<
 

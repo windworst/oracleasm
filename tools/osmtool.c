@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
             if (op != OSMTOOL_MARK)
             {
                 fprintf(stdout,
-                        "osmtool: Disk \"%s\" is not an OSM disk\n",
+                        "osmtool: Disk \"%s\" is not marked an OSM disk\n",
                         argv[i]);
             }
             else
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
             if (op != OSMTOOL_UNMARK)
             {
                 fprintf(stdout,
-                        "osmtool: Disk \"%s\" is an OSM disk\n",
+                        "osmtool: Disk \"%s\" is marked an OSM disk\n",
                         argv[i]);
             }
             else
