@@ -46,11 +46,11 @@ SOURCES = oracleasm.c
 OBJECTS = $(subst .c,.o,$(SOURCES))
 
 HEADERS =					\
-	$(TOPDIR)/include/linux/osmkernel.h	\
+	$(TOPDIR)/include/linux/asmkernel.h	\
 	$(TOPDIR)/include/linux/osmcompat32.h	\
 	$(TOPDIR)/include/linux/osmabi.h	\
 	$(TOPDIR)/include/linux/osmdisk.h	\
-	$(TOPDIR)/include/osmerror.h
+	$(TOPDIR)/include/asmerror.h
 
 osm.o: $(HEADERS)
 

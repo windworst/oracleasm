@@ -3,8 +3,10 @@
 
 	* include/linux/{osm,asm}kernel.h: Rename osmkernel.h to
 		asmkernel.h.
-	* kernel/oracleasm.c: Reference asmkernel.h.
 	* include/linux/Makefile: Reference asmkernel.h.
+	* kernel/oracleasm.c: Reference asmkernel.h.
+	* kernel/Makefile: Reference asmkernel.h.
+	* libosm/Makefile: Reference asmerror.h. (Double oops)
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
