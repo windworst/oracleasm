@@ -3,29 +3,29 @@ First things first.
 
 !!!! DO NOT RUN THE TESTS WITHOUT CHECKING YOUR DISKS !!!!
 
-	The osmtest and osmtest-multi checks write to the last 10MB or
+	The asmtest and asmtest-multi checks write to the last 10MB or
 so of a specified disk.  They take an argument of the disk to write to.
 Do not destroy your data.
 
 
 Second things later.
 
-	Building OSMlib requires a quick run of the Configure script
+	Building ASMlib requires a quick run of the Configure script
 in the toplevel directory.  It will ask the location to the includes for
 your kernel.  This code currently only supports the kernels from Red Hat
 Advanced Server 2.1 (2.4.9-e.3+).  So, your path is likely to look like
 /usr/src/linux-2.4.9-e.3/include or so.  You then can run a make.
-	Testing OSMlib is pretty easy.  First, install and mount the
+	Testing ASMlib is pretty easy.  First, install and mount the
 filesystem:
 
-	# mkdir /dev/osm
-	# insmod kernel/osm.o
-	# mount -t osmfs osmfs /dev/osm
+	# mkdir /dev/oracleasm
+	# insmod kernel/oracleasm.o
+	# mount -t oracleasmfs oracleasmfs /dev/oracleasm
 
-	Next, you have to mark disks as candidates for OSM.  osmtool is
+	Next, you have to mark disks as candidates for ASM.  asmtool is
 the tool for this.  It exists in the tools/ subdirectory.  eg:
 
-	# tools/osmtool -m /dev/sdf5
+	# tools/asmtool -m /dev/sdf5
 
 	Now you can then either use 10i or the test programs to try
 things out.  Have fun.  Report bugs.
