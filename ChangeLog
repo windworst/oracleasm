@@ -1,12 +1,19 @@
 
+2004-08-27	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Make startup
+		after NIS (Fixes bug #3860229).
+
 2004-08-19	Joel Becker <joel.becker@oracle.com>
 
-	* vendor/common/oracleasm.init.functions: Add scan ordering.
+	* vendor/common/oracleasm.init.functions: Add scan
+		ordering (Fixes bug #3843989).
 	* README.bugs: Add the bugs fixed so far.
 
 2004-08-19	Joel Becker <joel.becker@oracle.com>
 
-	* kernel/oracleasm.c: Fix stupid iid i_mode bug.
+	* kernel/oracleasm.c: Fix stupid iid i_mode bug (Fixes
+		bug #3843206).
 
 2004-08-16	Joel Becker <joel.becker@oracle.com>
 
@@ -14,7 +21,8 @@
 		ENOMEM.  Fix hang due to missing TASK_RUNNING (Fixes
 		bug #3797446).
 	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Make
-		querydisk smart about uppercasing names.
+		querydisk smart about uppercasing names (Fixes bug
+		#3843975).
 
 2004-05-19	Joel Becker <joel.becker@oracle.com>
 

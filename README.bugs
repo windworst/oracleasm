@@ -8,6 +8,7 @@ oracleasm 1.0.3
 3797446: Linux 10103 patch TC3, ASM RBAL process hanging, ASMLib
 3843975: ASMLib Linux, can't run querydisk on disk devices
 3843989: ASMLib Linux, unable to discover cciss disks, unable to discover md disks
+3860229: Linux ASMLib, ASM fails to start on boot, Oracle user is in NIS
 
 oracleasm 1.0.2
 ---------------

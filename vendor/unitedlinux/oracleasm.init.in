@@ -4,6 +4,7 @@
 ### BEGIN INIT INFO
 # Provides: oracleasm
 # Required-Start: hwscan
+# Should-Start: ypbind
 # Required-Stop:
 # Default-Start: 2 3 5
 # Default-Stop:
