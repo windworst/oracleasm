@@ -173,7 +173,10 @@ struct osm_request {
 	int r_error;
 	unsigned long r_elapsed;		/* Start time while in-flight, elapsted time once complete */
 	kvec_cb_t r_cb;				/* kvec info */
-	struct buffer_head *r_bh;		/* Assocated buffers */
+	/* r_buffers buffers point to user memory */
+	/* r_bh buffers is the list with bounce buffers */
+	struct buffer_head *r_buffers;		/* Mapped buffers */
+	struct buffer_head *r_bh;		/* I/O buffers */
 	struct buffer_head *r_bhtail;		/* tail of buffers */
 	unsigned long r_bh_count;		/* Number of buffers */
 	unsigned long r_seg_count;		/* sg segments */
@@ -961,6 +964,7 @@ static struct osm_request *osm_request_alloc()
 	if (r) {
 		r->r_status = 0;
 		r->r_error = 0;
+		r->r_buffers = NULL;
 		r->r_bh = NULL;
 		r->r_bhtail = NULL;
 		r->r_elapsed = 0;
@@ -1030,9 +1034,9 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 		res = 0;
 	}
 
-	while (r->r_bh) {
-		struct buffer_head *tmp = r->r_bh;
-		r->r_bh = tmp->b_reqnext;
+	while (r->r_buffers) {
+		struct buffer_head *tmp = r->r_buffers;
+		r->r_buffers = tmp->b_next;
 		if (!err) {
 		       	if (buffer_uptodate(tmp))
 				res += tmp->b_size;
@@ -1041,7 +1045,7 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 		}
 		kmem_cache_free(bh_cachep, tmp);
 	}
-	r->r_bhtail = NULL;
+	r->r_bh = r->r_bhtail = NULL;
 
 	if (vec) {
 		unmap_kvec(vec, 0);
@@ -1089,6 +1093,9 @@ static int osm_submit_request(request_queue_t *q, int rw,
 {
 	struct request *req;
 
+	if (!r->r_bh || !r->r_bhtail || ! r->r_bh_count)
+		BUG();
+
 	dprintk("OSM: Queue:0x%p, Lock:0x%p\n", q, q->queue_lock);
 	dprintk("OSM: get_request\n");
 	req = get_request_wait(q, rw);
@@ -1113,6 +1120,8 @@ static int osm_submit_request(request_queue_t *q, int rw,
 	req->waiting = NULL;
 	req->bh = r->r_bh;
 	req->bhtail = r->r_bhtail;
+	if (req->bhtail->b_reqnext)
+		BUG();
 	req->rq_dev = r->r_bh->b_rdev;
 	req->start_time = jiffies;
 
@@ -1197,62 +1206,63 @@ static int osm_build_io(request_queue_t *q, int rw,
 	for (i=0, veclet=vec->veclet; i<vec->nr; i++,veclet++) {
 		struct page *page = veclet->page;
 		unsigned offset = veclet->offset;
-		unsigned length = veclet->length;
-		unsigned iosize = length;
+		unsigned iosize = veclet->length;
+		struct buffer_head *tmp, *iobh;
 	       
 		if (!page)
 			BUG();
 
-		while (length > 0) {
-			struct buffer_head *tmp;
-			tmp = kmem_cache_alloc(bh_cachep, GFP_NOIO);
-			err = -ENOMEM;
-			if (!tmp)
-				goto error;
+		tmp = kmem_cache_alloc(bh_cachep, GFP_NOIO);
+		err = -ENOMEM;
+		if (!tmp)
+			goto error;
 
-			tmp->b_dev = B_FREE;
-			tmp->b_size = iosize;
-			set_bh_page(tmp, page, offset);
-			tmp->b_this_page = tmp;
+		tmp->b_dev = B_FREE;
+		tmp->b_size = iosize;
+		set_bh_page(tmp, page, offset);
+		tmp->b_this_page = tmp;
 
-			init_buffer(tmp, osm_end_buffer_io, NULL);
+		init_buffer(tmp, osm_end_buffer_io, NULL);
 
-			/* This is why it has to be a real disk */
-			tmp->b_dev = tmp->b_rdev = dev;
-			tmp->b_blocknr = tmp->b_rsector = blknr;
+		/* This is why it has to be a real disk */
+		tmp->b_dev = tmp->b_rdev = dev;
+		tmp->b_blocknr = tmp->b_rsector = blknr;
 
-			blknr += (iosize / sector_size);
-			tmp->b_state = (1 << BH_Mapped) | (1 << BH_Lock)
-					| (1 << BH_Req);
-			tmp->b_private = r;
+		blknr += (iosize / sector_size);
+		tmp->b_state = (1 << BH_Mapped) | (1 << BH_Lock)
+				| (1 << BH_Req);
+		tmp->b_private = r;
+		tmp->b_reqnext = NULL;
+		atomic_set(&tmp->b_count, 1);
 
-			if (rw == WRITE) {
-				set_bit(BH_Uptodate, &tmp->b_state);
-				clear_bit(BH_Dirty, &tmp->b_state);
+		if (rw == WRITE) {
+			set_bit(BH_Uptodate, &tmp->b_state);
+			clear_bit(BH_Dirty, &tmp->b_state);
+		}
+
+		/* Make tmp a bounce buffer if needed */
+		iobh = blk_queue_bounce(q, rw, tmp);
+		if (iobh != tmp) {
+			iobh->b_reqnext = NULL;
+			init_waitqueue_head(&iobh->b_wait);
+		}
+
+		if (r->r_bh) {
+			if (!BH_CONTIG(r->r_bhtail, iobh) ||
+			    !BH_PHYS_4G(r->r_bhtail, iobh)) {
+				r->r_seg_count++;
 			}
 
-			tmp->b_reqnext = NULL;
-
-			/* Make tmp a bounce buffer if needed */
-			tmp = blk_queue_bounce(q, rw, tmp);
-
-			if (r->r_bh) {
-				if (!BH_CONTIG(r->r_bhtail, tmp) ||
-				    !BH_PHYS_4G(r->r_bhtail, tmp)) {
-					r->r_seg_count++;
-				}
-
-				r->r_bhtail->b_reqnext = tmp;
-				r->r_bhtail = tmp;
-			} else {
-				r->r_bh = r->r_bhtail = tmp;
-				r->r_seg_count = 1;
-			}
-			r->r_bh_count++;
-
-			length -= iosize;
-			offset += iosize;
-		} /* End of block loop */
+			r->r_bhtail->b_reqnext = iobh;
+			r->r_bhtail = iobh;
+		} else {
+			r->r_bh = r->r_bhtail = iobh;
+			r->r_seg_count = 1;
+		}
+		/* Keep a list of original buffers */
+		tmp->b_next = r->r_buffers;
+		r->r_buffers = tmp;
+		r->r_bh_count++;
 	} /* End of page loop */		
 
 	atomic_set(&r->r_io_count, r->r_bh_count);

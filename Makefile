@@ -40,7 +40,6 @@ BLK_SRCS = 			\
 	kernel/blk-rhas21.c
 BLK_FILE = kernel/blk-rhas21.c
 
-
 all:				\
 	kernel/osm.o		\
 	libosm/libosm.so	\
