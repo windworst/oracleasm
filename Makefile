@@ -88,14 +88,14 @@ dist:
 	@mkdir $(DISTNAME)
 	@mkdir $(DISTNAME)/include
 	@mkdir $(DISTNAME)/include/arch-i386
-	@mkdir $(DISTNAME)/osmlib
+	@mkdir $(DISTNAME)/libosm
 	@mkdir $(DISTNAME)/test
 	@mkdir $(DISTNAME)/kernel
 	@cp $(DIST_FILES) $(DISTNAME)
 	@cp $(COMMON_HEADERS) $(DISTNAME)/include
 	@cp $(ARCH_X86_HEADERS) $(DISTNAME)/include/arch-i386
-	@cp $(OSMLIB_SRCS) $(DISTNAME)/osmlib
-	@cp $(OSMTEST_SRCS) $(OSMTEST_MULTI_SRCS) $(TEST_WRAPPERS) $(DISTNAME)/test
+	@cp $(OSMLIB_SRCS) $(DISTNAME)/libosm
+	@cp $(OSMTEST_SRCS) $(OSMTEST_MULTI_SRCS) $(OSMPROFILE_SRCS) $(TEST_WRAPPERS) $(DISTNAME)/test
 	@cp $(KERNEL_SRCS) $(BLK_SRCS) $(DISTNAME)/kernel
 	tar -czvf $(DISTNAME).tar.gz $(DISTNAME)
 	@rm -rf $(DISTNAME)
