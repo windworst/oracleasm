@@ -368,8 +368,11 @@ osm_erc osm_io(osm_ctx ctx,
     struct timespec ts;
     int rc;
 
-    if (!priv || *statusp)
+    if (!priv)
         return OSM_ERR_INVAL;
+
+    /* Clearing statusp */
+    *statusp = 0;
 
     /* io.handle = what? */
     io.requests = requests;

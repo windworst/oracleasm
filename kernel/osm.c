@@ -55,7 +55,14 @@
 #define OSMFS_MAGIC	0x958459f6
 
 /* Debugging is on */
-#undef DEBUG 1
+#undef DEBUG 
+#undef DEBUG_BROKEN
+
+#ifndef DEBUG
+#define dprintk(x...) do { ; } while(0)
+#else
+#define dprintk printk
+#endif  /* DEBUG */
 
 static struct super_operations osmfs_ops;
 static struct address_space_operations osmfs_aops;
@@ -148,10 +155,10 @@ struct osm_disk_info {
  * is an M->N mapping, an intermediary structure is needed
  */
 struct osm_disk_head {
-	struct osm_disk_info *h_disk;	/* Hook into disk's list */
-	struct osmfs_file_info *h_file;	/* Hook into file's list */
-	struct list_head h_flist;	/* Pointer to owning file */
-	struct list_head h_dlist;	/* Pointer to associated disk */
+	struct osm_disk_info *h_disk;	/* Pointer to associated disk */
+	struct osmfs_file_info *h_file;	/* Pointer to owning file */
+	struct list_head h_flist;	/* Hook into file's list */
+	struct list_head h_dlist;	/* Hook into disk's list */
 };
 
 
@@ -204,7 +211,7 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 	struct list_head *l, *p;
 	struct osm_disk_info *d = NULL;
 
-	printk("OSM: Looking up device 0x%.8lX\n", (unsigned long)dev);
+	dprintk("OSM: Looking up device 0x%.8lX\n", (unsigned long)dev);
 	
 	spin_lock_irq(&oi->i_lock);
 	l = &(oi->disk_hash[OSM_HASH_DISK(dev)]);
@@ -213,7 +220,7 @@ static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, k
 
 	list_for_each(p, l) {
 		d = list_entry(p, struct osm_disk_info, d_hash);
-		printk("OSM: Comparing device 0x%.8lX\n", (unsigned long) d->d_dev);
+		dprintk("OSM: Comparing device 0x%.8lX\n", (unsigned long) d->d_dev);
 		if (d->d_dev == dev) {
 			atomic_inc(&d->d_count);
 			break;
@@ -278,7 +285,7 @@ static inline void osm_put_disk(struct osm_disk_info *d)
 		BUG();
 
 	if (atomic_dec_and_test(&d->d_count)) {
-		printk("OSM: Freeing disk 0x%.8lX\n", (unsigned long)d->d_dev);
+		dprintk("OSM: Freeing disk 0x%.8lX\n", (unsigned long)d->d_dev);
 		if (!list_empty(&d->d_open))
 			BUG();
 
@@ -287,7 +294,7 @@ static inline void osm_put_disk(struct osm_disk_info *d)
 }  /* osm_put_disk() */
 
 
-#ifdef DEBUG
+#ifdef DEBUG_BROKEN
 /* Debugging code */
 static void osmdump_file(struct osmfs_file_info *ofi)
 {
@@ -296,27 +303,27 @@ static void osmdump_file(struct osmfs_file_info *ofi)
 	struct osm_disk_info *d;
 	struct osm_request *r;
 
-	printk("OSM: Dumping osmfs_file_info 0x%p\n", ofi);
-	printk("OSM: Opened disks:\n");
+	dprintk("OSM: Dumping osmfs_file_info 0x%p\n", ofi);
+	dprintk("OSM: Opened disks:\n");
 	list_for_each(p, &ofi->f_disks) {
 		h = list_entry(p, struct osm_disk_head, h_flist);
 		d = h->h_disk;
-		printk("OSM: 	0x%p [0x%02X, 0x%02X]\n",
+		dprintk("OSM: 	0x%p [0x%02X, 0x%02X]\n",
 		       d, MAJOR(d->d_dev), MINOR(d->d_dev));
 	}
 	spin_lock_irq(&ofi->f_lock);
-	printk("OSM: Pending I/Os:\n");
+	dprintk("OSM: Pending I/Os:\n");
 	list_for_each(p, &ofi->f_ios) {
 		r = list_entry(p, struct osm_request, r_list);
 		d = r->r_disk;
-		printk("OSM:	0x%p (against [0x%02X, 0x%02X])\n",
+		dprintk("OSM:	0x%p (against [0x%02X, 0x%02X])\n",
 		       r, MAJOR(d->d_dev), MINOR(d->d_dev));
 	}
 
-	printk("OSM: Complete I/Os:\n");
+	dprintk("OSM: Complete I/Os:\n");
 	list_for_each(p, &ofi->f_complete) {
 		r = list_entry(p, struct osm_request, r_list);
-		printk("OSM:	0x%p\n", r);
+		dprintk("OSM:	0x%p\n", r);
 	}
 
 	spin_unlock_irq(&ofi->f_lock);
@@ -331,34 +338,34 @@ static void osmdump_inode(struct osmfs_inode_info *oi)
 	struct osmfs_file_info *f;
 
 	spin_lock_irq(&oi->i_lock);
-	printk("OSM: Dumping osmfs_inode_info 0x%p\n", oi);
-	printk("OSM: Open threads:\n");
+	dprintk("OSM: Dumping osmfs_inode_info 0x%p\n", oi);
+	dprintk("OSM: Open threads:\n");
 	list_for_each(p, &oi->i_threads) {
 		f = list_entry(p, struct osmfs_file_info, f_ctx);
-		printk("OSM:	0x%p\n", f);
+		dprintk("OSM:	0x%p\n", f);
 	}
 
-	printk("OSM: Known disks:\n");
+	dprintk("OSM: Known disks:\n");
 	for (i = 0; i < OSM_HASH_BUCKETS; i++) {
 		hash = &(oi->disk_hash[i]);
 		if (list_empty(hash))
 			continue;
 		list_for_each(p, hash) {
 			d = list_entry(p, struct osm_disk_info, d_hash);
-			printk("OSM: 	0x%p, [0x%02X, 0x%02X]\n",
+			dprintk("OSM: 	0x%p, [0x%02X, 0x%02X]\n",
 			       d, MAJOR(d->d_dev), MINOR(d->d_dev));
-			printk("OSM:	Owners:\n");
+			dprintk("OSM:	Owners:\n");
 			list_for_each(q, &d->d_open) {
 				h = list_entry(q, struct osm_disk_head,
 					       h_dlist);
 				f = h->h_file;
-				printk("OSM:		0x%p\n", f);
+				dprintk("OSM:		0x%p\n", f);
 			}
 		}
 	}
 	spin_unlock_irq(&oi->i_lock);
 }  /* osmdump_inode() */
-#endif
+#endif  /* DEBUG_BROKEN */
 
 
 
@@ -443,7 +450,7 @@ void osmfs_dealloc_page(struct inode *inode, struct page *page)
 	inode->i_blocks -= IBLOCKS_PER_PAGE;
 	
 	if (osb->free_pages > osb->max_pages) {
-		printk(KERN_ERR "OSM: Error in page allocation, free_pages (%ld) > max_pages (%ld)\n", osb->free_pages, osb->max_pages);
+		dprintk(KERN_ERR "OSM: Error in page allocation, free_pages (%ld) > max_pages (%ld)\n", osb->free_pages, osb->max_pages);
 	}
 
 	unlock_osb(osb);
@@ -554,7 +561,7 @@ static int osmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int d
 		return error;
 #endif
 
-	printk("OSM: Alloc'd dentry\n");
+	dprintk("OSM: Alloc'd dentry\n");
 	inode = osmfs_get_inode(dir->i_sb, mode, dev);
 
 	if (inode) {
@@ -808,7 +815,7 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 	/* Last close */
 	if (list_empty(&d->d_open))
 	{
-		printk("Last close of disk 0x%.8lX (0x%p, pid=%d)\n",
+		dprintk("Last close of disk 0x%.8lX (0x%p, pid=%d)\n",
 		       (unsigned long)d->d_dev, d, tsk->pid);
 		list_del(&d->d_hash);
 
@@ -817,6 +824,7 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 		/* No need for a fast path */
 		add_wait_queue(&ofi->f_wait, &wait);
 		do {
+			run_task_queue(&tq_disk);
 			set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
 			spin_lock_irq(&oi->i_lock);
@@ -906,18 +914,18 @@ static int osm_update_user_ioc(struct osm_request *r)
 	__u16 tmp_status;
 
 	ioc = r->r_ioc;
-	printk("OSM: User IOC is 0x%p\n", ioc);
+	dprintk("OSM: User IOC is 0x%p\n", ioc);
 
 	/* Need to get the current userspace bits because OSM_CANCELLED is currently set there */
-	printk("OSM: Getting tmp_status\n");
+	dprintk("OSM: Getting tmp_status\n");
 	if (get_user(tmp_status, &(ioc->status_osm_ioc)))
 		return -EFAULT;
 	r->r_status |= tmp_status;
-	printk("OSM: Putting r_status (0x%08X)\n", r->r_status);
+	dprintk("OSM: Putting r_status (0x%08X)\n", r->r_status);
 	if (put_user(r->r_status, &(ioc->status_osm_ioc)))
 		return -EFAULT;
 	if (r->r_status & OSM_ERROR) {
-		printk("OSM: Putting r_error (0x%08X)\n", r->r_error);
+		dprintk("OSM: Putting r_error (0x%08X)\n", r->r_error);
 		if (put_user(r->r_error, &(ioc->error_osm_ioc)))
 			return -EFAULT;
 	}
@@ -925,7 +933,7 @@ static int osm_update_user_ioc(struct osm_request *r)
 		if (put_user(r->r_elapsed, &(ioc->elaptime_osm_ioc)))
 			return -EFAULT;
 	}
-	printk("OSM: r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
+	dprintk("OSM: r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
 	       r->r_status,
 	       (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR),
 	       (r->r_status & (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR)));
@@ -934,7 +942,7 @@ static int osm_update_user_ioc(struct osm_request *r)
 			return -EFAULT;
 	} else if (r->r_status &
 		   (OSM_SUBMITTED | OSM_ERROR)) {
-		printk("OSM: Putting key 0x%p\n", r);
+		dprintk("OSM: Putting key 0x%p\n", r);
 		/* Only on first submit */
 		if (put_user(r, &(ioc->request_key_osm_ioc)))
 			return -EFAULT;
@@ -954,8 +962,8 @@ static struct osm_request *osm_request_alloc()
 		r->r_status = 0;
 		r->r_error = 0;
 		r->r_bh = NULL;
-		r->r_elapsed = 0;
 		r->r_bhtail = NULL;
+		r->r_elapsed = 0;
 		r->r_cb.vec = NULL;
 		INIT_LIST_HEAD(&r->r_queue);
 	}
@@ -1043,7 +1051,7 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 
 	switch (err) {
 		default:
-			printk("OSM: Invalid error of %d!\n", err);
+			dprintk("OSM: Invalid error of %d!\n", err);
 			r->r_error = OSM_ERR_INVAL;
 			break;
 
@@ -1081,12 +1089,12 @@ static int osm_submit_request(request_queue_t *q, int rw,
 {
 	struct request *req;
 
-	printk("OSM: Queue:0x%p, Lock:0x%p\n", q, q->queue_lock);
-	printk("OSM: get_request\n");
+	dprintk("OSM: Queue:0x%p, Lock:0x%p\n", q, q->queue_lock);
+	dprintk("OSM: get_request\n");
 	req = get_request_wait(q, rw);
 
-	printk("OSM: take lock\n");
-	printk("OSM: r_bh_count = %ld\n", r->r_bh_count);
+	dprintk("OSM: take lock\n");
+	dprintk("OSM: r_bh_count = %ld\n", r->r_bh_count);
 
 	IO_REQUEST_LOCK(q);
 
@@ -1099,6 +1107,7 @@ static int osm_submit_request(request_queue_t *q, int rw,
 	req->current_nr_sectors = req->hard_cur_sectors =
 		r->r_bh->b_size >> 9;
 	req->nr_segments = r->r_seg_count;
+	dprintk("OSM: nr_segments = %u\n", req->nr_segments);
        	req->nr_hw_segments = 1;
 	req->buffer = r->r_bh->b_data;
 	req->waiting = NULL;
@@ -1162,7 +1171,7 @@ static int osm_build_io(request_queue_t *q, int rw,
 		if ((veclet->offset & (sector_size-1)) ||
 		    (veclet->length & (sector_size-1)) ||
 		    ((veclet->length + veclet->offset) > PAGE_SIZE)) {
-			printk("OSM: osm_build_io: tuple[%d]->offset=0x%x length=0x%x sector_size: 0x%x\n", i, veclet->offset, veclet->length, sector_size);
+			dprintk("OSM: osm_build_io: tuple[%d]->offset=0x%x length=0x%x sector_size: 0x%x\n", i, veclet->offset, veclet->length, sector_size);
 			return -EINVAL;
 		}
 	}
@@ -1177,7 +1186,7 @@ static int osm_build_io(request_queue_t *q, int rw,
 	err = 0;
 
 	if (!nr) {
-		printk("OSM: osm_build_io: !i\n");
+		dprintk("OSM: osm_build_io: !i\n");
 		return -EINVAL;
 	}
 
@@ -1189,13 +1198,8 @@ static int osm_build_io(request_queue_t *q, int rw,
 		struct page *page = veclet->page;
 		unsigned offset = veclet->offset;
 		unsigned length = veclet->length;
-		unsigned iosize = PAGE_SIZE;
+		unsigned iosize = length;
 	       
-		if (length < PAGE_SIZE)
-			iosize = sector_size;
-
-		iosize = length;
-
 		if (!page)
 			BUG();
 
@@ -1229,6 +1233,7 @@ static int osm_build_io(request_queue_t *q, int rw,
 
 			tmp->b_reqnext = NULL;
 
+			/* Make tmp a bounce buffer if needed */
 			tmp = blk_queue_bounce(q, rw, tmp);
 
 			if (r->r_bh) {
@@ -1247,16 +1252,6 @@ static int osm_build_io(request_queue_t *q, int rw,
 
 			length -= iosize;
 			offset += iosize;
-
-#if 0  /* Um, this shouldn't matter, should it? */
-			if (offset >= PAGE_SIZE) {
-				offset = 0;
-				break;
-			}
-
-			if (brw_cb->nr >= blocks)
-				goto submit;
-#endif
 		} /* End of block loop */
 	} /* End of page loop */		
 
@@ -1320,11 +1315,11 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	count = tmp.rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
-	printk("OSM: first, 0x%08lX.%08lX; masked 0x%08lX\n",
+	dprintk("OSM: first, 0x%08lX.%08lX; masked 0x%08lX\n",
 	       HIGH_UB4(tmp.first_osm_ioc), LOW_UB4(tmp.first_osm_ioc),
 	       (unsigned long)tmp.first_osm_ioc);
 	/* linux only supports unsigned long size sector numbers */
-	printk("OSM: status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
+	dprintk("OSM: status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
 	       tmp.status_osm_ioc, tmp.buffer_osm_ioc, count);
 	/* Note that priority is ignored for now */
 	ret = -EINVAL;
@@ -1357,7 +1352,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	}
 
 
-	printk("OSM: Passed checks\n");
+	dprintk("OSM: Passed checks\n");
 
 	switch (tmp.operation_osm_ioc) {
 		default:
@@ -1402,7 +1397,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	ret = osm_build_io(q, rw, r,
 			   tmp.first_osm_ioc, tmp.rcount_osm_ioc);
-	printk("OSM: Return from buildio is %d\n", ret);
+	dprintk("OSM: Return from buildio is %d\n", ret);
 	if (ret)
 		goto out_error;
 
@@ -1438,11 +1433,11 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	DECLARE_WAITQUEUE(wait, tsk);
 	DECLARE_WAITQUEUE(to_wait, tsk);
 
-	printk("OSM: Entering wait_io()\n");
+	dprintk("OSM: Entering wait_io()\n");
 	if (get_user(p, &(iocp->request_key_osm_ioc)))
 		return -EFAULT;
 
-	printk("OSM: User key is 0x%p\n", (struct osm_request *)p);
+	dprintk("OSM: User key is 0x%p\n", (struct osm_request *)p);
 	r = (struct osm_request *)p;
 	if (!r)
 		return -EINVAL;
@@ -1455,7 +1450,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 		return -EINVAL;
 	}
 
-	printk("OSM: osm_request is valid...we think\n");
+	dprintk("OSM: osm_request is valid...we think\n");
 	if (!(r->r_status & (OSM_COMPLETED |
 			     OSM_BUSY | OSM_ERROR))) {
 		spin_unlock_irq(&ofi->f_lock);
@@ -1463,6 +1458,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 		add_wait_queue(&to->wait, &to_wait);
 		do {
 			ret = 0;
+			run_task_queue(&tq_disk);
 			set_task_state(tsk, TASK_INTERRUPTIBLE);
 
 			spin_lock_irq(&ofi->f_lock);
@@ -1509,7 +1505,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	}
 #endif  /* DEBUG */
 
-	printk("OSM: Removing request 0x%p\n", r);
+	dprintk("OSM: Removing request 0x%p\n", r);
 	list_del_init(&r->r_list);
 	r->r_file = NULL;
 	r->r_status |= OSM_FREE;
@@ -1518,7 +1514,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 
 	ret = osm_update_user_ioc(r);
 
-	printk("OSM: Freeing request 0x%p\n", r);
+	dprintk("OSM: Freeing request 0x%p\n", r);
 	osm_request_free(r);
 
 	return ret;
@@ -1577,10 +1573,10 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	DECLARE_WAITQUEUE(wait, tsk);
 	DECLARE_WAITQUEUE(to_wait, tsk);
 
-	printk("OSM: Entering osm_do_io()\n");
-#ifdef DEBUG
+	dprintk("OSM: Entering osm_do_io()\n");
+#ifdef DEBUG_BROKEN
 	osmdump_file(ofi);
-#endif /* DEBUG */
+#endif /* DEBUG_BROKEN */
 
 	init_timeout(&to);
 
@@ -1653,6 +1649,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 			add_wait_queue(&to.wait, &to_wait);
 			do {
 				ret = 0;
+				run_task_queue(&tq_disk);
 				set_task_state(tsk, TASK_INTERRUPTIBLE);
 
 				spin_lock_irq(&ofi->f_lock);
@@ -1758,6 +1755,7 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	/* No need for a fastpath */
 	add_wait_queue(&ofi->f_wait, &wait);
 	do {
+		run_task_queue(&tq_disk);
 		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
 		spin_lock_irq(&ofi->f_lock);
@@ -1782,7 +1780,7 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	}
 	spin_unlock_irq(&ofi->f_lock);
 
-	printk("OSM: Done with ofi 0x%p\n", ofi);
+	dprintk("OSM: Done with ofi 0x%p\n", ofi);
 	kfree(ofi);
 
 	return 0;
@@ -1808,7 +1806,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (get_user(dev, (int *)arg))
 				return -EFAULT;
 			kdv = to_kdev_t(dev);
-			printk("OSM: Checking disk %d,%d\n", MAJOR(kdv), MINOR(kdv));
+			dprintk("OSM: Checking disk %d,%d\n", MAJOR(kdv), MINOR(kdv));
 			/* Right now we trust only SCSI ->request_fn */
 			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
 				return -EINVAL;
@@ -1827,14 +1825,14 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 				return -EFAULT;
 			kdv = to_kdev_t(handle);
 			handle = osm_disk_open(ofi, oi, kdv);
-			printk("OSM: Opened handle 0x%.8lX\n", handle);
+			dprintk("OSM: Opened handle 0x%.8lX\n", handle);
 			return put_user(handle, (unsigned long *)arg);
 			break;
 
 		case OSMIOC_CLOSEDISK:
 			if (get_user(handle, (unsigned long *)arg))
 				return -EFAULT;
-			printk("OSM: Closing handle 0x%.8lX\n", handle);
+			dprintk("OSM: Closing handle 0x%.8lX\n", handle);
 			return osm_disk_close(ofi, oi, handle);
 			break;
 
@@ -1847,10 +1845,10 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 
 		case OSMIOC_DUMP:
 			/* Dump data */
-#ifdef DEBUG
+#ifdef DEBUG_BROKEN
 			osmdump_file(ofi);
 			osmdump_inode(oi);
-#endif /* DEBUG */
+#endif /* DEBUG_BROKEN */
 			break;
 	}
 
