@@ -185,13 +185,13 @@ unload_module()
 #
 mount_device()
 {
-    if [ -z "$DEVASM" ]
+    if [ -z "$ORACLE_ASMMANAGER" ]
     then
         echo "mount_device(): No device specified!" >&2
         return 1
     fi
-    DEVASMSEARCH="`echo "$DEVASM" | sed -e 's/\//\\\\\//g'`"
-    MOUNTOUT="`awk '$2 ~ /^'$DEVASMSEARCH'$/{print $2; exit}' < /proc/mounts 2>/dev/null`"
+    ORACLE_ASMMANAGERSEARCH="`echo "$ORACLE_ASMMANAGER" | sed -e 's/\//\\\\\//g'`"
+    MOUNTOUT="`awk '$2 ~ /^'$ORACLE_ASMMANAGERSEARCH'$/{print $2; exit}' < /proc/mounts 2>/dev/null`"
 
     if [ -n "$MOUNTOUT" ]
     then
@@ -232,7 +232,7 @@ mount_device()
         OPTS="-o ${OPTS}"
     fi
 
-    mount $OPTS -t oracleasmfs oracleasmfs $DEVASM
+    mount $OPTS -t oracleasmfs oracleasmfs $ORACLE_ASMMANAGER
     if [ $? != 0 ]
     then
         echo "Unable to mount ASMlib driver filesystem" >&2
@@ -251,13 +251,13 @@ mount_device()
 #
 unmount_device()
 {
-    if [ -z "$DEVASM" ]
+    if [ -z "$ORACLE_ASMMANAGER" ]
     then
         echo "mount_device(): No device specified!" >&2
         return 1
     fi
-    DEVASMSEARCH="`echo "$DEVASM" | sed -e 's/\//\\\\\//g'`"
-    MOUNTOUT="`awk '$2 ~ /^'$DEVASMSEARCH'$/{print $2; exit}' < /proc/mounts 2>/dev/null`"
+    ORACLE_ASMMANAGERSEARCH="`echo "$ORACLE_ASMMANAGER" | sed -e 's/\//\\\\\//g'`"
+    MOUNTOUT="`awk '$2 ~ /^'$ORACLE_ASMMANAGERSEARCH'$/{print $2; exit}' < /proc/mounts 2>/dev/null`"
 
     if [ -z "$MOUNTOUT" ]
     then
@@ -265,7 +265,7 @@ unmount_device()
     fi
 
     echo -n "Unmounting ASMlib driver filesystem "
-    umount $DEVASM
+    umount $ORACLE_ASMMANAGER
     if [ $? != 0 ]
     then
         echo "Unable to unmount ASMlib driver filesystem" >&2
@@ -295,10 +295,10 @@ write_sysconfig()
 # ORACLEASM_ENABELED: 'true' means to load the driver on boot.
 ORACLEASM_ENABLED=${ORACLEASM_ENABLED:-false}
 
-# ORACLEASM_UID: Default UID owning the $DEVASM mount point.
+# ORACLEASM_UID: Default UID owning the $ORACLE_ASMMANAGER mount point.
 ORACLEASM_UID=${ORACLEASM_UID}
 
-# ORACLEASM_GID: Default GID owning the $DEVASM mount point.
+# ORACLEASM_GID: Default GID owning the $ORACLE_ASMMANAGER mount point.
 ORACLEASM_GID=${ORACLEASM_GID}
 
 # ORACLEASM_SCANBOOT: 'true' means fix disk perms on boot
@@ -434,22 +434,26 @@ EOF
 
 
 #
-# mark_disk()
-# Marks a disk as an ASM disk.
+# make_disk()
+# Creates an ASM disk.
 #
 # Returns 0 on success, 1 on error, 2 on already marked.
 #
-mark_disk()
+make_disk()
 {
     if [ "$#" -lt "2" -o -z "$1" -o -z "$2" ]
     then
-        echo "mark_disk(): Requires two arguments" >&2
+        echo "make_disk(): Requires two arguments" >&2
         return 1
     fi
-    DISKNAME="$1"
-    LABEL="$2"
-   
-    OUTPUT="`asmtool -M -l "${DISKNAME}" -a label="${LABEL}" 2>&1`"
+    LABEL="$1"
+    DISKNAME="$2"
+    if [ ! -z "$3" ]
+    then
+        MARK="-a mark=$3"
+    fi
+
+    OUTPUT="`asmtool -C -l "${ORACLE_ASMMANAGER}" -n "${LABEL}" -s "${DISKNAME}" $MARK 2>&1`"
     if [ $? != 0 ]
     then
         echo -n "Marking disk \"$DISKNAME\" as an ASM disk "
@@ -468,24 +472,24 @@ mark_disk()
 
 
 #
-# unmark_disk()
-# Removes the mark from a disk.
+# remove_disk()
+# Removes the  ASM disk.
 #
-# Returns 0 on success, 1 on error, 2 on not marked.
+# Returns 0 on success, 1 on error, 2 on not there.
 #
-unmark_disk()
+remove_disk()
 {
     if [ "$#" -lt "1" -o -z "$1" ]
     then
-        echo "unmark_disk(): Requires an argument" >&2
+        echo "remove_disk(): Requires an argument" >&2
         return 1
     fi
     DISKNAME="$1"
    
-    OUTPUT="`asmtool -U -l "${DISKNAME}" 2>&1`"
+    OUTPUT="`asmtool -D -l "${ORACLE_ASMMANAGER}" -n "${DISKNAME}" 2>&1`"
     if [ $? != 0 ]
     then
-        echo -n "Unmarking disk \"$DISKNAME\" as an ASM disk "
+        echo -n "Removing ASM disk \"$DISKNAME\" "
         return 1
     fi
     case "$OUTPUT" in
@@ -495,7 +499,7 @@ unmark_disk()
     *)
         ;;
     esac
-    echo -n "Unmarking disk \"$DISKNAME\" as an ASM disk "
+    echo -n "Removing ASM disk \"$DISKNAME\" "
     return 0
 }
 
@@ -513,7 +517,7 @@ check_disk()
     fi
     DISKNAME="$1"
 
-    asmtool -C -l "$DISKNAME" | sed -e 's/^asmtool: //'
+    asmtool -I -l "$ORACLE_ASMMANAGER" -n "$DISKNAME" | sed -e 's/^asmtool: //'
 }
 
 
@@ -548,46 +552,6 @@ perm_disk()
 
     echo -n "Changing ownership of disk \"$DISKNAME\" "
     chown "${ORACLEASM_UID:-0}:${ORACLEASM_GID:-0}" "$DISKNAME"
-    if [ $? != 0 ]
-    then
-        return 1
-    fi
-
-    return 0
-}
-
-
-#
-# unperm_disk()
-# Set the appropriate permissions on a disk.
-#
-# Returns 0 on success, 1 on error, 2 on already correct
-#
-unperm_disk()
-{
-    if [ "$#" -lt "1" -o -z "$1" ]
-    then
-        echo "unperm_disk(): Requires an argument" >&2
-        return 1
-    fi
-    DISKNAME="$1"
-
-    OUTPUT="`ls -n "${DISKNAME}" 2>/dev/null`"
-    if [ $? != 0 ]
-    then
-        echo -n "Checking ownership of disk \"${DISKNAME}\" "
-        return 1
-    fi
-    OUID="`echo "$OUTPUT" | awk '{print $3}'`"
-    OGID="`echo "$OUTPUT" | awk '{print $4}'`"
-
-    if [ "$OUID" != "${ORACLEASM_UID:-0}" -o "$OGID" != "${ORACLEASM_GID:-0}" ]
-    then
-        return 2
-    fi
-
-    echo -n "Changing ownership of disk \"$DISKNAME\" "
-    chown root:disk "$DISKNAME"
     if [ $? != 0 ]
     then
         return 1
@@ -646,23 +610,20 @@ scan_disks()
         do
             is_ide_disk "$DEVNAME" || continue
             # Hell no we don't support devfs
-            OUTPUT="`asmtool -C -l "/dev/${DEVNAME}" 2>/dev/null`"
+            OUTPUT="`asmtool -I -l "${ORACLE_ASMMANAGER}" -n "/dev/${DEVNAME}" -a label 2>/dev/null`"
             case "$OUTPUT" in
             *is\ marked*)
-                perm_disk "/dev/${DEVNAME}" >/dev/null
+                LABEL="${OUTPUT##*label \"}"
+                LABEL="${LABEL%\"}"
+                make_disk "${LABEL}" "/dev/${DEVNAME}" "no" >/dev/null
                 if [ $? = 1 ]
                 then
                     return 1
                 fi
-                ;;
-            *not\ marked*)
-                if [ "${ORACLEASM_CLEARBOOT:-true}" = "true" ]
+                perm_disk "${ORACLE_ASMMANAGER}/disks/${LABEL}" >/dev/null
+                if [ $? = 1 ]
                 then
-                    unperm_disk "/dev/${DEVNAME}" >/dev/null
-                    if [ $? = 1 ]
-                    then
-                        return 1
-                    fi
+                    return 1
                 fi
                 ;;
             *)
@@ -670,5 +631,24 @@ scan_disks()
                 ;;
             esac
         done
+    ls "${ORACLE_ASMMANAGER}/disks" |
+        while read DISKNAME
+        do
+            OUTPUT="`asmtool -I -l "${ORACLE_ASMMANAGER}" -n "${DISKNAME}" 2>/dev/null`"
+            case "$OUTPUT" in
+            *unmarked\ device*)
+                remove_disk "${DISKNAME}" >/dev/null
+                if [ $? = 1 ]
+                then
+                    return 1
+                fi
+                ;;
+            *)
+                continue
+                ;;
+            esac
+        done
+
+    return 0
 }
 

@@ -874,14 +874,14 @@ static int get_info_asmdisk_by_name(const char *manager,
     {
         if (rc == -ENXIO)
         {
-            fprintf(stderr,
+            fprintf(stdout,
                     "asmtool: ASM disk \"%s\" defines an unmarked device\n",
                     disk);
         }
         else if (rc == -ESRCH)
         {
             label = asm_disk_id(&adl);
-            fprintf(stderr,
+            fprintf(stdout,
                     "asmtool: ASM disk \"%s\" is labeled for ASM disk \"%s\"\n",
                     disk, label ? label : "<unknown>");
             if (label)
@@ -929,7 +929,7 @@ static int get_info_asmdisk_by_device(const char *manager,
     rc = read_disk(fd, &adl);
     if (rc)
     {
-        fprintf(stdout,
+        fprintf(stderr,
                 "asmtool: Unable to read device \"%s\": %s\n",
                 target, strerror(-rc));
         goto out_close;

@@ -1,6 +1,14 @@
 
 2003-12-11	Joel Becker <joel.becker@oracle.com>
 
+	* tools/asmtool.c: Fix a couple info stdouts.
+	* vendor/common/oracleasm.init.functions: create/delete disk
+		stuff.
+	* vendor/{redhat,unitedlinux}/oracleasm.init.in: New createdisk,
+		deletedisk, querydisk, listdisks commands.
+
+2003-12-11	Joel Becker <joel.becker@oracle.com>
+
 	* documentation/asm-install.txt: New create/delete/scan docs.
 
 2003-12-11	Joel Becker <joel.becker@oracle.com>

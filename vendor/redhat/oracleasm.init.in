@@ -168,7 +168,10 @@ fi
 MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
 OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/oracleasm"
 MODNAME="oracleasm"
-DEVASM="/dev/oracleasm"
+if [ -z "${ORACLE_ASMMANAGER}" ]
+then
+    ORACLE_ASMMANAGER="/dev/oracleasm"
+fi
 
 
 
@@ -216,8 +219,8 @@ start()
 {
     link
 
-    dev_create "${DEVASM}"
-    if_fail "$?" "Unable to create ${DEVASM}"
+    dev_create "${ORACLE_ASMMANAGER}"
+    if_fail "$?" "Unable to create ${ORACLE_ASMMANAGER}"
 
     scandisks
 
@@ -260,15 +263,15 @@ case "$1" in
         then
             success $"ASM is already loaded; status"
             echo
-            echo -n $"Checking if $DEVASM is mounted: "
-            DEVASMSEARCH="`echo $DEVASM | sed -e 's/\//\\\\\//g'`"
-            if grep "^oracleasmfs $DEVASMSEARCH oracleasmfs" /proc/mounts >/dev/null 3>&1
+            echo -n $"Checking if $ORACLE_ASMMANAGER is mounted: "
+            ORACLE_ASMMANAGERSEARCH="`echo $ORACLE_ASMMANAGER | sed -e 's/\//\\\\\//g'`"
+            if grep "^oracleasmfs $ORACLE_ASMMANAGERSEARCH oracleasmfs" /proc/mounts >/dev/null 3>&1
             then
-                success $"$DEVASM is already mounted; status"
+                success $"$ORACLE_ASMMANAGER is already mounted; status"
                 echo
                 exit 0
             else
-                failure $"$DEVASM is not mounted; status"
+                failure $"$ORACLE_ASMMANAGER is not mounted; status"
                 echo
                 exit 1
             fi
@@ -303,34 +306,36 @@ case "$1" in
         stop
         ;;
 
-    markdisk)
-        if [ -z "$2" ]
+    createdisk)
+        if [ -z "$2" -o -z "$3" ]
         then
-            echo "Action \"markdisk\" requires an argument" >&2
+            echo "Action \"createdisk\" requires two arguments" >&2
             exit 1
         fi
-        mark_disk "$2"
-        if_fail $? "Unable to mark disk \"$2\""
-        perm_disk "$2"
+        make_disk "$2" "$3"
+        if_fail $? "Unable to create disk \"$2\""
+        perm_disk "${ORACLE_ASMMANAGER}/disks/$2"
         if_fail $? "Unable to change ownership of disk \"$2\""
         ;;
 
-    unmarkdisk)
+    deletedisk)
         if [ -z "$2" ]
         then
             echo "Action \"unmarkdisk\" requires an argument" >&2
             exit 1
         fi
-        unmark_disk "$2"
-        if_fail $? "Unable to unmark disk \"$2\""
-        unperm_disk "$2"
-        if_fail $? "Unable to change ownership of disk \"$2\""
+        remove_disk "$2"
+        if_fail $? "Unable to delete disk \"$2\""
         ;;
 
-    checkdisk)
+    listdisks)
+        ls -1 "${ORACLE_ASMMANAGER}/disks/"
+        ;;
+
+    querydisk)
         if [ -z "$2" ]
         then
-            echo "Action \"checkdisk\" requires an argument" >&2
+            echo "Action \"querydisk\" requires an argument" >&2
             exit 1
         fi
         check_disk "$2"
