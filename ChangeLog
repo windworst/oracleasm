@@ -1,4 +1,8 @@
 
+2004-08-19	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Fix stupid iid i_mode bug.
+
 2004-08-16	Joel Becker <joel.becker@oracle.com>
 
 	* kernel/oracleasm.c: Fix ASM_BUSY + ASM_LOCAL_ERROR on early

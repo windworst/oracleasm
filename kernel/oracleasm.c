@@ -2408,13 +2408,7 @@ static struct super_block *asmfs_read_super(struct super_block * sb, void * data
 	inode = new_inode(sb);
 	if (!inode)
 		goto out_genocide;
-	if (params.mode) {
-		inode->i_mode = (inode->i_mode & 077000) | params.mode;
-	} else {
-		inode->i_mode |= 0770; /* user + group write */
-		inode->i_mode &= 077770; /* squash world perms */
-	}
-	inode->i_mode |= S_IFDIR;
+	inode->i_mode = S_IFDIR | 0770;
 	inode->i_uid = params.uid;
 	inode->i_gid = params.gid;
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
