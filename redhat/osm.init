@@ -10,34 +10,91 @@
 #
 #
 
+# Source init.d functions
+. /etc/init.d/functions
+
 KVER="`uname -r`"
 case "$KVER" in
-2.4.9-e.*enterprise)
-    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
-    OBJPATH="/lib/modules/2.4.9-e-enterprise-ABI/osm"
-    ;;
-2.4.9-e.*smp)
-    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
-    OBJPATH="/lib/modules/2.4.9-e-smp-ABI/osm"
-    ;;
-2.4.9-e.*summit)
-    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
-    OBJPATH="/lib/modules/2.4.9-e-summit-ABI/osm"
-    ;;
 2.4.9-e.*)
-    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
-    OBJPATH="/lib/modules/2.4.9-e-ABI/osm"
+    BASE_VER=2.4.9-e
+    ;;
+2.4.18-e.*)
+    echo -n "Checking for Red Hat enterprise kernel: "
+    failure $"Red Hat Advanced Server 2.1 for IA-64 is not suppported;"
+    echo
+    exit 1
+    ;;
+2.4.21-ent.*)
+    BASE_VER=2.4.21-ent
     ;;
 *)
-    # Not a supported kernel
-    exit 0
+    echo -n "Checking for Red Hat enterprise kernel: "
+    failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
+    echo
+    exit 1
+    ;;
+esac
+    
+EVER="${KVER#${KASE_VER}}"
+ETYPE=""
+case "$EVER" in
+*hugemem)
+    ETYPE=hugemem
+    ;;
+*smp)
+    ETYPE=smp
+    ;;
+*enterprise)
+    if test "$BASE_VER" = "2.4.9-e"
+    then
+        ETYPE=enterprise
+    fi
+    ;;
+*summit)
+    if test "$BASE_VER" = "2.4.9-e"
+    then
+        ETYPE=summit
+    fi
+    ;;
+*[0-9])
+    ETYPE=up
     ;;
 esac
 
-test -r "$OBJPATH/osm.o" || exit 0
+if test -z "$ETYPE"
+then
+    echo -n "Checking for Red Hat enterprise kernel: "
+    failure $"Kernel ${KVER} is not a Red Hat enerprise release;"
+    echo
+    exit 1
+fi
 
-# Source init.d functions
-. /etc/init.d/functions
+EVER="${EVER%${ETYPE}}"
+EVER="${EVER#.}"
+case "$EVER" in
+[1-9])
+    ;;
+[1-9][0-9])
+    ;;
+[1-9][0-9][0-9])
+    ;;
+*)
+    echo -n "Checking for Red Hat enterprise kernel: "
+    failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
+    echo
+    exit 1
+    ;;
+esac
+
+# This is for path happiness...
+if test "$ETYPE" != "up"
+then
+    ETYPE="${ETYPE}-"
+fi
+MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
+OBJPATH="/lib/modules/${BASE_VER}-${ETYPE}ABI/osm"
+
+test -r "$OBJPATH/osm.o" || exit 0
 
 
 module_link()
@@ -100,6 +157,7 @@ module_link()
 case "$1" in
     start)
         module_link
+        # Should it load and mount?
         RETVAL=0
 	;;
 	
@@ -108,12 +166,36 @@ case "$1" in
         RETVAL=0
         ;;
 
-    stop|force-reload|restart)
+    status)
+        echo -n $"Checking if OSM is loaded: "
+	if grep '^osm ' /proc/modules >/dev/null 2>&1
+        then
+            success $"OSM is already loaded; status"
+            echo
+            echo -n $"Checking if /dev/osm is mounted: "
+            if grep '^none /dev/osm osmfs' /proc/mounts >/dev/null 2>&1
+            then
+                success $"/dev/osm is already mounted; status"
+                echo
+                exit 0
+            else
+                failure $"/dev/osm is not mounted; status"
+                echo
+                exit 1
+            fi
+        else
+            failure $"OSM is not loaded; status"
+            echo
+            exit 1
+        fi
+        ;;
+
+    stop|restart)
         RETVAL=0
 	;;
 
     *)
-	echo "Usage: $0 {start|stop|restart|force-reload|link}"
+	echo "Usage: $0 {start|stop|restart|link|status}"
         RETVAL=1
 esac
 
