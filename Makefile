@@ -18,7 +18,8 @@ SUBDIRS = include kernel tools documents vendor
 # Extra (non-source) files to distribute
 #
 DIST_FILES = \
-	COPYING		\
+	COPYING.GPL	\
+	COPYING.LGPL	\
 	README		\
 	Config.make.in	\
 	Preamble.make	\
@@ -30,17 +31,24 @@ DIST_FILES = \
 	install-sh	\
 	mkinstalldirs
 
+$(TOPDIR)/oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm: $(TOPDIR)/vendor/redhat/oracleasm-support.spec
+	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-support.spec"
 
-rhas_srpm: dist
-	rpm -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-2.4.9-e.spec"
+support_srpm: $(TOPDIR)/oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm
 
-rhas_rpm: rhas_srpm
-	rpm --rebuild --target i686 "oracleasm-2.4.9-e-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+support_rpm: support_srpm
+	rpmbuild --rebuild --target $(TOOLSARCH) "oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
-rhel3_srpm: dist
+rhas_srpm: dist support_srpm $(TOPDIR)/vendor/redhat/oracleasm-2.4.9-e.spec
+	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-2.4.9-e.spec"
+
+rhas_rpm: rhas_srpm support_rpm
+	rpmbuild --rebuild --target $(MODULEARCH) "oracleasm-2.4.9-e-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+
+rhel3_srpm: dist support_srpm $(TOPDIR)/vendor/redhat/oracleasm-2.4.21-EL.spec
 	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-2.4.21-EL.spec"
 
-rhel3_rpm: rhel3_srpm
+rhel3_rpm: rhel3_srpm support_rpm
 	rpmbuild --rebuild --target i686 "oracleasm-2.4.21-EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
 ul10_%_smp_srpm: dist

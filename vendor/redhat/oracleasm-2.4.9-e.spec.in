@@ -28,7 +28,7 @@ Version: @DIST_VERSION@
 Release: @RPM_VERSION@
 Copyright: GPL
 Group: System Environment/Kernel
-Source: asmlib-@DIST_VERSION@.tar.gz
+Source: oracleasm-@DIST_VERSION@.tar.gz
 URL: http://oss.oracle.com/
 Distribution: Oracle
 Vendor: Oracle Corporation
@@ -40,7 +40,7 @@ Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source >= %{kver}
 
 
-BuildRoot: %{_tmppath}/asmlib-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
 
 
 %description
@@ -117,28 +117,8 @@ This package is compiled for debugging kernels.
 %endif
 
 
-%package -n oracleasm-lib
-Summary: Userspace library for Oracle Automatic Storage Management
-Group: System Environment/Kernel
-AutoReqProv: no
-Requires: glibc >= 2.2.4
-
-%description -n oracleasm-lib
-The Oracle userspace library for Oracle Automatic Storage Management
-
-%package -n oracleasm-support
-Summary: Tools for managing the Oracle Automatic Storage Management library
-Group: System Environment/Kernel
-AutoReqProv: no
-Requires: glibc >= 2.2.4
-
-
-%description -n oracleasm-support
-Tools to manage the Oracle Automatic Storage Management library
-
-
 %prep
-%setup -n asmlib-%{version}
+%setup -n oracleasm-%{version}
 
 
 %build
@@ -199,11 +179,6 @@ make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}-debug-ABI/oraclea
 %endif
 
 
-cd ../libasm
-make
-cd ../tools
-make
-
 %if %{buildsummit}
 cd ..
 # Now to find a summit source tree
@@ -242,36 +217,10 @@ make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{base}-summit-ABI/oracle
 
 %install
 
-mkdir -p $RPM_BUILD_ROOT/etc/init.d
-cp -f vendor/redhat/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
-mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
-cp -f vendor/common/oracleasm.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/oracleasm
-mkdir -p $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm
-cp -f vendor/common/oracleasm.init.functions $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm/oracleasm.init.functions
-
-if [ "%{_lib}" = "lib64" ]
-then
-    BPL=64
-elif [ "${RPM_ARCH}" = "ia64" ]
-then
-    BPL=64
-else
-    BPL=32
-fi
-mkdir -p ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1
-cp libasm/libasm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
-
-cd tools
-make DESTDIR="$RPM_BUILD_ROOT" install
 
 
 %clean
 rm -rf "$RPM_BUILD_ROOT"
-
-
-%post -n oracleasm-support
-chkconfig oracleasm on
-/etc/init.d/oracleasm link
 
 
 %if %{buildup}
@@ -319,20 +268,12 @@ chkconfig oracleasm on
 /lib/modules/%{base}-debug-ABI/oracleasm
 %endif
 
-%files -n oracleasm-lib
-%defattr(-,root,root)
-/opt/extapi
-
-%files -n oracleasm-support
-%defattr(-,root,root)
-/usr/sbin/asmtool
-/usr/sbin/asmscan
-/usr/%{_lib}/oracleasm/oracleasm.init.functions
-%attr(0755,root,root) /etc/init.d/oracleasm
-%config /etc/sysconfig/oracleasm
 
 
 %changelog
+* Tue Jan 13 2004 Joel Becker <joel.becker@oracle.com>
+- Strip out userspace.
+
 * Wed Nov 12 2003 Joel Becker <joel.becker@oracle.com>
 - Start ASM transition
 

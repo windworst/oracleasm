@@ -36,7 +36,7 @@ Tools to manage the Oracle Automatic Storage Management library driver
 
 
 %prep
-%setup
+%setup -n oracleasm-%{version}
 
 
 %build
