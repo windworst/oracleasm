@@ -951,7 +951,7 @@ static int create_disk(const char *manager, char *disk,
     fd = rc;
 
     rc = -EINVAL;
-    if (!device_is_loopback(fd) && !device_is_partition(fd))
+    if (!device_is_loopback(fd) && !device_is_partition(fd) && attrs->mark)
     {
         fprintf(stderr, 
                 "asmtool: Device \"%s\" is not a partition\n",
