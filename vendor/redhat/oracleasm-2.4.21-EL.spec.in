@@ -197,7 +197,6 @@ make
 
 mkdir -p $RPM_BUILD_ROOT/etc/init.d
 cp -f vendor/redhat/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
-chmod a+x $RPM_BUILD_ROOT/etc/init.d/oracleasm
 mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
 cp -f vendor/common/oracleasm.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/oracleasm
 mkdir -p $RPM_BUILD_ROOT%{libdir}/oracleasm
@@ -271,9 +270,9 @@ chkconfig oracleasm on
 %files -n oracleasm-support
 %defattr(-,root,root)
 /usr/sbin/asmtool
-/etc/init.d/oracleasm
-/etc/sysconfig/oracleasm
 %{libdir}/oracleasm/oracleasm.init.functions
+%attr(0755,root,root) /etc/init.d/oracleasm
+%config /etc/sysconfig/oracleasm
 
 
 

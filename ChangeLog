@@ -1,6 +1,11 @@
 
 2003-11-16	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/redhat/*.spec.in: Use %attr for perms, and %config
+		for /etc/sysconfig/oracleasm.
+
+2003-11-16	Joel Becker <joel.becker@oracle.com>
+
 	* vendor/redhat/*.spec.in: Perms on oracleasm.ini
 	* vendor/redhat/oracleasm.init.in: Start on enable, and vice
 		versa.
