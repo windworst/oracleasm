@@ -226,7 +226,7 @@ fi
 KPATH="/usr/src/linux-${KVER}"
     
 %configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
-cd osm
+cd kernel
 
 make clean
 make KVER=summit
