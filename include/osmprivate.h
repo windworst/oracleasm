@@ -29,6 +29,7 @@
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
 #define OSMLIB_MINOR 1
 #define OSMLIB_MICRO 0
+
 /*
  * Max I/O is 100k.  Why 100?  Because the MegaRAID card supports only
  * 26 scatter/gather segments.  26 * 4k page == 104k.  Since the I/O

@@ -61,9 +61,19 @@ then
     exit 1
 fi
 
+PACKAGE=osmlib-linux
+eval `awk '/#define[	 ]*OSMLIB_MAJOR/{print "VERSION="$3}
+           /#define[	 ]*OSMLIB_MINOR/{print "PATCHLEVEL="$3}
+           /#define[	 ]*OSMLIB_MICRO/{print "SUBVERSION="$3}' < include/osmprivate.h`
 cat <<EOF >.config
+PACKAGE=${PACKAGE}
 KERNEL_INCLUDE_PATH=$KERNEL_INCLUDES
 ARCH=$ARCH
+VERSION=$VERSION
+PATCHLEVEL=$PATCHLEVEL
+SUBVERSION=
+EXTRAVERSION=
+DISTNAME=${PACKAGE}-${VERSION}.${PATCHLEVEL}.${SUBVERSION}${EXTRAVERSION}
 EOF
 
 if [ -L include/arch ]

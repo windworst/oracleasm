@@ -1,2 +1,3 @@
-? .config
-? libosm-virtual-stamp
+.config
+libosm-virtual-stamp
+osmlib-linux*.tar.gz

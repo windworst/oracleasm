@@ -143,8 +143,8 @@ struct osm_disk_info {
 	struct list_head d_hash;
 	kdev_t d_dev;
 	atomic_t d_count;
+	atomic_t d_ios;			/* Count of in-flight I/Os */
 	struct list_head d_open;	/* List of assocated osm_disk_heads */
-	struct list_head d_ios;
 };
 
 
@@ -165,7 +165,6 @@ struct osm_disk_head {
 /* OSM I/O requests */
 struct osm_request {
 	struct list_head r_list;
-	struct list_head r_queue;
 	struct osmfs_file_info *r_file;
 	struct osm_disk_info *r_disk;
 	osm_ioc *r_ioc;				/* User osm_ioc */
@@ -269,7 +268,7 @@ out:
 		n->d_dev = dev;
 		atomic_set(&n->d_count, 1);
 		INIT_LIST_HEAD(&n->d_open);
-		INIT_LIST_HEAD(&n->d_ios);
+		atomic_set(&n->d_ios, 0);
 
 		list_add(&n->d_hash, l);
 		d = n;
@@ -830,10 +829,8 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 			run_task_queue(&tq_disk);
 			set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
-			spin_lock_irq(&oi->i_lock);
-			if (list_empty(&d->d_ios))
+			if (!atomic_read(&d->d_ios))
 				break;
-			spin_unlock_irq(&oi->i_lock);
 
 			/*
 			 * Timeout of one second.  This is slightly
@@ -849,8 +846,8 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 		set_task_state(tsk, TASK_RUNNING);
 		remove_wait_queue(&ofi->f_wait, &wait);
 	}
-
-	spin_unlock_irq(&oi->i_lock);
+	else
+		spin_unlock_irq(&oi->i_lock);
 
 	kfree(h);
 
@@ -969,7 +966,7 @@ static struct osm_request *osm_request_alloc()
 		r->r_bhtail = NULL;
 		r->r_elapsed = 0;
 		r->r_cb.vec = NULL;
-		INIT_LIST_HEAD(&r->r_queue);
+		r->r_disk = NULL;
 	}
 
 	return r;
@@ -988,20 +985,18 @@ static void osm_finish_io(struct osm_request *r)
 {
 	struct osm_disk_info *d = r->r_disk;
 	struct osmfs_file_info *ofi = r->r_file;
-	struct osmfs_inode_info *oi;
 	unsigned long flags;
 
 	if (!ofi)
 		BUG();
 
 	if (d) {
- 		oi = d->d_inode;
-		if (!oi)
-			BUG();
-		spin_lock_irqsave(&oi->i_lock, flags);
-		list_del(&r->r_queue);
 		r->r_disk = NULL;
-		spin_unlock_irqrestore(&oi->i_lock, flags);
+		atomic_dec(&d->d_ios);
+		if (atomic_read(&d->d_ios) < 0) {
+			printk("OSM: d_ios underflow!\n");
+			atomic_set(&d->d_ios, 0);
+		}
 		osm_put_disk(d);
 	}
 
@@ -1318,10 +1313,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	if (!d)
 		goto out_error;
 
-	spin_lock_irq(&oi->i_lock);
+	atomic_inc(&d->d_ios);
 	r->r_disk = d;
-	list_add(&r->r_queue, &d->d_ios);
-	spin_unlock_irq(&oi->i_lock);
 
 	count = tmp.rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
@@ -1772,7 +1765,7 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 		if (list_empty(&ofi->f_ios))
 		    break;
 		spin_unlock_irq(&ofi->f_lock);
-		printk("There are still I/Os hanging off of ofi 0x%p\n",
+		dprintk("There are still I/Os hanging off of ofi 0x%p\n",
 		       ofi);
 		schedule();
 	} while (1);

@@ -15,7 +15,18 @@ OSMLIB_CPPFLAGS = -DLINUX $(OSMLIB_INCLUDES)
 OSMLIB_HEADERS =			\
 	include/osmlib.h		\
 	include/arch/osmstructures.h	\
-	include/osmprivate.h
+	include/osmprivate.h		\
+	include/osmerror.h
+
+COMMON_HEADERS =				\
+	include/osmlib.h			\
+	include/oratypes.h			\
+	include/osmerror.h			\
+	include/osmprivate.h			\
+
+ARCH_X86_HEADERS =				\
+	include/arch-i386/osmkernel.h		\
+	include/arch-i386/osmstructures.h
 
 OSMTEST_SRCS = test/osmtest.c
 OSMTEST_OBJS = test/osmtest.o
@@ -31,6 +42,7 @@ OSMTEST_MULTI_LDFLAGS = libosm/libosm.a # -L libosm -losm
 
 CPPFLAGS = -g -O2 -Wall
 
+KERNEL_SRCS = kernel/osm.c
 KERNEL_INCLUDES = -I $(KERNEL_INCLUDE_PATH) $(OSMLIB_INCLUDES)
 KERNEL_DEFS = -D__KERNEL__ -DMODULE -DLINUX -DRED_HAT_LINUX_KERNEL=1
 KERNEL_CPPFLAGS = $(KERNEL_INCLUDES) $(KERNEL_DEFS)
@@ -40,15 +52,49 @@ BLK_SRCS = 			\
 	kernel/blk-rhas21.c
 BLK_FILE = kernel/blk-rhas21.c
 
+OSM_SOURCES =			\
+	$(OSMLIB_SRCS)		\
+	$(OSMTEST_SRCS)		\
+	$(OSMTEST_MULTI_SRCS)	\
+	$(BLK_SRCS)		\
+	$(KERNEL_SRCS)
+
+TEST_WRAPPERS =			\
+	test/osmtest-multi	\
+	test/osmtest
+
+DIST_FILES =			\
+	Makefile		\
+	README			\
+	TODO			\
+	Configure
+
 all:				\
 	kernel/osm.o		\
 	libosm/libosm.so	\
 	test/osmtest-bin	\
 	test/osmtest-multi-bin
 
+dist:
+	@mkdir $(DISTNAME)
+	@mkdir $(DISTNAME)/include
+	@mkdir $(DISTNAME)/include/arch-i386
+	@mkdir $(DISTNAME)/osmlib
+	@mkdir $(DISTNAME)/test
+	@mkdir $(DISTNAME)/kernel
+	@cp $(DIST_FILES) $(DISTNAME)
+	@cp $(COMMON_HEADERS) $(DISTNAME)/include
+	@cp $(ARCH_X86_HEADERS) $(DISTNAME)/include/arch-i386
+	@cp $(OSMLIB_SRCS) $(DISTNAME)/osmlib
+	@cp $(OSMTEST_SRCS) $(OSMTEST_MULTI_SRCS) $(TEST_WRAPPERS) $(DISTNAME)/test
+	@cp $(KERNEL_SRCS) $(BLK_SRCS) $(DISTNAME)/kernel
+	tar -czvf $(DISTNAME).tar.gz $(DISTNAME)
+	@rm -rf $(DISTNAME)
+
 distclean: clean
 	rm -f .config
 	rm -f include/arch
+	rm -f osmlib-linux*.tar.gz
 
 clean:
 	rm -f $(OSMLIB_OBJS) $(OSMTEST_OBJS) \
