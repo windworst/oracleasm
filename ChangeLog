@@ -1,4 +1,9 @@
 
+2004-03-02	Joel Becker <joel.becker@oracle.com>
+
+	* include/linux/asmdisk.h: Make asmdisk_toupper() handle *
+		properly.
+
 2004-02-25	Joel Becker <joel.becker@oracle.com>
 
 	* include/linux/asmdisk.h: Evil case-insensitive stuff.

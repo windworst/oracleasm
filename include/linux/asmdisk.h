@@ -129,7 +129,7 @@ static inline int asmdisk_toupper(unsigned char *str, ssize_t len,
 		str[count] = (unsigned char)(c - ('a' - 'A'));
 	}
 
-	if ((count) && ((str[0] < 'A') || (str[0] > 'Z')))
+	if (!glob && count && ((str[0] < 'A') || (str[0] > 'Z')))
 		return str[0];
 
 	return 0;
