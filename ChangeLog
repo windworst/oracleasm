@@ -1,6 +1,10 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* include/Makefile: Reference asmerror.h. (oops)
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* documents/asm-install.txt: Added.
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
