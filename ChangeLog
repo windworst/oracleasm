@@ -1,6 +1,15 @@
 
 2003-11-16	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: Substitute vendor/redhat/oracleasm.init.
+	* vendor/redhat/Makefile: Move oracleasm.init to
+		oracleasm.init.int
+	* vendor/redhat/oracleasm-*.spec.in: %{libdir} stuff.
+	* vendor/redhat/oracleasm.init{,.in}: Rename oracleasm.init to
+		oracleasm.init.in.
+
+2003-11-16	Joel Becker <joel.becker@oracle.com>
+
 	* vendor/common/Makefile: Add oracleasm.sysconfig.
 	* vendor/redhat/oracleasm-2.4.21-EL.spec.in: Add all the new
 		init junk.  Fix ia64 build choices.
