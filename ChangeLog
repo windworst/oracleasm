@@ -1,6 +1,11 @@
 
 2003-12-11	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: Add userspace spec on redhat.
+	* vendor/redhat/oracleasm-userspace.spec.in: Added.
+
+2003-12-11	Joel Becker <joel.becker@oracle.com>
+
 	* tools/asmtool.c: Fix a couple info stdouts.
 	* vendor/common/oracleasm.init.functions: create/delete disk
 		stuff.
