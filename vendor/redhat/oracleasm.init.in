@@ -270,18 +270,26 @@ case "$1" in
 
     configure)
         configure
+        if [ "$ORACLEASM_ENABLED" = "true" ]
+        then
+            start
+        else
+            stop
+        fi
         ;;
 
     enable)
         ORACLEASM_ENABLED=true
         write_sysconfig
         if_fail $? "Unable to write the driver configuration"
+        start
         ;;
 
     disable)
         ORACLEASM_ENABLED=false
         write_sysconfig
         if_fail $? "Unable to write the driver configuration"
+        stop
         ;;
 
     stop)
@@ -294,7 +302,7 @@ case "$1" in
 	;;
 
     *)
-	echo "Usage: $0 {start|stop|restart|link|status}"
+	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|status}"
         exit 1
 esac
 

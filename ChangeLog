@@ -1,6 +1,12 @@
 
 2003-11-16	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/redhat/*.spec.in: Perms on oracleasm.ini
+	* vendor/redhat/oracleasm.init.in: Start on enable, and vice
+		versa.
+
+2003-11-16	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: Substitute vendor/redhat/oracleasm.init.
 	* vendor/redhat/Makefile: Move oracleasm.init to
 		oracleasm.init.int
