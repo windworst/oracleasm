@@ -1,6 +1,11 @@
 
 2003-08-25	Joel Becker <joel.becker@oracle.com>
 
+	* kernel/Makefile: Support 'hugemem'.
+	* kernel/osm.c: Lots of logging.  UNITED_LINUX->UNITEDLINUX.
+
+2003-08-25	Joel Becker <joel.becker@oracle.com>
+
 	* kernel/Makefile: s/ocfs/osm bug.
 	* redhat/osm-2.4.9-e.spec.in: Make it work.
 	* test/osmprofile: Remove wrapper.

@@ -219,7 +219,7 @@ struct osm_request {
 };
 
 
-#ifdef CONFIG_UNITED_LINUX_KERNEL
+#ifdef CONFIG_UNITEDLINUX_KERNEL
 # if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 #  include <linux/kernel_stat.h>
 void submit_bh_blknr(int rw, struct buffer_head * bh)
@@ -256,7 +256,7 @@ void submit_bh_blknr(int rw, struct buffer_head * bh)
 # else
 #  error Invalid United Linux kernel
 # endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITED_LINUX_KERNEL */
+#endif  /* CONFIG_UNITEDLINUX_KERNEL */
 
 
 /*
@@ -1113,8 +1113,11 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 	struct osm_request *r = _req;
 	ssize_t err = 0;
 	
+	LOG_ENTRY();
 	if (!r)
 		BUG();
+
+	LOG("OSM: Releasing kvec for request at 0x%p\n", r);
 
 	if (res < 0) {
 		err = res;
@@ -1171,6 +1174,8 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 	}
 
 	osm_finish_io(r);
+
+	LOG_EXIT();
 }  /* osm_end_kvec_io() */
 
 
@@ -1178,14 +1183,18 @@ static void osm_end_buffer_io(struct buffer_head *bh, int uptodate)
 {
 	struct osm_request *r;
 
+	LOG_ENTRY();
 	mark_buffer_uptodate(bh, uptodate);
 
 	r = bh->b_private;
+	LOG("OSM: Releasing buffer for request at 0x%p\n", r);
 	unlock_buffer(bh);
 
 	if (atomic_dec_and_test(&r->r_io_count)) {
 		osm_end_kvec_io(r, r->r_cb.vec, 0);
 	}
+
+	LOG_EXIT();
 }  /* osm_end_buffer_io() */
 
 
@@ -1199,14 +1208,15 @@ static int osm_build_io(int rw, struct osm_request *r,
 	kdev_t		dev = r->r_disk->d_dev;
 	unsigned	sector_size = get_hardsect_size(dev);
 	int		i;
-#ifdef CONFIG_UNITED_LINUX_KERNEL
+#ifdef CONFIG_UNITEDLINUX_KERNEL
 # if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 	unsigned int    atomic_seq;
 # else
 #  error Invalid United Linux kernel
 # endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITED_LINUX_KERNEL */
+#endif  /* CONFIG_UNITEDLINUX_KERNEL */
 
+	LOG_ENTRY();
 	if (!vec->nr)
 		BUG();
 
@@ -1238,13 +1248,13 @@ static int osm_build_io(int rw, struct osm_request *r,
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_UNITED_LINUX_KERNEL
+#ifdef CONFIG_UNITEDLINUX_KERNEL
 # if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 	atomic_seq = blk_get_atomic_seq();
 # else
 #  error Invalid United Linux kernel
 # endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITED_LINUX_KERNEL */
+#endif  /* CONFIG_UNITEDLINUX_KERNEL */
 	
 	r->r_bh_count = 0;
 
@@ -1281,13 +1291,13 @@ static int osm_build_io(int rw, struct osm_request *r,
 		tmp->b_next = tmp->b_reqnext = NULL;
 		atomic_set(&tmp->b_count, 1);
 
-#ifdef CONFIG_UNITED_LINUX_KERNEL
+#ifdef CONFIG_UNITEDLINUX_KERNEL
 # if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 		bh_elv_seq(tmp) = atomic_seq;
 # else
 #  error Invalid United Linux kernel
 # endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITED_LINUX_KERNEL */
+#endif  /* CONFIG_UNITEDLINUX_KERNEL */
 
 		if (rw == WRITE) {
 			set_bit(BH_Uptodate, &tmp->b_state);
@@ -1341,6 +1351,7 @@ static int osm_build_io(int rw, struct osm_request *r,
 
 	atomic_set(&r->r_io_count, r->r_bh_count);
 
+	LOG_EXIT_RET(0);
 	return 0;
 
 error:
@@ -1352,6 +1363,7 @@ error:
 	}
 	r->r_bhtail = NULL;
 
+	LOG_EXIT_RET(err);
 	return err;
 }  /* osm_build_io() */
 
@@ -1368,6 +1380,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	struct buffer_head *bh;
 	kdev_t kdv;
 
+	LOG_ENTRY();
 	if (!ioc)
 		return -EINVAL;
 
@@ -1377,6 +1390,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	r = osm_request_alloc();
 	if (!r)
 		return -ENOMEM;
+	LOG("OSM: New request at 0x%p alloc()ed for user ioc at 0x%p\n", r, user_iocp);
 
 	r->r_file = ofi;
 	r->r_ioc = user_iocp;  /* Userspace osm_ioc */
@@ -1386,7 +1400,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	spin_unlock_irq(&ofi->f_lock);
 
 	ret = -ENODEV;
-	kdv = ioc->disk_osm_ioc;
+	kdv = to_kdev_t(ioc->disk_osm_ioc);
 	d = osm_find_disk(oi, kdv);
 	if (!d)
 		goto out_error;
@@ -1396,13 +1410,13 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	count = ioc->rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
-	dprintk("OSM: first, 0x%08lX.%08lX; masked 0x%08lX\n",
-	       HIGH_UB4(ioc->first_osm_ioc), LOW_UB4(ioc->first_osm_ioc),
+	LOG("OSM: first, 0x%08lX.%08lX; masked 0x%08lX\n",
+	    HIGH_UB4(ioc->first_osm_ioc), LOW_UB4(ioc->first_osm_ioc),
 	       (unsigned long)ioc->first_osm_ioc);
 	/* linux only supports unsigned long size sector numbers */
-	dprintk("OSM: status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
-		ioc->status_osm_ioc,
-		(unsigned long)ioc->buffer_osm_ioc, count);
+	LOG("OSM: status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
+	    ioc->status_osm_ioc,
+	    (unsigned long)ioc->buffer_osm_ioc, count);
 	/* Note that priority is ignored for now */
 	ret = -EINVAL;
 	if (!ioc->buffer_osm_ioc ||
@@ -1434,7 +1448,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	}
 
 
-	dprintk("OSM: Passed checks\n");
+	LOG("OSM: Passed checks\n");
 
 	switch (ioc->operation_osm_ioc) {
 		default:
@@ -1473,7 +1487,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	ret = osm_build_io(rw, r,
 			   ioc->first_osm_ioc, ioc->rcount_osm_ioc);
-	dprintk("OSM: Return from buildio is %d\n", ret);
+	LOG("OSM: Return from osm_build_io() is %d\n", ret);
 	if (ret)
 		goto out_error;
 
@@ -1487,7 +1501,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 #  error Invalid Red Hat Linux kernel
 # endif  /* LINUX_VERSION_CODE */
 #else
-# ifdef CONFIG_UNITED_LINUX_KERNEL
+# ifdef CONFIG_UNITEDLINUX_KERNEL
 #  if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 	while (bh)
 	{
@@ -1498,7 +1512,9 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 #  else
 #   error Invalid United Linux kernel
 #  endif  /* LINUX_VERSION_CODE */
-# endif  /* CONFIG_UNITED_LINUX_KERNEL */
+# else
+#  error Invalid kernel
+# endif  /* CONFIG_UNITEDLINUX_KERNEL */
 #endif  /* RED_HAT_LINUX_KERNEL */
 
 	r->r_status |= OSM_SUBMITTED;
@@ -1506,6 +1522,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 out:
 	ret = osm_update_user_ioc(r);
 
+	LOG_EXIT_RET(ret);
 	return ret;
 
 out_error:
@@ -1526,12 +1543,12 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	DECLARE_WAITQUEUE(wait, tsk);
 	DECLARE_WAITQUEUE(to_wait, tsk);
 
-	dprintk("OSM: Entering wait_io()\n");
+	LOG_ENTRY();
 	if (copy_from_user(&p, &(iocp->reserved_osm_ioc),
 			   sizeof(p)))
 		return -EFAULT;
 
-	dprintk("OSM: User key is 0x%p\n",
+	LOG("OSM: User key is 0x%p\n",
 		(struct osm_request *)(unsigned long)p);
 	r = (struct osm_request *)(unsigned long)p;
 	if (!r)
@@ -1545,7 +1562,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 		return -EINVAL;
 	}
 
-	dprintk("OSM: osm_request is valid...we think\n");
+	LOG("OSM: osm_request is valid...we think\n");
 	if (!(r->r_status & (OSM_COMPLETED |
 			     OSM_BUSY | OSM_ERROR))) {
 		spin_unlock_irq(&ofi->f_lock);
@@ -1567,6 +1584,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 				break;
 			schedule();
 			if (signal_pending(tsk)) {
+				LOG("Signal pending\n");
 				ret = -EINTR;
 				break;
 			}
@@ -1612,6 +1630,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	dprintk("OSM: Freeing request 0x%p\n", r);
 	osm_request_free(r);
 
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_maybe_wait_io() */
 
@@ -1822,7 +1841,7 @@ static inline void osm_promote_64(osm_ioc64 *ioc)
 {
 	osm_ioc32 *ioc_32 = (osm_ioc32 *)ioc;
 
-        LOG_ENTRY();
+	LOG_ENTRY();
 
 	/*
 	 * Promote the 32bit pointers at the end of the osm_ioc32
@@ -1839,7 +1858,7 @@ static inline void osm_promote_64(osm_ioc64 *ioc)
 	    ioc->check_osm_ioc,
 	    ioc->buffer_osm_ioc);
 
-        LOG_EXIT();
+	LOG_EXIT();
 }  /* osm_promote_64() */
 
 
@@ -2170,7 +2189,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 
 	switch (cmd) {
 		default:
-			LOG("OSM: Invalid ioctl 0x%lu\n", cmd);
+			LOG("OSM: Invalid ioctl 0x%u\n", cmd);
 			return -ENOTTY;
 			break;
 
@@ -2421,7 +2440,7 @@ static DECLARE_FSTYPE(osmfs_fs_type, "osmfs", osmfs_read_super, FS_LITTER);
 
 static int __init init_osmfs_fs(void)
 {
-	LOG("sizeof osm_ioc32: %lu\n", sizeof(osm_ioc32));
+	LOG("sizeof osm_ioc32: %u\n", sizeof(osm_ioc32));
 	osm_request_cachep =
 		kmem_cache_create("osm_request",
 				  sizeof(struct osm_request),
