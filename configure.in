@@ -1,0 +1,153 @@
+AC_INIT(Makefile)
+
+PACKAGE=osmlib
+
+AC_SUBST(PACKAGE)
+
+#
+# Versioning ideas, copied from GTK+
+#
+# Making releases:
+#   MICRO_VERSION += 1;
+#   INTERFACE_AGE += 1;
+#   BINARY_AGE += 1;
+# If any functions have been added, set INTERFACE_AGE to 0.
+# If backwards compatibility has been broken, set BINARY_AGE and
+# INTEFACE_AGE to 0.
+#
+MAJOR_VERSION=0
+MINOR_VERSION=8
+MICRO_VERSION=0
+INTERFACE_AGE=0
+BINARY_AGE=0
+VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${MICRO_VERSION}"
+AC_SUBST(MAJOR_VERSION)
+AC_SUBST(MINOR_VERSION)
+AC_SUBST(MICRO_VERSION)
+AC_SUBST(INTERFACE_AGE)
+AC_SUBST(BINARY_AGE)
+AC_SUBST(VERSION)
+
+DIST_VERSION=$MAJOR_VERSION.$MINOR_VERSION.$MICRO_VERSION
+AC_SUBST(DIST_VERSION)
+
+AC_CANONICAL_HOST
+
+AC_PROG_CC
+AC_PROG_CPP
+
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_RANLIB
+
+AC_PATH_PROG(AR, ar)
+
+AC_HEADER_STDC
+AC_C_CONST
+
+if test "x$GCC" != "xyes"; then
+  AC_MSG_ERROR(GCC is required)
+fi
+
+AC_MSG_CHECKING(for directory with kernel source)
+AC_ARG_WITH(kernel, [  --with-kernel=dir       Path to the kernel source tree [/usr/src/linux]], kerneldir="$withval",
+  if test -d "/lib/modules/`uname -r`/build" -o -L "/lib/modules/`uname -r`/build"; then
+    kerneldir="/lib/modules/`uname -r`/build"
+  else
+    kerneldir="/usr/src/linux"
+  fi
+)
+AC_MSG_RESULT($kerneldir)
+
+KERNELDIR=$kerneldir
+AC_SUBST(KERNELDIR)
+
+KERNELINC="$kerneldir/include"
+
+if test ! -f "$KERNELINC/linux/autoconf.h"; then
+  AC_MSG_ERROR(No configured kernel include tree found)
+fi
+
+saved_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="-I$KERNELINC $CPPFLAGS"
+
+AC_MSG_CHECKING(for kernel version)
+rm -f conf.kvertest
+AC_TRY_RUN([
+#include <stdio.h>
+#include <linux/version.h>
+
+int
+main (void)
+{
+#ifdef UTS_RELEASE
+  FILE *f;
+  f = fopen ("conf.kvertest", "w");
+  if (!f)
+    return 1;
+  fprintf (f, "%s", UTS_RELEASE);
+  fclose (f);
+  return 0;
+#else
+  return 1;
+#endif
+}],kversion=`cat conf.kvertest`, kversion="none")
+AC_MSG_RESULT($kversion)
+rm -f conf.kvertest
+
+if test "x$kversion" = "xnone"; then
+  AC_MSG_ERROR([Could not determine kernel version.])
+fi
+
+case "$kversion" in
+  2.4.*)
+    ;;
+  *)
+    AC_MSG_ERROR([This module only supports kernel version 2.4.x])
+    ;;
+esac
+
+KERNELVER=$kversion
+AC_SUBST(KERNELVER)
+
+AC_MSG_CHECKING([for Red Hat kernel])
+AC_EGREP_CPP(kernel_is_Red_Hat,
+[#include <linux/autoconf.h>
+#ifdef RED_HAT_LINUX_KERNEL
+  kernel_is_Red_Hat
+#endif
+}], rhkernel=yes, rhkernel=no)
+AC_MSG_RESULT($rhkernel)
+
+KVER=
+if test "x$rhkernel" = "xyes"; then
+  KVER=smp
+fi
+AC_SUBST(KVER)
+
+AC_MSG_CHECKING([for kernel module symbol versions])
+AC_EGREP_CPP(kernel_has_modversions,
+[#include <linux/autoconf.h>
+#ifdef CONFIG_MODVERSIONS
+  kernel_has_modversions
+#endif
+}], modversions=yes, modversions=no)
+AC_MSG_RESULT($modversions)
+
+MODVERSIONS=
+if test "x$modversions" = "xyes"; then
+  MODVERSIONS="-include \$(KERNELINC)/linux/modversions.h -DMODVERSIONS"
+fi
+AC_SUBST(MODVERSIONS)
+
+CPPFLAGS="$saved_CPPFLAGS"
+
+AC_MSG_CHECKING(for directory for kernel modules)
+AC_ARG_WITH(moddir, [  --with-moddir=/path     Path to where modules should be installed [/lib/modules/<KVER>/fs]], moddir="$withval", moddir="/lib/modules/$kversion/kernel/fs")
+AC_MSG_RESULT($moddir)
+
+MODULEDIR=$moddir
+AC_SUBST(MODULEDIR)
+
+AC_OUTPUT([Config.make
+])

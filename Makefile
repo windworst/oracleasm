@@ -14,7 +14,6 @@ OSMLIB_CPPFLAGS = -DLINUX $(OSMLIB_INCLUDES)
 
 OSMLIB_HEADERS =			\
 	include/osmlib.h		\
-	include/asm/osmstructures.h	\
 	include/linux/osmabi.h		\
 	include/osmerror.h
 
@@ -25,8 +24,7 @@ COMMON_HEADERS =				\
 	include/linux/osmabi.h			\
 
 ARCH_X86_HEADERS =				\
-	include/linux/osmkernel.h		\
-	include/asm-i386/osmstructures.h
+	include/asm/osmids.h
 
 OSMTOOL_SRCS = tools/osmtool.c
 OSMTOOL_OBJS = tools/osmtool.o

@@ -1,6 +1,15 @@
 
 2003-05-24	Joel Becker <joel.becker@oracle.com>
 
+	* config.guess: Start of conversion to makebo.
+	* config.sub: Start of conversion to makebo.
+	* configure.in: Start of conversion to makebo.
+	* Config.make.in: Start of conversion to makebo.
+	* mkinstalldirs: Start of conversion to makebo.
+	* install-sh: Start of conversion to makebo.
+
+2003-05-24	Joel Becker <joel.becker@oracle.com>
+
 	* include/asm-i386/osmstructures.h: Removed, no longer needed.
 	* include/asm-i386/osmids.h: Remove id munging.
 	* include/linux/osmabi.h: Define the ioctl ABI structures.
