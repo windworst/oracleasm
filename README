@@ -26,4 +26,18 @@ filesystem:
 	Once you have osm mounted, you can then either use 10i or the
 test programs to try things out.  Have fun.  Report bugs.
 
+
+Third things fourth.
+
+	There isn't an easy way to determine the maximum I/O a
+particular device can handle dynamically.  The current code takes the
+least common denominator and reports the maximum I/O as the maximum of
+the smallest card (the MegaRAID).
+	Also note that while in good cases the maximum I/O will go out
+as one SCSI command, errors can cause it to break up.  These can be
+hardware and are not really predictable.  Low memory situations (where a
+large scatter/gather list cannot be allocated) also relax this
+assurance.  But, if no error occurs on the disk and there is enough
+memory, the I/O goes out all together.
+
 Joel Becker <joel.becker@oracle.com>
