@@ -69,6 +69,7 @@
  */
 enum _ASMErrors
 {
+    ASM_ERR_INSTALL     = -5,   /* Driver not installed */
     ASM_ERR_FAULT       = -4,   /* Invalid address */
     ASM_ERR_NODEV       = -3,   /* Invalid device */
     ASM_ERR_BADIID      = -2,   /* Invalid IID */

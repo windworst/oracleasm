@@ -77,41 +77,8 @@
  * oracleasmfs is mounted.  Default is ASM_MANAGER_DEFAULT
  */
 #define ASM_MANAGER_DEFAULT		"/dev/oracleasm"
-
-/* Subdirectories of the manager device */
 #define ASM_MANAGER_DISKS		"disks"
 #define ASM_MANAGER_INSTANCES		"iid"
-
-/*
- * Instance file in the instance's iid directory.  A process opens
- * <manager>/iid/<iid>/instance to connect to the instance.  Eg,
- * for a default instance with iid 00000000.00000001, you have
- * /dev/oracleasm/iid/00000000.00000001/instance
- */
-#define ASM_MANAGER_INSTANCE_CONNECTION	"instance"
-
-/*
- * Filenames for the operation transaction files.
- */
-static char *asm_operation_files[] = {
-	[ASMOP_NONE]		= NULL,
-
-	/*
-	 * The first three operations live under the manager, and
-	 * are global to the mount.  A process can open them
-	 * via <manager>/<operation_file.  A default instance would use
-	 * /dev/oracleasm/.query_version, for example.r
-	 */
-	[ASMOP_QUERY_VERSION]	= ".query_version",
- 	[ASMOP_GET_IID]		= ".get_iid",
- 	[ASMOP_CHECK_IID]	= ".check_iid",
- 	[ASMOP_QUERY_DISK]	= ".query_disk",
-
-	/*
-	 * The other operations are stateful and don't work with
-	 * transaction files.
-	 */
-};
 
 #ifndef __KERNEL__
 static inline char *asm_disk_path(const char *manager, const char *disk)
@@ -209,29 +176,5 @@ static inline char *asm_iid_path(const char *manager,
 
 	return asm_iid;
 }
-
-static inline char *asm_operation_path(const char *manager,
-				       int op)
-{
-	size_t len;
-	char *path;
-
-	if (!manager || !*manager)
-		return NULL;
-	if (op > ASM_LAST_TRANSACTION_OP)
-		return NULL;
-
-	len = strlen(manager) + strlen("/") +
-		strlen(asm_operation_files[op]);
-	path = (char *)malloc(sizeof(char) * (len + 1));
-	if (!path)
-		return NULL;
-
-	snprintf(path, len + 1, "%s/%s", manager,
-		 asm_operation_files[op]);
-
-	return path;
-}
-
 #endif  /* __KERNEL__ */
 #endif  /* _ASMMANAGER_H */

@@ -1,16 +1,18 @@
 /*
  * NAME
- *	asmcompat32.h - ASM library 32<->64bit compatibilty support.
+ *	asmabi_compat.h - Old ASM library userspace to kernelspace ABI.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
  *
  * DESCRIPTION
- *      This file contains helpers for supporting 32bit, 64bit, and 
- *      32bit-on-64bit implementations of the Oracle Automatic Storage
- *      Management library.
+ * 	This file describes the older ABIs used by the Oracle Automatic
+ * 	Storage Management library to communicate with the associated
+ * 	kernel driver.
  *
  * MODIFIED   (YYYY/MM/DD)
+ *      2004/08/19 - Joel Becker <joel.becker@oracle.com>
+ *      	Compat version.
  *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
  *              Initial LGPL header.
  *
@@ -61,41 +63,90 @@
 
 
 /*
- * This file is an internal header to the asmlib implementation on
- * Linux.  This file presumes the definitions in asmlib.h and
- * oratypes.h.
+ * This file is internal to the implementation of the Oracle ASM
+ * library on Linux.  This file presumes the definitions in asmlib.h
+ * and oratypes.h
  */
 
 
-#ifndef _ASMCOMPAT32_H
-#define _ASMCOMPAT32_H
+#ifndef _ASMABI_COMPAT_H
+#define _ASMABI_COMPAT_H
+
 
 /*
- * This is ugly.  SIZEOF_UNSIGNED_LONG comes from autoconf.
- * Do you have a better way?  I chose not to hand-cook an autoconf
- * test because I'm lazy and it doesn't seem significantly better.
+ * Structures
  */
-#ifndef BITS_PER_LONG
-# if SIZEOF_UNSIGNED_LONG == 4
-#  define BITS_PER_LONG 32
+
+/*
+ * These are __u64 to handle 32<->64 pointer stuff.
+ */
+struct oracleasm_io_v1
+{
+    __u64               io_handle;	/* asm_ctx */
+    __u64               io_requests;	/* asm_ioc ** */
+    __u64               io_waitreqs;	/* asm_ioc ** */
+    __u64               io_completions;	/* asm_ioc ** */
+    __u64               io_timeout;	/* struct timespec * */
+    __u64               io_statusp;	/* __u32 * */
+    __u32               io_reqlen;
+    __u32               io_waitlen;
+    __u32               io_complen;
+    __u32               io_pad1;	/* Pad to 64bit aligned size */
+};
+
+struct oracleasm_disk_query_v1
+{
+    __u64 dq_rdev;
+    __u64 dq_maxio;  /* gcc padding is lame */
+};
+
+#define ASM_ABI_VERSION_V1	1UL
+struct oracleasm_get_iid_v1
+{
+    __u64 gi_iid;
+    __u64 gi_version;  /* gcc padding is lame */
+};
+
+
+
+/*
+ * ioctls
+ */
+#define ASM_IOCTL_BASE          0xFD
+
+/* ioctls on /dev/oracleasm */
+#define ASMIOC_GETIID           _IOR(ASM_IOCTL_BASE, 0, struct oracleasm_get_iid_v1)
+#define ASMIOC_CHECKIID         _IOWR(ASM_IOCTL_BASE, 1, struct oracleasm_get_iid_v1)
+
+/* ioctls on /dev/oracleasm/<iid> */
+#define ASMIOC_QUERYDISK        _IOWR(ASM_IOCTL_BASE, 2, struct oracleasm_disk_query_v1)
+#define ASMIOC_OPENDISK		_IOWR(ASM_IOCTL_BASE, 3, struct oracleasm_disk_query_v1)
+#define ASMIOC_CLOSEDISK	_IOW(ASM_IOCTL_BASE, 4, struct oracleasm_disk_query_v1)
+
+
+/*
+ * We have separate ioctls so we *know* when the pointers are 32bit
+ * or 64bit.
+ * 
+ * All userspace callers should use ASMIOC_IODISK.
+ */
+#define ASMIOC_IODISK32         _IOWR(ASM_IOCTL_BASE, 5, struct oracleasm_io_v1)
+
+#if BITS_PER_LONG == 32
+# define ASMIOC_IODISK ASMIOC_IODISK32
+#else
+# if BITS_PER_LONG == 64
+#  define ASMIOC_IODISK64         _IOWR(ASM_IOCTL_BASE, 6, struct oracleasm_io_v1)
+#  define ASMIOC_IODISK ASMIOC_IODISK64
 # else
-#  if SIZEOF_UNSIGNED_LONG == 8
-#   define BITS_PER_LONG 64
-#  else
-#   error Unknown size of unsigned long (SIZEOF_UNSIGNED_LONG)
-#  endif  /* SIZEOF_UNSIGNED_LONG == 8 */
-# endif  /* SIZEOF_UNSIGNED_LONG == 4 */
-#endif  /* BITS_PER_LONG */
+#  error Invalid number of bits (BITS_PER_LONG)
+# endif  /* BITS_PER_LONG == 64 */
+#endif  /* BITS_PER_LONG == 32 */
 
-/*
- * Handle the ID sizes
- */
-#define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
-#define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
 
-#if defined(CONFIG_COMPAT)
-# include <linux/ioctl32.h>
-#endif
+/* ioctl for testing */
+#define ASMIOC_DUMP             _IO(ASM_IOCTL_BASE, 16)
 
-#endif  /* _ASMCOMPAT32_H */
+
+#endif  /* _ASMABI_COMPAT_H */
 

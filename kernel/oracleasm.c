@@ -14,7 +14,11 @@
  *
  * MODIFIED   (YYYY/MM/DD)
  *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
- *              Initial GPL header.
+ *		Initial GPL header.
+ *      2004/09/10 - Joel Becker <joel.becker@oracle.com>
+ *      	First port to 2.6.
+ *      2004/12/16 - Joel Becker <joel.becker@oracle.com>
+ *      	Change from ioctl to transaction files.
  *
  * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
  *
@@ -50,18 +54,18 @@
  */
 
 
-#include <linux/module.h>
 #include <linux/fs.h>
+#include <linux/file.h>
+#include <linux/module.h>
 #include <linux/pagemap.h>
 #include <linux/init.h>
 #include <linux/string.h>
-#include <linux/locks.h>
 #include <linux/highmem.h>
 #include <linux/slab.h>
-#include <linux/genhd.h>
-#include <linux/blk.h>
 #include <linux/blkdev.h>
+#include <linux/mount.h>
 #include <linux/smp_lock.h>
+#include <linux/parser.h>
 
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
@@ -73,24 +77,22 @@
 #include "linux/asmmanager.h"
 #include "asmerror.h"
 
+#include "linux/asm_module_version.h"
+
+#if 0
+#include "transaction_file.h"
+#else
+#include "transaction_file.c"  /* XXX ugly for now */
+#endif 
 
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
 #endif  /* PAGE_CACHE_SIZE % 1024 */
 
-#define IBLOCKS_PER_PAGE  (PAGE_CACHE_SIZE / 512)
-#define K_PER_PAGE (PAGE_CACHE_SIZE / 1024)
 
 /* some random number */
 #define ASMFS_MAGIC	0x958459f6
 
-/*
- * Max I/O is 64K.  Why 64?  Because the MegaRAID card supports only
- * 26 scatter/gather segments.  26 * 4k page == 104k.  The power of 2
- * below that is 64K.  The intention is for per-device discovery of this
- * value in the future.  FIXME.
- */
-#define ASM_MAX_IOSIZE	  (1024 * 64)
 
 /*
  * Compat32
@@ -135,14 +137,15 @@
 
 
 static struct super_operations asmfs_ops;
-static struct address_space_operations asmfs_aops;
 static struct file_operations asmfs_dir_operations;
 static struct file_operations asmfs_file_operations;
+static struct inode_operations asmfs_file_inode_operations;
 static struct inode_operations asmfs_disk_dir_inode_operations;
 static struct inode_operations asmfs_iid_dir_inode_operations;
-static struct inode_operations asmfs_dir_inode_operations;
 
 static kmem_cache_t	*asm_request_cachep;
+static kmem_cache_t	*asmfs_inode_cachep;
+static kmem_cache_t	*asmdisk_cachep;
 
 /*
  * asmfs super-block data in memory
@@ -167,7 +170,7 @@ struct asmfs_sb_info {
 	unsigned long next_iid;
 };
 
-#define ASMFS_SB(sb) ((struct asmfs_sb_info *)((sb)->u.generic_sbp))
+#define ASMFS_SB(sb) ((struct asmfs_sb_info *)((sb)->s_fs_info))
 
 
 struct asmfs_file_info {
@@ -178,39 +181,50 @@ struct asmfs_file_info {
 	struct list_head f_ios;		/* Outstanding I/Os for this thread */
 	struct list_head f_complete;	/* Completed I/Os for this thread */
 	struct list_head f_disks;	/* List of disks opened */
+	struct bio *f_bio_free;		/* bios to free */
 };
 
 #define ASMFS_FILE(_f) ((struct asmfs_file_info *)((_f)->private_data))
 
 
-#define ASM_HASH_BUCKETS 1024
 /*
  * asmfs inode data in memory
  *
  * Note that 'thread' here can mean 'process' too :-)
  */
 struct asmfs_inode_info {
-	struct inode *i_inode;
 	spinlock_t i_lock;		/* lock on the asmfs_inode_info structure */
-	struct list_head disk_hash[ASM_HASH_BUCKETS]; /* Hash of disk handles */
+	struct list_head i_disks;	/* List of disk handles */
 	struct list_head i_threads;	/* list of context structures for each calling thread */
+	struct inode vfs_inode;
 };
 
-#define ASMFS_INODE(_i) ((struct asmfs_inode_info *)((_i->u.generic_ip)))
+static inline struct asmfs_inode_info *ASMFS_I(struct inode *inode)
+{
+	return container_of(inode, struct asmfs_inode_info, vfs_inode);
+}
 
-
+static inline struct inode *ASMFS_F2I(struct file *file)
+{
+	return file->f_dentry->d_inode;
+}
 
 /*
  * asm disk info
  */
 struct asm_disk_info {
 	struct asmfs_inode_info *d_inode;
-	struct list_head d_hash;
-	kdev_t d_dev;
-	atomic_t d_count;
+	struct block_device *d_bdev;	/* Block device we I/O to */
+	int d_live;			/* Is the disk alive? */
 	atomic_t d_ios;			/* Count of in-flight I/Os */
 	struct list_head d_open;	/* List of assocated asm_disk_heads */
+	struct inode vfs_inode;
 };
+
+static inline struct asm_disk_info *ASMDISK_I(struct inode *inode)
+{
+	return container_of(inode, struct asm_disk_info, vfs_inode);
+}
 
 
 /*
@@ -236,200 +250,165 @@ struct asm_request {
 	u16 r_status;				/* status_asm_ioc */
 	int r_error;
 	unsigned long r_elapsed;		/* Start time while in-flight, elapsted time once complete */
-	kvec_cb_t r_cb;				/* kvec info */
-	/* r_buffers buffers point to user memory */
-	/* r_bh buffers is the list with bounce buffers */
-	struct buffer_head *r_buffers;		/* Mapped buffers */
-	struct buffer_head *r_bh;		/* I/O buffers */
-	struct buffer_head *r_bhtail;		/* tail of buffers */
-	unsigned long r_bh_count;		/* Number of buffers */
-	atomic_t r_io_count;			/* Atomic count */
+	struct bio *r_bio;			/* The I/O */
+	atomic_t r_bio_count;			/* Atomic count */
 };
 
 
-#ifndef CONFIG_UNITEDLINUX_KERNEL
-# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
-#  include <linux/kernel_stat.h>
-void submit_bh_blknr(int rw, struct buffer_head * bh)
+/*
+ * Transaction file contexts.
+ */
+static ssize_t asmfs_svc_query_version(struct file *file, char *buf, size_t size);
+static ssize_t asmfs_svc_get_iid(struct file *file, char *buf, size_t size);
+static ssize_t asmfs_svc_check_iid(struct file *file, char *buf, size_t size);
+static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size);
+static ssize_t asmfs_svc_open_disk(struct file *file, char *buf, size_t size);
+static ssize_t asmfs_svc_close_disk(struct file *file, char *buf, size_t size);
+static ssize_t asmfs_svc_io32(struct file *file, char *buf, size_t size);
+#if BITS_PER_LONG == 64
+static ssize_t asmfs_svc_io64(struct file *file, char *buf, size_t size);
+#endif
+
+static struct transaction_context trans_contexts[] = {
+	[ASMOP_QUERY_VERSION]		= {asmfs_svc_query_version},
+	[ASMOP_GET_IID]			= {asmfs_svc_get_iid},
+	[ASMOP_CHECK_IID]		= {asmfs_svc_check_iid},
+	[ASMOP_QUERY_DISK]		= {asmfs_svc_query_disk},
+	[ASMOP_OPEN_DISK]		= {asmfs_svc_open_disk},
+	[ASMOP_CLOSE_DISK]		= {asmfs_svc_close_disk},
+	[ASMOP_IO32]			= {asmfs_svc_io32},
+#if BITS_PER_LONG == 64
+	[ASMOP_IO64]			= {asmfs_svc_io64},
+#endif
+};
+
+
+static struct inode *asmdisk_alloc_inode(struct super_block *sb)
 {
-	int count = bh->b_size >> 9;
-
-	if (!test_bit(BH_Lock, &bh->b_state))
-		BUG();
-
-	if (buffer_delay(bh) || !buffer_mapped(bh))
-		BUG();
-
-	set_bit(BH_Req, &bh->b_state);
-
-	/*
-	 * First step, 'identity mapping' - RAID or LVM might
-	 * further remap this.
-	 */
-	bh->b_rdev = bh->b_dev;
-	bh->b_rsector = bh->b_blocknr;
-
-	generic_make_request(rw, bh);
-
-	switch (rw) {
-		case WRITE:
-			kstat.pgpgout += count;
-			break;
-		default:
-			kstat.pgpgin += count;
-			break;
-	}
-	conditional_schedule();
+	struct asm_disk_info *d = kmem_cache_alloc(asmdisk_cachep, SLAB_KERNEL);
+	if (!d)
+		return NULL;
+	return &d->vfs_inode;
 }
-# endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITEDLINUX_KERNEL */
 
-
-/*
- * Validate that someone made this block device happy for ASM
- */
-static int asm_validate_disk(kdev_t dev)
+static void asmdisk_destroy_inode(struct inode *inode)
 {
-	struct buffer_head *bh;
-	int blocksize, hblock, ret;
-	struct asm_disk_label *adl;
+	struct asm_disk_info *d = ASMDISK_I(inode);
 
-	blocksize = BLOCK_SIZE;
-	hblock = get_hardsect_size(dev);
-	if (blocksize < hblock)
-		blocksize = hblock;
+	if (atomic_read(&d->d_ios))
+		BUG();
 
-	if (!(bh = bread(dev, 0, blocksize)))
-		return -ENXIO;
+	if (!list_empty(&d->d_open))
+		BUG();
 
-	adl = (struct asm_disk_label *)(bh->b_data +
-					ASM_DISK_LABEL_OFFSET);
-	ret = 0;
-	if (memcmp(adl->dl_tag, ASM_DISK_LABEL_MARKED,
-		   sizeof(adl->dl_tag)))
-		ret = -EPERM;
-	
-	brelse(bh);
+	kmem_cache_free(asmdisk_cachep, d);
+}
 
-	return ret;
-}  /* asm_validate_disk() */
-
-
-/*
- * Hashing.  Here's the problem.  When node 2 opens a disk, we need to
- * find out if node 1 has opened it already.  If so, we have to get the
- * handle node1 got so that the handles are identical.  Now, in 2.4 with
- * 128 disks, a list of current disk handles is easy to scan.  As 2.5
- * comes forward with thousands of disks, it doesn't get so hot.  The
- * only semi-sure way to know a disk is the same is via the device
- * major and minor.  Hence, a lookup on major/minor.  However, that's a
- * lookup array of 64K items in 2.4 and 4GB in 2.5.  You could try to
- * only map certain majors, but given that a 20bit minor in 2.5 has 64K
- * disks, it still doesn't work.  So we hash.  Figuring a system with
- * 16K disks (a lot, at least for now), a hash that drops things into
- * 1024 buckets creates collision lists that are only 64 entries.  Even
- * in somewhat bad cases we don't get many more entries per list.
- *
- * All that means that we're going to use a simple hash based on that
- * 1024 bucket table.  The hash?  kdev_t >> 4 & 0x3FF (last 14 bits,
- * dropping four).  This is intended to see SCSI disks, ignoring
- * partition minors.  Come up with a better one.  Come up with a better
- * search.  This isn't set in stone, it's just a start.
- * FIXME: Since we can, in theory, have non-SCSI disks, this needs
- * imporvement.
- */
-#define ASM_HASH_DISK(dev) (((dev)>>4) & 0x3FF)
-
-
-static inline struct asm_disk_info *asm_find_disk(struct asmfs_inode_info *aii, kdev_t dev)
+static void init_asmdisk_once(void *foo, kmem_cache_t *cachep, unsigned long flags)
 {
-	struct list_head *l, *p;
-	struct asm_disk_info *d = NULL;
+	struct asm_disk_info *d = (struct asm_disk_info *)foo;
+
+	if ((flags & (SLAB_CTOR_VERIFY|SLAB_CTOR_CONSTRUCTOR)) ==
+	    SLAB_CTOR_CONSTRUCTOR)
+	{
+		memset(d, 0, sizeof(*d));
+		INIT_LIST_HEAD(&d->d_open);
+		inode_init_once(&d->vfs_inode);
+	}
+}
+
+static void asmdisk_clear_inode(struct inode *inode)
+{
+	struct asm_disk_info *d = ASMDISK_I(inode);
 
 	LOG_ENTRY();
-
-	LOG("ASM: Looking up disk %d,%d\n", MAJOR(dev), MINOR(dev));
-	
-	spin_lock_irq(&aii->i_lock);
-	l = &(aii->disk_hash[ASM_HASH_DISK(dev)]);
-	if (list_empty(l))
-		goto out;
-
-	list_for_each(p, l) {
-		d = list_entry(p, struct asm_disk_info, d_hash);
-		if (d->d_dev == dev) {
-			atomic_inc(&d->d_count);
-			break;
-		}
-		d = NULL;
-	}
-
-out:
-	spin_unlock_irq(&aii->i_lock);
-
-	LOG_EXIT_RET(d);
-	return d;
-}  /* asm_find_disk() */
-
-
-static inline struct asm_disk_info *asm_add_disk(struct asmfs_inode_info *aii, kdev_t dev)
-{
-	struct list_head *l, *p;
-	struct asm_disk_info *d, *n;
-
-	if (!aii)
+	if (atomic_read(&d->d_ios))
 		BUG();
 
-	/* FIXME: Maybe a kmem_cache_t later */
-	n = kmalloc(sizeof(*n), GFP_KERNEL);
-	if (!n)
-		return NULL;
-
-	d = NULL;
-	spin_lock_irq(&aii->i_lock);
-	l = &(aii->disk_hash[ASM_HASH_DISK(dev)]);
-
-	if (list_empty(l))
-		goto out;
-
-	list_for_each(p, l) {
-		d = list_entry(l, struct asm_disk_info, d_hash);
-		if (d->d_dev == dev)
-			break;
-		d = NULL;
-	}
-out:
-	if (!d) {
-		n->d_inode = aii;
-		n->d_dev = dev;
-		atomic_set(&n->d_count, 1);
-		INIT_LIST_HEAD(&n->d_open);
-		atomic_set(&n->d_ios, 0);
-
-		list_add(&n->d_hash, l);
-		d = n;
-	}
-	else
-		kfree(n);
-	spin_unlock_irq(&aii->i_lock);
-
-	return d;
-}  /* asm_add_disk() */
-
-
-static inline void asm_put_disk(struct asm_disk_info *d)
-{
-	if (!d)
+	if (!list_empty(&d->d_open))
 		BUG();
 
-	if (atomic_dec_and_test(&d->d_count)) {
-		dprintk("ASM: Freeing disk 0x%.8lX\n", (unsigned long)d->d_dev);
-		if (!list_empty(&d->d_open))
-			BUG();
+	if (d->d_live)
+		BUG();
 
-		kfree(d);
+	if (d->d_bdev) {
+		LOG("asmdisk_clear_inode releasing disk\n");
+		bd_release(d->d_bdev);
+		blkdev_put(d->d_bdev);
+		d->d_bdev = NULL;
 	}
-}  /* asm_put_disk() */
+	LOG_EXIT();
+}
+
+
+static struct super_operations asmdisk_sops = {
+	.statfs			= simple_statfs,
+	.alloc_inode		= asmdisk_alloc_inode,
+	.destroy_inode		= asmdisk_destroy_inode,
+	.drop_inode		= generic_delete_inode,
+	.clear_inode		= asmdisk_clear_inode,
+};
+
+static struct super_block *asmdisk_get_sb(struct file_system_type *fs_type,
+					  int flags,
+					  const char *dev_name,
+					  void *data)
+{
+	return get_sb_pseudo(fs_type, "asmdisk:",
+			     &asmdisk_sops, 0x61736D64);
+}
+
+static struct file_system_type asmdisk_type = {
+	.name		= "asmdisk",
+	.get_sb		= asmdisk_get_sb,
+	.kill_sb	= kill_anon_super,
+};
+
+static struct vfsmount *asmdisk_mnt;
+
+static int __init init_asmdiskcache(void)
+{
+	int err;
+	asmdisk_cachep = kmem_cache_create("asmdisk_cache",
+					   sizeof(struct asm_disk_info),
+					   0, SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+					   init_asmdisk_once, NULL);
+	if (!asmdisk_cachep)
+		return -ENOMEM;
+	err = register_filesystem(&asmdisk_type);
+	if (err) {
+		kmem_cache_destroy(asmdisk_cachep);
+		return err;
+	}
+	asmdisk_mnt = kern_mount(&asmdisk_type);
+	if (IS_ERR(asmdisk_mnt)) {
+		err = PTR_ERR(asmdisk_mnt);
+		unregister_filesystem(&asmdisk_type);
+		kmem_cache_destroy(asmdisk_cachep);
+		return err;
+	}
+
+	return 0;
+}
+
+static void destroy_asmdiskcache(void)
+{
+	unregister_filesystem(&asmdisk_type);
+	mntput(asmdisk_mnt);
+	kmem_cache_destroy(asmdisk_cachep);
+}
+
+
+static int asmdisk_test(struct inode *inode, void *data)
+{
+	return ASMDISK_I(inode)->d_inode == (struct asmfs_inode_info *)data;
+}
+
+static int asmdisk_set(struct inode *inode, void *data)
+{
+	ASMDISK_I(inode)->d_inode = (struct asmfs_inode_info *)data;
+	return 0;
+}
 
 
 
@@ -437,146 +416,155 @@ static inline void asm_put_disk(struct asm_disk_info *d)
  * Resource limit helper functions
  */
 
-static inline void lock_asb(struct asmfs_sb_info *asb)
-{
-	spin_lock_irq(&(asb->asmfs_lock));
-}
-
-static inline void unlock_asb(struct asmfs_sb_info *asb)
-{
-	spin_unlock_irq(&(asb->asmfs_lock));
-}
 
 /* Decrements the free inode count and returns true, or returns false
  * if there are no free inodes */
-static int asmfs_alloc_inode(struct super_block *sb)
+static struct inode *asmfs_alloc_inode(struct super_block *sb)
 {
 	struct asmfs_sb_info *asb = ASMFS_SB(sb);
-	int ret = 1;
+	struct asmfs_inode_info *aii;
 
-	lock_asb(asb);
-	if (!asb->max_inodes || asb->free_inodes > 0)
+	spin_lock_irq(&asb->asmfs_lock);
+	if (!asb->max_inodes || asb->free_inodes > 0) {
 		asb->free_inodes--;
-	else
-		ret = 0;
-	unlock_asb(asb);
+		aii = (struct asmfs_inode_info *)kmem_cache_alloc(asmfs_inode_cachep, SLAB_KERNEL);
+	} else
+		aii = NULL;
+	spin_unlock_irq(&asb->asmfs_lock);
+
+	if (!aii)
+		return NULL;
 	
-	return ret;
+	return &aii->vfs_inode;
 }
 
 /* Increments the free inode count */
-static void asmfs_dealloc_inode(struct super_block *sb)
+static void asmfs_destroy_inode(struct inode *inode)
 {
-	struct asmfs_sb_info *asb = ASMFS_SB(sb);
-	
-	lock_asb(asb);
-	asb->free_inodes++;
-	unlock_asb(asb);
+	spin_lock_irq(&ASMFS_SB(inode->i_sb)->asmfs_lock);
+	ASMFS_SB(inode->i_sb)->free_inodes++;
+	spin_unlock_irq(&ASMFS_SB(inode->i_sb)->asmfs_lock);
+
+	kmem_cache_free(asmfs_inode_cachep, ASMFS_I(inode));
+}
+
+static void init_once(void *foo, kmem_cache_t *cachep, unsigned long flags)
+{
+	struct asmfs_inode_info *aii = (struct asmfs_inode_info *)foo;
+
+	if ((flags & (SLAB_CTOR_VERIFY|SLAB_CTOR_CONSTRUCTOR)) ==
+	    SLAB_CTOR_CONSTRUCTOR) {
+		INIT_LIST_HEAD(&aii->i_disks);
+		INIT_LIST_HEAD(&aii->i_threads);
+		spin_lock_init(&aii->i_lock);
+
+		inode_init_once(&aii->vfs_inode);
+	}
+}
+
+static int init_inodecache(void)
+{
+	asmfs_inode_cachep = kmem_cache_create("asmfs_inode_cache",
+					       sizeof(struct asmfs_inode_info),
+					       0, SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+					       init_once, NULL);
+
+	if (asmfs_inode_cachep == NULL)
+		return -ENOMEM;
+	return 0;
+}
+
+static void destroy_inodecache(void)
+{
+	if (kmem_cache_destroy(asmfs_inode_cachep))
+		printk(KERN_INFO "asmfs_inode_cache: not all structures were freed\n");
+}
+
+static int init_requestcache(void)
+{
+	asm_request_cachep = kmem_cache_create("asm_request",
+				     	       sizeof(struct asm_request),
+					       0, SLAB_HWCACHE_ALIGN,
+					       NULL, NULL);
+	if (asm_request_cachep == NULL)
+		return -ENOMEM;
+	return 0;
+}
+
+static void destroy_requestcache(void)
+{
+	if (kmem_cache_destroy(asm_request_cachep))
+		printk(KERN_INFO "asm_request_cache: not all structures were freed\n");
 }
 
 
-static int asmfs_statfs(struct super_block *sb, struct statfs *buf)
+/*
+ * Disk file creation in the disks directory.
+ */
+static int asmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t dev)
 {
-	buf->f_type = ASMFS_MAGIC;
-	buf->f_bsize = PAGE_CACHE_SIZE;
-	buf->f_namelen = 255;
+	struct inode * inode;
+
+	if (!S_ISBLK(mode))
+		return -EINVAL;
+
+	inode = new_inode(dir->i_sb);
+	if (!inode)
+		return -ENOMEM;
+
+	inode->i_ino = (unsigned long)inode;
+	inode->i_mode = mode;
+	inode->i_uid = current->fsuid;
+	inode->i_gid = current->fsgid;
+	inode->i_blksize = PAGE_CACHE_SIZE;
+	inode->i_blocks = 0;
+	inode->i_rdev = 0;
+	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	init_special_inode(inode, mode, dev);
+
+	d_instantiate(dentry, inode);
+
+	/* Extra count - pin the dentry in core */
+	dget(dentry);
 
 	return 0;
 }
 
 /*
- * Lookup the data. This is trivial - if the dentry didn't already
- * exist, we know it is negative.
+ * Instance file creation in the iid directory.
  */
-static struct dentry * asmfs_lookup(struct inode *dir, struct dentry *dentry)
+static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode, struct nameidata *nd)
 {
-	d_add(dentry, NULL);
-	return NULL;
+	struct inode *inode;
+
+	if ((mode & S_IFMT) && !S_ISREG(mode))
+		return -EINVAL;
+
+	mode |= S_IFREG;
+
+	inode = new_inode(dir->i_sb);
+	if (!inode)
+		return -ENOMEM;
+
+	inode->i_ino = (unsigned long)inode;
+	inode->i_mode = mode;
+	inode->i_uid = current->fsuid;
+	inode->i_gid = current->fsgid;
+	inode->i_blksize = PAGE_CACHE_SIZE;
+	inode->i_blocks = 0;
+	inode->i_rdev = 0;
+	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	inode->i_op = &asmfs_file_inode_operations;
+	inode->i_fop = &asmfs_file_operations;
+
+	d_instantiate(dentry, inode);
+
+	/* Extra count - pin the dentry in core */
+	dget(dentry);
+
+	return 0;
 }
 
-static struct inode *asmfs_get_inode(struct super_block *sb, int mode, int dev)
-{
-	int i;
-	struct inode * inode;
-	struct asmfs_inode_info *aii;
-
-	if (! asmfs_alloc_inode(sb))
-		return NULL;
-
-	inode = new_inode(sb);
-
-	if (inode) {
-		aii = kmalloc(sizeof(struct asmfs_inode_info),
-			     GFP_KERNEL);
-		aii->i_inode = inode;
-
-		for (i = 0; i < ASM_HASH_BUCKETS; i++)
-			INIT_LIST_HEAD(&(aii->disk_hash[i]));
-
-		INIT_LIST_HEAD(&aii->i_threads);
-		spin_lock_init(&aii->i_lock);
-		ASMFS_INODE(inode) = aii;
-		if (!aii)
-		{
-			asmfs_dealloc_inode(sb);
-			kfree(inode);
-			return NULL;
-		}
-
-		inode->i_mode = mode;
-		inode->i_uid = current->fsuid;
-		inode->i_gid = current->fsgid;
-		inode->i_blksize = PAGE_CACHE_SIZE;
-		inode->i_blocks = 0;
-		inode->i_rdev = NODEV;
-		inode->i_mapping->a_ops = &asmfs_aops;
-		inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-		switch (mode & S_IFMT) {
-		default:
-			init_special_inode(inode, mode, dev);
-			break;
-		case S_IFREG:
-			inode->i_fop = &asmfs_file_operations;
-			break;
-		case S_IFDIR:
-			inode->i_op = &asmfs_dir_inode_operations;
-			inode->i_fop = &asmfs_dir_operations;
-			break;
-		case S_IFLNK:
-			inode->i_op = &page_symlink_inode_operations;
-			break;
-		}
-	} else
-		asmfs_dealloc_inode(sb);
-
-	return inode;
-}
-
-/*
- * File creation. Allocate an inode, update free inode and dentry counts
- * and we're done..
- */
-static int asmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int dev)
-{
-	struct inode * inode;
-	int error = -ENOSPC;
-
-	dprintk("ASM: Alloc'd dentry\n");
-	inode = asmfs_get_inode(dir->i_sb, mode, dev);
-
-	if (inode) {
-		d_instantiate(dentry, inode);
-		dget(dentry);		/* Extra count - pin the dentry in core */
-		error = 0;
-	}
-
-	return error;
-}
-
-static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode)
-{
-	return asmfs_mknod(dir, dentry, mode | S_IFREG, 0);
-}
 
 static inline int asmfs_positive(struct dentry *dentry)
 {
@@ -632,66 +620,48 @@ static int asmfs_unlink(struct inode * dir, struct dentry *dentry)
 
 #define asmfs_rmdir asmfs_unlink
 
-static void asmfs_delete_inode(struct inode *inode)
-{
-	asmfs_dealloc_inode(inode->i_sb);
-
-	clear_inode(inode);
-}
-
 static void asmfs_put_super(struct super_block *sb)
 {
-	kfree(sb->u.generic_sbp);
+	kfree(ASMFS_SB(sb));
 }
 
+enum {
+	OPT_MAX_INSTANCES,
+	OPT_ERR,
+};
+
+static match_table_t tokens = {
+	{OPT_MAX_INSTANCES, "maxinstances=%d"},
+	{OPT_ERR, NULL},
+};
+
 struct asmfs_params {
-	uid_t uid;
-	gid_t gid;
-	int mode;
 	long inodes;
 };
 
 static int parse_options(char * options, struct asmfs_params *p)
 {
-	char save = 0, *savep = NULL, *optname, *value;
+	char *s;
+	substring_t args[MAX_OPT_ARGS];
+	int option;
 
 	p->inodes = -1;
-	p->uid = current->fsuid;
-	p->gid = current->fsgid;
-	p->mode = 0;
 
-	for (optname = strtok(options,","); optname;
-	     optname = strtok(NULL,",")) {
-		if ((value = strchr(optname,'=')) != NULL) {
-			save = *value;
-			savep = value;
-			*value++ = 0;
-		}
+	while ((s = strsep(&options,",")) != NULL) {
+		int token;
+		if (!*s)
+			continue;
+		token = match_token(s, tokens, args);
+		switch (token) {
+			case OPT_MAX_INSTANCES:
+				if (match_int(&args[0], &option))
+					return -EINVAL;
+				p->inodes = option;
+				break;
 
-		if (!strcmp(optname, "uid") && value) {
-			p->uid = simple_strtoul(value, &value, 0);
-			if (*value)
-				return -EINVAL;
-		} else if (!strcmp(optname, "gid") && value) {
-			p->gid = simple_strtoul(value, &value, 0);
-			if (*value)
-				return -EINVAL;
-		} else if (!strcmp(optname, "mode") && value) {
-			p->mode = simple_strtoul(value, &value, 0);
-			if (*value)
-				return -EINVAL;
-		} else if (!strcmp(optname, "maxinstances") && value) {
-			p->inodes = simple_strtoul(value, &value, 0);
-			if (*value)
+			default:
 				return -EINVAL;
 		}
-
-		if (optname != options)
-			*(optname-1) = ',';
-		if (value)
-			*savep = save;
-/*  		if (ret == 0) */
-/*  			break; */
 	}
 
 	return 0;
@@ -719,7 +689,7 @@ static void init_limits(struct asmfs_sb_info *asb, struct asmfs_params *p)
    until usage falls below the new limit */
 static void reset_limits(struct asmfs_sb_info *asb, struct asmfs_params *p)
 {
-	lock_asb(asb);
+	spin_lock_irq(&asb->asmfs_lock);
 
 	if (p->inodes >= 0) {
 		int used_inodes = asb->max_inodes - asb->free_inodes;
@@ -728,7 +698,7 @@ static void reset_limits(struct asmfs_sb_info *asb, struct asmfs_params *p)
 		asb->free_inodes = asb->max_inodes - used_inodes;
 	}
 
-	unlock_asb(asb);
+	spin_unlock_irq(&asb->asmfs_lock);
 }
 
 static int asmfs_remount(struct super_block * sb, int * flags, char * data)
@@ -750,84 +720,142 @@ static int asmfs_remount(struct super_block * sb, int * flags, char * data)
 	return 0;
 }
 
-static int asm_disk_open(struct asmfs_file_info *afi, struct asmfs_inode_info *aii, kdev_t dev)
+static int asm_open_disk(struct file *file, struct block_device *bdev)
 {
+	int ret;
 	struct asm_disk_info *d;
 	struct asm_disk_head *h;
+	struct inode *inode = ASMFS_F2I(file);
+	struct inode *disk_inode;
 
-	if (!afi || !aii)
-		BUG();
+	ret = blkdev_get(bdev, FMODE_WRITE | FMODE_READ, 0);
+	if (ret)
+		goto out;
 
-	h = kmalloc(sizeof(*h), GFP_KERNEL);
+	ret = bd_claim(bdev, inode->i_sb);
+	if (ret)
+		goto out_get;
+
+	ret = set_blocksize(bdev, bdev_hardsect_size(bdev));
+	if (ret)
+		goto out_claim;
+
+	ret = -ENOMEM;
+	h = kmalloc(sizeof(struct asm_disk_head), GFP_KERNEL);
 	if (!h)
-		return 0;
+		goto out_claim;
 
-	d = asm_find_disk(aii, dev);
-	if (!d) {
-		/* FIXME: Need to verify it's a valid device here */
-		d = asm_add_disk(aii, dev);
+	disk_inode = iget5_locked(asmdisk_mnt->mnt_sb,
+				  (unsigned long)bdev, asmdisk_test,
+				  asmdisk_set, ASMFS_I(inode));
+	if (!disk_inode)
+		goto out_head;
+
+	d = ASMDISK_I(disk_inode);
+
+	if (disk_inode->i_state & I_NEW) {
+		if (atomic_read(&d->d_ios) != 0)
+			BUG();
+		if (d->d_live)
+			BUG();
+
+		d->d_bdev = bdev;
+		d->d_live = 1;
+		unlock_new_inode(disk_inode);
+	} else {
+		/* Already claimed on first open */
+		bd_release(bdev);
+		blkdev_put(bdev);
 	}
 
 	h->h_disk = d;
-	h->h_file = afi;
+	h->h_file = ASMFS_FILE(file);
 
-	spin_lock_irq(&afi->f_lock);
-	list_add(&h->h_flist, &afi->f_disks);
-	spin_unlock_irq(&afi->f_lock);
+	spin_lock_irq(&ASMFS_FILE(file)->f_lock);
+	list_add(&h->h_flist, &ASMFS_FILE(file)->f_disks);
+	spin_unlock_irq(&ASMFS_FILE(file)->f_lock);
 
-	spin_lock_irq(&aii->i_lock);
+	spin_lock_irq(&ASMFS_I(inode)->i_lock);
 	list_add(&h->h_dlist, &d->d_open);
-	spin_unlock_irq(&aii->i_lock);
+	spin_unlock_irq(&ASMFS_I(inode)->i_lock);
 
-	return !d;
-}  /* asm_disk_open() */
+	return 0;
 
+out_head:
+	kfree(h);
 
-static int asm_disk_close(struct asmfs_file_info *afi, struct asmfs_inode_info *aii, kdev_t dev)
+out_claim:
+	bd_release(bdev);
+
+out_get:
+	blkdev_put(bdev);
+
+out:
+	return ret;
+}
+
+static int asm_close_disk(struct file *file, unsigned long handle)
 {
+	struct inode *inode = ASMFS_F2I(file);
 	struct asm_disk_info *d;
+	struct block_device *bdev;
+	struct inode *disk_inode;
 	struct list_head *p;
 	struct asm_disk_head *h;
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
 
-	if (!afi || !aii)
+	if (!ASMFS_FILE(file) || !ASMFS_I(inode))
 		BUG();
 
-	d = asm_find_disk(aii, dev);
-	if (!d)
+	disk_inode = ilookup5(asmdisk_mnt->mnt_sb, handle,
+			      asmdisk_test, ASMFS_I(inode));
+	if (!disk_inode)
 		return -EINVAL;
 
-	spin_lock_irq(&afi->f_lock);
+	d = ASMDISK_I(disk_inode);
+	bdev = d->d_bdev;
+
+	/*
+	 * If an additional thread raced us to close the disk, it
+	 * will have removed the disk from the list already.
+	 */
+	
+	spin_lock_irq(&ASMFS_FILE(file)->f_lock);
 	h = NULL;
-	list_for_each(p, &afi->f_disks) {
+	list_for_each(p, &ASMFS_FILE(file)->f_disks) {
 		h = list_entry(p, struct asm_disk_head, h_flist);
 		if (h->h_disk == d)
 			break;
 		h = NULL;
 	}
-	if (!h)
-		BUG();
-
+	if (!h) {
+		spin_unlock_irq(&ASMFS_FILE(file)->f_lock);
+		iput(disk_inode);
+		return -EINVAL;
+	}
 	list_del(&h->h_flist);
-	spin_unlock_irq(&afi->f_lock);
+	spin_unlock_irq(&ASMFS_FILE(file)->f_lock);
 
-	spin_lock_irq(&aii->i_lock);
+	spin_lock_irq(&ASMFS_I(inode)->i_lock);
 	list_del(&h->h_dlist);
 
 	/* Last close */
 	if (list_empty(&d->d_open))
 	{
-		dprintk("Last close of disk 0x%.8lX (0x%p, pid=%d)\n",
-		       (unsigned long)d->d_dev, d, tsk->pid);
-		list_del(&d->d_hash);
+		LOG("Last close of disk 0x%p (%X) (0x%p, pid=%d)\n",
+		    d->d_bdev, d->d_bdev->bd_dev, d, tsk->pid);
 
-		spin_unlock_irq(&aii->i_lock);
+		/* I/O path can't look up this disk anymore */
+		if (!d->d_live)
+			BUG();
+		d->d_live = 0;
+		spin_unlock_irq(&ASMFS_I(inode)->i_lock);
 
 		/* No need for a fast path */
-		add_wait_queue(&afi->f_wait, &wait);
+		add_wait_queue(&ASMFS_FILE(file)->f_wait, &wait);
 		do {
-			run_task_queue(&tq_disk);
+			blk_run_address_space(bdev->bd_inode->i_mapping);
 			set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
 			if (!atomic_read(&d->d_ios))
@@ -842,24 +870,28 @@ static int asm_disk_close(struct asmfs_file_info *afi, struct asmfs_inode_info *
 			 * not ours, so the wake_up() never happens
 			 * here and we need the timeout.
 			 */
+#if 0  /* Damn you, kernel */
+			io_schedule_timeout(HZ);
+#else
 			schedule_timeout(HZ);
+#endif
 		} while (1);
 		set_task_state(tsk, TASK_RUNNING);
-		remove_wait_queue(&afi->f_wait, &wait);
+		remove_wait_queue(&ASMFS_FILE(file)->f_wait, &wait);
 	}
 	else
-		spin_unlock_irq(&aii->i_lock);
+		spin_unlock_irq(&ASMFS_I(inode)->i_lock);
 
 	kfree(h);
 
-	/* Drop the ref from asm_find_disk() */
-	asm_put_disk(d);
+	/* Drop the ref from ilookup5() */
+	iput(disk_inode);
 
 	/* Real put */
-	asm_put_disk(d);
+	iput(disk_inode);
 
 	return 0;
-}  /* asm_disk_close() */
+}  /* asm_close_disk() */
 
 
 /* Timeout stuff ripped from aio.c - thanks Ben */
@@ -908,10 +940,27 @@ static inline void clear_timeout(struct timeout *to)
 	del_timer_sync(&to->timer);
 }
 
+/* Must be called with asm_file_info->f_lock held */
+static struct asm_disk_info *find_io_disk(struct file *file)
+{
+	struct asmfs_file_info *afi = ASMFS_FILE(file);
+	struct asm_request *r;
+	struct asm_disk_info *d = NULL;
+
+	list_for_each_entry(r, &afi->f_ios, r_list) {
+		d = r->r_disk;
+		if (d) {
+			igrab(&d->vfs_inode);
+			break;
+		}
+	}
+
+	return d;
+}
 
 static int asm_update_user_ioc(struct asm_request *r)
 {
-	asm_ioc *ioc;
+	asm_ioc __user *ioc;
 	u16 tmp_status;
 
 	ioc = r->r_ioc;
@@ -966,11 +1015,8 @@ static struct asm_request *asm_request_alloc(void)
 	if (r) {
 		r->r_status = ASM_SUBMITTED;
 		r->r_error = 0;
-		r->r_buffers = NULL;
-		r->r_bh = NULL;
-		r->r_bhtail = NULL;
+		r->r_bio = NULL;
 		r->r_elapsed = 0;
-		r->r_cb.vec = NULL;
 		r->r_disk = NULL;
 	}
 
@@ -988,32 +1034,39 @@ static void asm_request_free(struct asm_request *r)
 
 static void asm_finish_io(struct asm_request *r)
 {
-	struct asm_disk_info *d = r->r_disk;
+	struct asm_disk_info *d;
 	struct asmfs_file_info *afi = r->r_file;
 	unsigned long flags;
 
 	if (!afi)
 		BUG();
 
+	spin_lock_irqsave(&afi->f_lock, flags);
+
+	if (r->r_bio) {
+		r->r_bio->bi_private = afi->f_bio_free;
+		afi->f_bio_free = r->r_bio;
+		r->r_bio = NULL;
+	}
+
+ 	d = r->r_disk;
+	r->r_disk = NULL;
+
+	list_del(&r->r_list);
+	list_add(&r->r_list, &afi->f_complete);
+	if (r->r_error)
+		r->r_status |= ASM_ERROR;
+	r->r_status |= ASM_COMPLETED;
+
+	spin_unlock_irqrestore(&afi->f_lock, flags);
+
 	if (d) {
-		r->r_disk = NULL;
 		atomic_dec(&d->d_ios);
 		if (atomic_read(&d->d_ios) < 0) {
 			printk("ASM: d_ios underflow!\n");
 			atomic_set(&d->d_ios, 0);
 		}
-		asm_put_disk(d);
 	}
-
-	spin_lock_irqsave(&afi->f_lock, flags);
-	list_del(&r->r_list);
-	list_add(&r->r_list, &afi->f_complete);
-	if (r->r_error)
-		r->r_status |= ASM_ERROR;
-	else
-		r->r_status |= ASM_COMPLETED;
-
-	spin_unlock_irqrestore(&afi->f_lock, flags);
 
 	r->r_elapsed = ((jiffies - r->r_elapsed) * 1000000) / HZ;
 
@@ -1021,11 +1074,9 @@ static void asm_finish_io(struct asm_request *r)
 }  /* asm_finish_io() */
 
 
-static void asm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
+static void asm_end_ioc(struct asm_request *r, unsigned int bytes_done,
+			int error)
 {
-	struct asm_request *r = _req;
-	ssize_t err = 0;
-	
 	LOG_ENTRY();
 	if (!r)
 		BUG();
@@ -1034,32 +1085,12 @@ static void asm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 		BUG();
 
 	LOG("ASM: Releasing kvec for request at 0x%p\n", r);
+	LOG("ASM: asm_end_ioc(0x%p, %u, %d)\n", r, bytes_done,
+	       error);
+	LOG("ASM: asm_end_ioc bio len %u\n", bytes_done +
+	       (r->r_bio ? r->r_bio->bi_size : 0));
 
-	if (res < 0) {
-		err = res;
-		res = 0;
-	}
-
-	while (r->r_buffers) {
-		struct buffer_head *tmp = r->r_buffers;
-		r->r_buffers = tmp->b_next;
-		if (!err) {
-		       	if (buffer_uptodate(tmp))
-				res += tmp->b_size;
-			else
-				err = -EIO;
-		}
-		kmem_cache_free(bh_cachep, tmp);
-	}
-	r->r_bh = r->r_bhtail = NULL;
-
-	if (vec) {
-		unmap_kvec(vec, 0);
-		free_kvec(vec);
-		r->r_cb.vec = NULL;
-	}
-
-	switch (err) {
+	switch (error) {
 		default:
 			dprintk("ASM: Invalid error of %d!\n", err);
 			r->r_error = ASM_ERR_INVAL;
@@ -1093,185 +1124,40 @@ static void asm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 	asm_finish_io(r);
 
 	LOG_EXIT();
-}  /* asm_end_kvec_io() */
+}  /* asm_end_ioc() */
 
 
-static void asm_end_buffer_io(struct buffer_head *bh, int uptodate)
+static int asm_end_bio_io(struct bio *bio, unsigned int bytes_done,
+			  int error)
 {
 	struct asm_request *r;
 
 	LOG_ENTRY();
-	mark_buffer_uptodate(bh, uptodate);
 
-	r = bh->b_private;
-	LOG("ASM: Releasing buffer for request at 0x%p\n", r);
-	unlock_buffer(bh);
+	r = bio->bi_private;
 
-	if (atomic_dec_and_test(&r->r_io_count)) {
-		asm_end_kvec_io(r, r->r_cb.vec, 0);
+	LOG("ASM: Releasing bio for request at 0x%p\n", r);
+	if (atomic_dec_and_test(&r->r_bio_count)) {
+		asm_end_ioc(r, bytes_done, error);
 	}
-
-	LOG_EXIT();
-}  /* asm_end_buffer_io() */
-
-
-static int asm_build_io(int rw, struct asm_request *r,
-			unsigned long blknr, unsigned long nr)
-{
-	struct kvec	*vec = r->r_cb.vec;
-	struct kveclet	*veclet;
-	int		err;
-	int		length;
-	kdev_t		dev = r->r_disk->d_dev;
-	unsigned	sector_size = get_hardsect_size(dev);
-	int		i;
-#ifdef CONFIG_UNITEDLINUX_KERNEL
-# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
-	unsigned int    atomic_seq;
-# else
-#  error Invalid United Linux kernel
-# endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITEDLINUX_KERNEL */
-
-	LOG_ENTRY();
-	if (!vec->nr)
-		BUG();
-
-	/* 
-	 * First, do some alignment and validity checks 
-	 */
-	length = 0;
-	for (veclet=vec->veclet, i=0; i < vec->nr; i++,veclet++) {
-		length += veclet->length;
-		if ((veclet->offset & (sector_size-1)) ||
-		    (veclet->length & (sector_size-1)) ||
-		    ((veclet->length + veclet->offset) > PAGE_SIZE)) {
-			dprintk("ASM: asm_build_io: tuple[%d]->offset=0x%x length=0x%x sector_size: 0x%x\n", i, veclet->offset, veclet->length, sector_size);
-			return -EINVAL;
-		}
-	}
-
-	/* We deal in blocks, so this should be valid */
-	if (length != (nr * sector_size))
-		BUG();
-
-	/* 
-	 * OK to walk down the iovec doing page IO on each page we find. 
-	 */
-	err = 0;
-
-	if (!nr) {
-		dprintk("ASM: asm_build_io: !i\n");
-		return -EINVAL;
-	}
-
-#ifdef CONFIG_UNITEDLINUX_KERNEL
-# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
-	atomic_seq = blk_get_atomic_seq();
-# else
-#  error Invalid United Linux kernel
-# endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITEDLINUX_KERNEL */
-	
-	r->r_bh_count = 0;
-
-	/* This is massaged from fs/buffer.c.  Blame Ben. */
-	/* This is ugly.  FIXME. */
-	for (i=0, veclet=vec->veclet; i<vec->nr; i++,veclet++) {
-		struct page *page = veclet->page;
-		unsigned offset = veclet->offset;
-		unsigned iosize = veclet->length;
-		struct buffer_head *tmp;
-	       
-		if (!page)
-			BUG();
-
-		tmp = kmem_cache_alloc(bh_cachep, GFP_NOIO);
-		err = -ENOMEM;
-		if (!tmp)
-			goto error;
-
-		tmp->b_dev = B_FREE;
-		tmp->b_size = iosize;
-		set_bh_page(tmp, page, offset);
-		tmp->b_this_page = tmp;
-
-		init_buffer(tmp, asm_end_buffer_io, NULL);
-
-		tmp->b_dev = dev;
-		tmp->b_blocknr = tmp->b_rsector = blknr;
-
-		blknr += (iosize / sector_size);
-		tmp->b_state = (1 << BH_Mapped) | (1 << BH_Lock)
-				| (1 << BH_Req);
-		tmp->b_private = r;
-		tmp->b_next = tmp->b_reqnext = NULL;
-		atomic_set(&tmp->b_count, 1);
-
-#ifdef CONFIG_UNITEDLINUX_KERNEL
-# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
-		bh_elv_seq(tmp) = atomic_seq;
-		set_bit(BH_Atomic, &tmp->b_state);
-# else
-#  error Invalid United Linux kernel
-# endif  /* LINUX_VERSION_CODE */
-#endif  /* CONFIG_UNITEDLINUX_KERNEL */
-
-		if (rw == WRITE) {
-			set_bit(BH_Uptodate, &tmp->b_state);
-			clear_bit(BH_Dirty, &tmp->b_state);
-		}
-
-		if (r->r_bh)
-		{
-			r->r_bhtail->b_next = tmp;
-#ifdef RED_HAT_LINUX_KERNEL
-# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
-			r->r_bhtail->b_reqnext = tmp;
-# else
-#  error Invalid Red Hat Linux kernel
-# endif  /* LINUX_VERSION_CODE */
-#endif  /* RED_HAT_LINUX_KERNEL */
-     		}
-		else
-			r->r_bh = tmp;
-
-		r->r_bhtail = tmp;
-		r->r_bh_count++;
-	} /* End of page loop */		
-
-	r->r_buffers = r->r_bh;
-
-	atomic_set(&r->r_io_count, r->r_bh_count);
 
 	LOG_EXIT_RET(0);
+
 	return 0;
-
-error:
-	/* Walk bh list, freeing them */
-	while (r->r_bh) {
-		struct buffer_head *tmp = r->r_bh;
-		r->r_bh = tmp->b_next;
-		kmem_cache_free(bh_cachep, tmp);
-	}
-	r->r_bhtail = NULL;
-
-	LOG_EXIT_RET(err);
-	return err;
-}  /* asm_build_io() */
+}  /* asm_end_bio_io() */
 
 
-static int asm_submit_io(struct asmfs_file_info *afi, 
-			 struct asmfs_inode_info *aii,
-			 asm_ioc *user_iocp,
+static int asm_submit_io(struct file *file,
+			 asm_ioc __user *user_iocp,
 			 asm_ioc *ioc)
 {
-	int ret, major, rw = READ, minorsize = 0;
+	int ret, rw = READ;
+	struct inode *inode = ASMFS_F2I(file);
 	struct asm_request *r;
 	struct asm_disk_info *d;
+	struct inode *disk_inode;
+	struct block_device *bdev;
 	size_t count;
-	struct buffer_head *bh;
-	kdev_t kdv;
 
 	LOG_ENTRY();
 	if (!ioc)
@@ -1293,31 +1179,47 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 
 	LOG("ASM: New request at 0x%p alloc()ed for user ioc at 0x%p\n", r, user_iocp);
 
-	r->r_file = afi;
+	r->r_file = ASMFS_FILE(file);
 	r->r_ioc = user_iocp;  /* Userspace asm_ioc */
 
-	spin_lock_irq(&afi->f_lock);
-	list_add(&r->r_list, &afi->f_ios);
-	spin_unlock_irq(&afi->f_lock);
+	spin_lock_irq(&ASMFS_FILE(file)->f_lock);
+	list_add(&r->r_list, &ASMFS_FILE(file)->f_ios);
+	spin_unlock_irq(&ASMFS_FILE(file)->f_lock);
 
 	ret = -ENODEV;
-	kdv = to_kdev_t(ioc->disk_asm_ioc);
-	d = asm_find_disk(aii, kdv);
-	if (!d)
+	disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
+			      (unsigned long)ioc->disk_asm_ioc,
+			      asmdisk_test, ASMFS_I(inode));
+	if (!disk_inode)
 		goto out_error;
+
+	spin_lock_irq(&ASMFS_I(inode)->i_lock);
+
+	d = ASMDISK_I(disk_inode);
+	if (!d->d_live) {
+		/* It's in the middle of closing */
+		spin_unlock_irq(&ASMFS_I(inode)->i_lock);
+		iput(disk_inode);
+		goto out_error;
+	}
 
 	atomic_inc(&d->d_ios);
 	r->r_disk = d;
 
-	count = ioc->rcount_asm_ioc * get_hardsect_size(d->d_dev);
+	spin_unlock_irq(&ASMFS_I(inode)->i_lock);
+	iput(disk_inode);
 
-	LOG("ASM: first, 0x%08lX.%08lX; masked 0x%08lX\n",
-	    HIGH_UB4(ioc->first_asm_ioc), LOW_UB4(ioc->first_asm_ioc),
-	       (unsigned long)ioc->first_asm_ioc);
+	bdev = d->d_bdev;
+
+	count = ioc->rcount_asm_ioc * bdev_hardsect_size(bdev);
+
+	LOG("ASM: first, 0x%llX; masked 0x%08lX\n",
+	    (unsigned long long)ioc->first_asm_ioc,
+	    (unsigned long)ioc->first_asm_ioc);
 	/* linux only supports unsigned long size sector numbers */
-	LOG("ASM: status: %u, buffer_asm_ioc: 0x%08lX, count: %u\n",
+	LOG("ASM: status: %u, buffer_asm_ioc: 0x%08lX, count: %lu\n",
 	    ioc->status_asm_ioc,
-	    (unsigned long)ioc->buffer_asm_ioc, count);
+	    (unsigned long)ioc->buffer_asm_ioc, (unsigned long)count);
 	/* Note that priority is ignored for now */
 	ret = -EINVAL;
 	if (!ioc->buffer_asm_ioc ||
@@ -1325,25 +1227,24 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 	    (ioc->first_asm_ioc != (unsigned long)ioc->first_asm_ioc) ||
 	    (ioc->rcount_asm_ioc != (unsigned long)ioc->rcount_asm_ioc) ||
 	    (ioc->priority_asm_ioc > 7) ||
-	    (count > ASM_MAX_IOSIZE) ||
+	    (count > (bdev_get_queue(bdev)->max_sectors << 9)) ||
 	    (count < 0))
 		goto out_error;
 
 	/* Test device size, when known. (massaged from ll_rw_blk.c) */
-	major = MAJOR(d->d_dev);
-	if (blk_size[major])
-		minorsize = blk_size[major][MINOR(d->d_dev)];
-	if (minorsize) {
-		unsigned long maxsector = (minorsize << 1) + 1;
-		unsigned long sector = (unsigned long)ioc->first_asm_ioc;
-		unsigned long blks = (unsigned long)ioc->rcount_asm_ioc;
+	if (bdev->bd_inode->i_size >> 9) {
+		sector_t maxsector = bdev->bd_inode->i_size >> 9;
+		sector_t sector = (sector_t)ioc->first_asm_ioc;
+		sector_t blks = (sector_t)ioc->rcount_asm_ioc;
 
 		if (maxsector < blks || maxsector - blks < sector) {
+			char b[BDEVNAME_SIZE];
 			printk(KERN_INFO
 			       "ASM: attempt to access beyond end of device\n");
-			printk(KERN_INFO "ASM: dev [0x%03X, 0x%03X]: want=%lu, limit=%u\n",
-			       MAJOR(d->d_dev), MINOR(d->d_dev),
-			       (sector + blks) >> 1, minorsize);
+			printk(KERN_INFO "ASM: dev %s: want=%llu, limit=%llu\n",
+			       bdevname(bdev, b),
+			       (unsigned long long)(sector + blks),
+			       (unsigned long long)maxsector);
 			goto out_error;
 		}
 	}
@@ -1375,72 +1276,30 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 	if (count == 0)
 		goto out_error;
 
-	r->r_cb.vec =
-		map_user_kvec(rw, (unsigned long)ioc->buffer_asm_ioc,
-			      count);
-	r->r_cb.data = r;
-	r->r_cb.fn = asm_end_kvec_io;
-	if (IS_ERR(r->r_cb.vec)) {
-		ret = PTR_ERR(r->r_cb.vec);
-		r->r_cb.vec = NULL;
+	ret = -ENOMEM;
+	r->r_bio = bio_map_user(bdev_get_queue(bdev), bdev,
+				(unsigned long)ioc->buffer_asm_ioc,
+				count, rw == READ);
+	if (IS_ERR(r->r_bio)) {
+		ret = PTR_ERR(r->r_bio);
+		r->r_bio = NULL;
 		goto out_error;
 	}
 
-	ret = asm_build_io(rw, r,
-			   ioc->first_asm_ioc, ioc->rcount_asm_ioc);
-	LOG("ASM: Return from asm_build_io() is %d\n", ret);
-	if (ret)
-		goto out_error;
+	r->r_bio->bi_sector = ioc->first_asm_ioc;
+
+	/*
+	 * If the bio is a bounced bio, we have to put the
+	 * end_io on the child "real" bio
+	 */
+	r->r_bio->bi_end_io = asm_end_bio_io;
+	r->r_bio->bi_private = r;
 
 	r->r_elapsed = jiffies;  /* Set start time */
 
-	if (!r->r_cb.vec) {
-		printk("No vec!\n");
-		BUG();
-	}
-	bh = r->r_bh;
-	/* if (!bh) {
-		printk("No bh 1!\n");
-		BUG();
-	} */
-#ifdef RED_HAT_LINUX_KERNEL
-# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
-	submit_bh_linked(rw, bh);
-# else
-#  error Invalid Red Hat Linux kernel
-# endif  /* LINUX_VERSION_CODE */
-#else
-# ifdef CONFIG_UNITEDLINUX_KERNEL
-#  if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
-	/*if (!bh) {
-		printk("No bh 2!\n");
-		BUG();
-	}*/
-	if (r->r_status & ASM_COMPLETED) {
-		printk("Already completed request 0x%p!\n", r);
-		BUG();
-	}
-	while (bh)
-	{
-		if (!test_bit(BH_Atomic, &bh->b_state))
-			BUG();
-		/*if (!test_bit(BH_Lock, &bh->b_state))
-			BUG();*/
-		submit_bh_blknr(rw, bh);
-		bh = bh->b_next;
-	}
-	if (!r->r_bh) {
-		printk("No r_bh on request 0x%p!\n", r);
-		BUG();
-	}
-	blk_refile_atomic_queue(bh_elv_seq(r->r_bh));
-#  else
-#   error Invalid United Linux kernel
-#  endif  /* LINUX_VERSION_CODE */
-# else
-#  error Invalid kernel
-# endif  /* CONFIG_UNITEDLINUX_KERNEL */
-#endif  /* RED_HAT_LINUX_KERNEL */
+	atomic_set(&r->r_bio_count, 1);
+
+	submit_bio(rw, r->r_bio);
 
 out:
 	ret = asm_update_user_ioc(r);
@@ -1449,19 +1308,19 @@ out:
 	return ret;
 
 out_error:
-	/* printk("out_error on request 0x%p\n", r); */
-	asm_end_kvec_io(r, r->r_cb.vec, ret);
+	LOG("out_error on request 0x%p\n", r);
+	asm_end_ioc(r, 0, ret);
 	goto out;
 }  /* asm_submit_io() */
 
 
-static int asm_maybe_wait_io(struct asmfs_file_info *afi, 
-			     struct asmfs_inode_info *aii,
+static int asm_maybe_wait_io(struct file *file,
 			     asm_ioc *iocp,
 			     struct timeout *to)
 {
 	long ret;
 	u64 p;
+	struct asmfs_file_info *afi = ASMFS_FILE(file);
 	struct asm_request *r;
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
@@ -1493,20 +1352,30 @@ static int asm_maybe_wait_io(struct asmfs_file_info *afi,
 		add_wait_queue(&afi->f_wait, &wait);
 		add_wait_queue(&to->wait, &to_wait);
 		do {
+			struct asm_disk_info *d;
+
 			ret = 0;
-			run_task_queue(&tq_disk);
 			set_task_state(tsk, TASK_INTERRUPTIBLE);
 
 			spin_lock_irq(&afi->f_lock);
 			if (r->r_status & (ASM_COMPLETED |
 					   ASM_BUSY | ASM_ERROR))
 				break;
+			d = r->r_disk;
+			if (d)
+				igrab(&d->vfs_inode);
 			spin_unlock_irq(&afi->f_lock);
+
+			if (d) {
+				if (d->d_bdev)
+					blk_run_address_space(d->d_bdev->bd_inode->i_mapping);
+				iput(&d->vfs_inode);
+			}
 
 			ret = -ETIMEDOUT;
 			if (to->timed_out)
 				break;
-			schedule();
+			io_schedule();
 			if (signal_pending(tsk)) {
 				LOG("Signal pending\n");
 				ret = -EINTR;
@@ -1521,8 +1390,15 @@ static int asm_maybe_wait_io(struct asmfs_file_info *afi,
 			return ret;
 	}
 
-	/* Somebody got here first */
 	ret = 0;
+
+	/* Somebody got here first */
+	/*
+	 * FIXME: This race means that we cannot be shared by two
+	 * threads/processes (this struct file).  If everyone does
+	 * their own open and gets their own struct file, this never
+	 * happens and we're safe.
+	 */
 	if (r->r_status & ASM_FREE)
 		goto out;  /* FIXME: Eek, holding lock */
 	if (list_empty(&afi->f_complete))
@@ -1562,13 +1438,13 @@ out:
 }  /* asm_maybe_wait_io() */
 
 
-static int asm_complete_io(struct asmfs_file_info *afi, 
-			   struct asmfs_inode_info *aii,
+static int asm_complete_io(struct file *file,
 			   asm_ioc **ioc)
 {
 	int ret = 0;
 	struct list_head *l;
 	struct asm_request *r;
+	struct asmfs_file_info *afi = ASMFS_FILE(file);
 
 	LOG_ENTRY();
 	spin_lock_irq(&afi->f_lock);
@@ -1604,13 +1480,13 @@ static int asm_complete_io(struct asmfs_file_info *afi,
 }  /* asm_complete_io() */
 
 
-static int asm_wait_completion(struct asmfs_file_info *afi,
-			       struct asmfs_inode_info *aii,
-			       struct oracleasm_io *io,
+static int asm_wait_completion(struct file *file,
+			       struct oracleasm_io_v2 *io,
 			       struct timeout *to,
 			       u32 *status)
 {
 	int ret;
+	struct asmfs_file_info *afi = ASMFS_FILE(file);
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
 	DECLARE_WAITQUEUE(to_wait, tsk);
@@ -1636,8 +1512,9 @@ static int asm_wait_completion(struct asmfs_file_info *afi,
 	add_wait_queue(&afi->f_wait, &wait);
 	add_wait_queue(&to->wait, &to_wait);
 	do {
+		struct asm_disk_info *d;
+
 		ret = 0;
-		run_task_queue(&tq_disk);
 		set_task_state(tsk, TASK_INTERRUPTIBLE);
 
 		spin_lock_irq(&afi->f_lock);
@@ -1645,12 +1522,20 @@ static int asm_wait_completion(struct asmfs_file_info *afi,
 			spin_unlock_irq(&afi->f_lock);
 			break;
 		}
+
+		d = find_io_disk(file);
 		spin_unlock_irq(&afi->f_lock);
+
+		if (d) {
+			if (d->d_bdev)
+				blk_run_address_space(d->d_bdev->bd_inode->i_mapping);
+			iput(&d->vfs_inode);
+		}
 
 		ret = -ETIMEDOUT;
 		if (to->timed_out)
 			break;
-		schedule();
+		io_schedule();
 		if (signal_pending(tsk)) {
 			ret = -EINTR;
 			break;
@@ -1666,9 +1551,8 @@ out:
 }  /* asm_wait_completion() */
 
 
-static inline int asm_submit_io_native(struct asmfs_file_info *afi, 
-	       			       struct asmfs_inode_info *aii,
-       				       struct oracleasm_io *io)
+static inline int asm_submit_io_native(struct file *file,
+       				       struct oracleasm_io_v2 *io)
 {
 	int ret = 0;
 	u32 i;
@@ -1679,14 +1563,14 @@ static inline int asm_submit_io_native(struct asmfs_file_info *afi,
 	for (i = 0; i < io->io_reqlen; i++) {
 		ret = -EFAULT;
 		if (get_user(iocp,
-			     ((asm_ioc **)((unsigned long)io->io_requests)) + i))
+			     ((asm_ioc **)((unsigned long)(io->io_requests))) + i))
 			break;
 
 		if (copy_from_user(&tmp, iocp, sizeof(tmp)))
 			break;
 
 		LOG("ASM: Submitting user ioc at 0x%p\n", iocp);
-		ret = asm_submit_io(afi, aii, iocp, &tmp);
+		ret = asm_submit_io(file, iocp, &tmp);
 		if (ret)
 			break;
 	}
@@ -1696,9 +1580,8 @@ static inline int asm_submit_io_native(struct asmfs_file_info *afi,
 }  /* asm_submit_io_native() */
 
 
-static inline int asm_maybe_wait_io_native(struct asmfs_file_info *afi, 
-					   struct asmfs_inode_info *aii,
-					   struct oracleasm_io *io,
+static inline int asm_maybe_wait_io_native(struct file *file,
+					   struct oracleasm_io_v2 *io,
 					   struct timeout *to)
 {
 	int ret = 0;
@@ -1708,10 +1591,10 @@ static inline int asm_maybe_wait_io_native(struct asmfs_file_info *afi,
 	LOG_ENTRY();
 	for (i = 0; i < io->io_waitlen; i++) {
 		if (get_user(iocp,
-			     ((asm_ioc **)((unsigned long)io->io_waitreqs)) + i))
+			     ((asm_ioc **)((unsigned long)(io->io_waitreqs))) + i))
 			return -EFAULT;
 
-		ret = asm_maybe_wait_io(afi, aii, iocp, to);
+		ret = asm_maybe_wait_io(file, iocp, to);
 		if (ret)
 			break;
 	}
@@ -1721,9 +1604,8 @@ static inline int asm_maybe_wait_io_native(struct asmfs_file_info *afi,
 }  /* asm_maybe_wait_io_native() */
 
 
-static inline int asm_complete_ios_native(struct asmfs_file_info *afi,
-					  struct asmfs_inode_info *aii,
-					  struct oracleasm_io *io,
+static inline int asm_complete_ios_native(struct file *file,
+					  struct oracleasm_io_v2 *io,
 					  struct timeout *to,
 					  u32 *status)
 {
@@ -1733,12 +1615,12 @@ static inline int asm_complete_ios_native(struct asmfs_file_info *afi,
 
 	LOG_ENTRY();
 	for (i = 0; i < io->io_complen; i++) {
-		ret = asm_complete_io(afi, aii, &iocp);
+		ret = asm_complete_io(file, &iocp);
 		if (ret)
 			break;
 		if (iocp) {
 			ret = put_user(iocp,
-				       ((asm_ioc **)((unsigned long)io->io_completions)) + i);
+				       ((asm_ioc **)((unsigned long)(io->io_completions))) + i);
 			       if (ret)
 				   break;
 			continue;
@@ -1748,7 +1630,7 @@ static inline int asm_complete_ios_native(struct asmfs_file_info *afi,
 		if (*status & ASM_IO_WAITED)
 			break;
 
-		ret = asm_wait_completion(afi, aii, io, to, status);
+		ret = asm_wait_completion(file, io, to, status);
 		if (ret)
 			break;
 		if (*status & ASM_IO_IDLE)
@@ -1781,7 +1663,7 @@ static inline void asm_promote_64(asm_ioc64 *ioc)
 	    ioc_32->buffer_asm_ioc);
 	ioc->check_asm_ioc = (u64)ioc_32->check_asm_ioc;
 	ioc->buffer_asm_ioc = (u64)ioc_32->buffer_asm_ioc;
-	LOG("(0x%lX, 0x%lX)\n",
+	LOG("(0x%llX, 0x%llX)\n",
 	    ioc->check_asm_ioc,
 	    ioc->buffer_asm_ioc);
 
@@ -1789,9 +1671,8 @@ static inline void asm_promote_64(asm_ioc64 *ioc)
 }  /* asm_promote_64() */
 
 
-static inline int asm_submit_io_thunk(struct asmfs_file_info *afi, 
-	       			      struct asmfs_inode_info *aii,
-	       			      struct oracleasm_io *io)
+static inline int asm_submit_io_thunk(struct file *file,
+	       			      struct oracleasm_io_v2 *io)
 {
 	int ret = 0;
 	u32 i;
@@ -1807,7 +1688,7 @@ static inline int asm_submit_io_thunk(struct asmfs_file_info *afi,
 		 * are 32bit pointers.
 		 */
 		if (get_user(iocp_32,
-			     ((u32 *)((unsigned long)io->io_requests)) + i))
+			     ((u32 *)((unsigned long)(io->io_requests))) + i))
 			break;
 
 		iocp = (asm_ioc32 *)(unsigned long)iocp_32;
@@ -1817,7 +1698,7 @@ static inline int asm_submit_io_thunk(struct asmfs_file_info *afi,
 
 		asm_promote_64(&tmp);
 
-		ret = asm_submit_io(afi, aii, (asm_ioc *)iocp, &tmp);
+		ret = asm_submit_io(file, (asm_ioc *)iocp, &tmp);
 		if (ret)
 			break;
 	}
@@ -1827,9 +1708,8 @@ static inline int asm_submit_io_thunk(struct asmfs_file_info *afi,
 }  /* asm_submit_io_thunk() */
 
 
-static inline int asm_maybe_wait_io_thunk(struct asmfs_file_info *afi, 
-					  struct asmfs_inode_info *aii,
-					  struct oracleasm_io *io,
+static inline int asm_maybe_wait_io_thunk(struct file *file,
+					  struct oracleasm_io_v2 *io,
 					  struct timeout *to)
 {
 	int ret = 0;
@@ -1844,13 +1724,13 @@ static inline int asm_maybe_wait_io_thunk(struct asmfs_file_info *afi,
 		 * are 32bit pointers.
 		 */
 		if (get_user(iocp_32,
-			     ((u32 *)((unsigned long)io->io_waitreqs)) + i))
+			     ((u32 *)((unsigned long)(io->io_waitreqs))) + i))
 			return -EFAULT;
 
 		/* Remember, the this is pointing to 32bit userspace */
 		iocp = (asm_ioc *)(unsigned long)iocp_32;
 
-		ret = asm_maybe_wait_io(afi, aii, iocp, to);
+		ret = asm_maybe_wait_io(file, iocp, to);
 		if (ret)
 			break;
 	}
@@ -1860,9 +1740,8 @@ static inline int asm_maybe_wait_io_thunk(struct asmfs_file_info *afi,
 }  /* asm_maybe_wait_io_thunk() */
 
 
-static inline int asm_complete_ios_thunk(struct asmfs_file_info *afi,
-					 struct asmfs_inode_info *aii,
-					 struct oracleasm_io *io,
+static inline int asm_complete_ios_thunk(struct file *file,
+					 struct oracleasm_io_v2 *io,
 					 struct timeout *to,
 					 u32 *status)
 {
@@ -1873,14 +1752,14 @@ static inline int asm_complete_ios_thunk(struct asmfs_file_info *afi,
 
 	LOG_ENTRY();
 	for (i = 0; i < io->io_complen; i++) {
-		ret = asm_complete_io(afi, aii, &iocp);
+		ret = asm_complete_io(file, &iocp);
 		if (ret)
 			break;
 		if (iocp) {
 			iocp_32 = (u32)(unsigned long)iocp;
 
 			ret = put_user(iocp_32,
-				       ((u32 *)((unsigned long)io->io_completions)) + i);
+				       ((u32 *)((unsigned long)(io->io_completions))) + i);
 			       if (ret)
 				   break;
 			continue;
@@ -1890,7 +1769,7 @@ static inline int asm_complete_ios_thunk(struct asmfs_file_info *afi,
 		if (*status & ASM_IO_WAITED)
 			break;
 
-		ret = asm_wait_completion(afi, aii, io, to, status);
+		ret = asm_wait_completion(file, io, to, status);
 		if (ret)
 			break;
 		if (*status & ASM_IO_IDLE)
@@ -1906,9 +1785,8 @@ static inline int asm_complete_ios_thunk(struct asmfs_file_info *afi,
 #endif  /* BITS_PER_LONG == 64 */
 
 
-static int asm_do_io(struct asmfs_file_info *afi,
-		     struct asmfs_inode_info *aii,
-		     struct oracleasm_io *io, int bpl)
+static int asm_do_io(struct file *file, struct oracleasm_io_v2 *io,
+		     int bpl)
 {
 	int ret = 0;
 	u32 status = 0;
@@ -1924,7 +1802,7 @@ static int asm_do_io(struct asmfs_file_info *afi,
 		LOG("ASM: asm_do_io() was passed a timeout\n");
 		ret = -EFAULT;
 		if (copy_from_user(&ts,
-				   (struct timespec *)(unsigned long)io->io_timeout,
+				   (struct timespec *)(unsigned long)(io->io_timeout),
 				   sizeof(ts)))
 			goto out;
 
@@ -1941,10 +1819,10 @@ static int asm_do_io(struct asmfs_file_info *afi,
 		    io->io_reqlen);
 		ret = -EINVAL;
 		if (bpl == ASM_BPL_32)
-			ret = asm_submit_io_32(afi, aii, io);
+			ret = asm_submit_io_32(file, io);
 #if BITS_PER_LONG == 64
 		else if (bpl == ASM_BPL_64)
-			ret = asm_submit_io_64(afi, aii, io);
+			ret = asm_submit_io_64(file, io);
 #endif  /* BITS_PER_LONG == 64 */
 
 		if (ret)
@@ -1956,10 +1834,10 @@ static int asm_do_io(struct asmfs_file_info *afi,
 		    io->io_waitlen);
 		ret = -EINVAL;
 		if (bpl == ASM_BPL_32)
-			ret = asm_maybe_wait_io_32(afi, aii, io, &to);
+			ret = asm_maybe_wait_io_32(file, io, &to);
 #if BITS_PER_LONG == 64
 		else if (bpl == ASM_BPL_64)
-			ret = asm_maybe_wait_io_64(afi, aii, io, &to);
+			ret = asm_maybe_wait_io_64(file, io, &to);
 #endif  /* BITS_PER_LONG == 64 */
 
 		if (ret)
@@ -1973,12 +1851,12 @@ static int asm_do_io(struct asmfs_file_info *afi,
 		    io->io_complen);
 		ret = -EINVAL;
 		if (bpl == ASM_BPL_32)
-			ret = asm_complete_ios_32(afi, aii, io,
-						  &to, &status);
+			ret = asm_complete_ios_32(file, io, &to,
+						  &status);
 #if BITS_PER_LONG == 64
 		else if (bpl == ASM_BPL_64)
-			ret = asm_complete_ios_64(afi, aii, io,
-						  &to, &status);
+			ret = asm_complete_ios_64(file, io, &to,
+						  &status);
 #endif  /* BITS_PER_LONG == 64 */
 
 		if (ret < 0)
@@ -1993,12 +1871,26 @@ out_to:
 		clear_timeout(&to);
 
 out:
-	if (put_user(status, (u32 *)(unsigned long)io->io_statusp))
+	if (put_user(status, (u32 *)(unsigned long)(io->io_statusp)))
 		ret = -EFAULT;
 	LOG_EXIT_RET(ret);
 	return ret;
 }  /* asm_do_io() */
 
+static void asm_cleanup_bios(struct file *file)
+{
+	struct asmfs_file_info *afi = ASMFS_FILE(file);
+	struct bio *bio;
+
+	while (afi->f_bio_free) {
+		spin_lock_irq(&afi->f_lock);
+		bio = afi->f_bio_free;
+		afi->f_bio_free = bio->bi_private;
+		spin_unlock_irq(&afi->f_lock);
+
+		bio_unmap_user(bio);
+	}
+}
 
 static int asmfs_file_open(struct inode * inode, struct file * file)
 {
@@ -2013,6 +1905,7 @@ static int asmfs_file_open(struct inode * inode, struct file * file)
 	if (!afi)
 		return -ENOMEM;
 	afi->f_file = file;
+	afi->f_bio_free = NULL;
 	spin_lock_init(&afi->f_lock);
 	INIT_LIST_HEAD(&afi->f_ctx);
 	INIT_LIST_HEAD(&afi->f_disks);
@@ -2020,43 +1913,41 @@ static int asmfs_file_open(struct inode * inode, struct file * file)
 	INIT_LIST_HEAD(&afi->f_complete);
 	init_waitqueue_head(&afi->f_wait);
 
-	aii = ASMFS_INODE(inode);
+	aii = ASMFS_I(ASMFS_F2I(file));
 	spin_lock_irq(&aii->i_lock);
 	list_add(&afi->f_ctx, &aii->i_threads);
 	spin_unlock_irq(&aii->i_lock);
 
-	ASMFS_FILE(file) = afi;
+	file->private_data = afi;
 
 	return 0;
 }  /* asmfs_file_open() */
 
 
-static int asmfs_file_release(struct inode * inode, struct file * file)
+static int asmfs_file_release(struct inode *inode, struct file *file)
 {
 	struct asmfs_inode_info *aii;
 	struct asmfs_file_info *afi;
-	struct list_head *p, *q;
-	struct asm_disk_head *h;
+	struct asm_disk_head *h, *n;
+	struct list_head *p;
 	struct asm_disk_info *d;
 	struct asm_request *r;
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
 
-	aii = ASMFS_INODE(inode);
+	aii = ASMFS_I(ASMFS_F2I(file));
 	afi = ASMFS_FILE(file);
-	ASMFS_FILE(file) = NULL;
 
 	if (!afi)
 		BUG();
 
 	/*
 	 * Shouldn't need the lock, no one else has a reference
-	 * asm_disk_close will need to take it when completing I/O
+	 * asm_close_disk will need to take it when completing I/O
 	 */
-	list_for_each_safe(p, q, &afi->f_disks) {
-		h = list_entry(p, struct asm_disk_head, h_flist);
+	list_for_each_entry_safe(h, n, &afi->f_disks, h_flist) {
 		d = h->h_disk;
-		asm_disk_close(afi, aii, d->d_dev);
+		asm_close_disk(file, (unsigned long)d->d_bdev);
 	}
 
 	/* FIXME: Clean up things that hang off of afi */
@@ -2068,16 +1959,26 @@ static int asmfs_file_release(struct inode * inode, struct file * file)
 	/* No need for a fastpath */
 	add_wait_queue(&afi->f_wait, &wait);
 	do {
-		run_task_queue(&tq_disk);
+		struct asm_disk_info *d;
+
 		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
 		spin_lock_irq(&afi->f_lock);
 		if (list_empty(&afi->f_ios))
 		    break;
+
+		d = find_io_disk(file);
 		spin_unlock_irq(&afi->f_lock);
+
+		if (d) {
+			if (d->d_bdev)
+				blk_run_address_space(d->d_bdev->bd_inode->i_mapping);
+			iput(&d->vfs_inode);
+		}
+
 		dprintk("There are still I/Os hanging off of afi 0x%p\n",
 		       afi);
-		schedule();
+		io_schedule();
 	} while (1);
 	set_task_state(tsk, TASK_RUNNING);
 	remove_wait_queue(&afi->f_wait, &wait);
@@ -2094,212 +1995,455 @@ static int asmfs_file_release(struct inode * inode, struct file * file)
 	}
 	spin_unlock_irq(&afi->f_lock);
 
+	/* And cleanup any pages from those I/Os */
+	asm_cleanup_bios(file);
+
 	dprintk("ASM: Done with afi 0x%p\n", afi);
+	file->private_data = NULL;
 	kfree(afi);
 
 	return 0;
 }  /* asmfs_file_release() */
 
-
 /*
- * Yes, evil ioctl()s.  seq_file doesn't work here, IMHO.
+ * Verify that the magic and ABI versions are valid.  Future
+ * drivers might support more than one ABI version, so ESRCH is returned
+ * for "valid ABI version not found"
  */
-static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
+static int asmfs_verify_abi(struct oracleasm_abi_info *abi_info)
 {
-	kdev_t kdv;
-	struct asmfs_file_info *afi = ASMFS_FILE(file);
-	struct asmfs_inode_info *aii = ASMFS_INODE(inode);
-	struct oracleasm_io io;
-	struct oracleasm_disk_query dq;
+	if (abi_info->ai_magic != ASM_ABI_MAGIC)
+		return -EBADR;
+	if (abi_info->ai_version != ASM_ABI_VERSION)
+		return -ESRCH;
+
+	return 0;
+}
+
+static ssize_t asmfs_svc_query_version(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_abi_info *abi_info;
 	int ret;
 
-	LOG_ENTRY();
+	if (size != sizeof(struct oracleasm_abi_info))
+		return -EINVAL;
 
-	switch (cmd) {
+       	abi_info = (struct oracleasm_abi_info *)buf;
+
+	ret = asmfs_verify_abi(abi_info);
+	if (ret) {
+	       	if (ret == -ESRCH) {
+			abi_info->ai_version = ASM_ABI_VERSION;
+			abi_info->ai_status = -ESRCH;
+		} else
+			goto out;
+	}
+
+	ret = -EBADR;
+	if (abi_info->ai_size != sizeof(struct oracleasm_abi_info))
+		goto out;
+	ret = -EBADRQC;
+	if (abi_info->ai_type != ASMOP_QUERY_VERSION)
+		goto out;
+
+	ret = 0;
+
+out:
+	if (!abi_info->ai_status)
+		abi_info->ai_status = ret;
+	
+	return size;
+}
+
+static ssize_t asmfs_svc_get_iid(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_get_iid_v2 *iid_info;
+	struct asmfs_sb_info *asb = ASMFS_SB(ASMFS_F2I(file)->i_sb);
+	int ret;
+
+	if (size != sizeof(struct oracleasm_get_iid_v2))
+		return -EINVAL;
+
+	iid_info = (struct oracleasm_get_iid_v2 *)buf;
+
+	ret = asmfs_verify_abi(&iid_info->gi_abi);
+	if (ret)
+		goto out;
+	ret = -EBADR;
+	if (iid_info->gi_abi.ai_size !=
+	    sizeof(struct oracleasm_get_iid_v2))
+		goto out;
+	ret = -EBADRQC;
+	if (iid_info->gi_abi.ai_type != ASMOP_GET_IID)
+		goto out;
+
+	spin_lock_irq(&asb->asmfs_lock);
+	iid_info->gi_iid = (u64)asb->next_iid;
+	asb->next_iid++;
+	spin_unlock_irq(&asb->asmfs_lock);
+
+	ret = 0;
+
+out:
+	iid_info->gi_abi.ai_status = ret;
+
+	return size;
+}
+
+static ssize_t asmfs_svc_check_iid(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_get_iid_v2 *iid_info;
+	struct asmfs_sb_info *asb = ASMFS_SB(ASMFS_F2I(file)->i_sb);
+	int ret;
+
+	if (size != sizeof(struct oracleasm_get_iid_v2))
+		return -EINVAL;
+
+	iid_info = (struct oracleasm_get_iid_v2 *)buf;
+
+	ret = asmfs_verify_abi(&iid_info->gi_abi);
+	if (ret)
+		goto out;
+
+	ret = -EBADR;
+	if (iid_info->gi_abi.ai_size !=
+	    sizeof(struct oracleasm_get_iid_v2))
+		goto out;
+	ret = -EBADRQC;
+	if (iid_info->gi_abi.ai_type != ASMOP_CHECK_IID)
+		goto out;
+
+	spin_lock_irq(&asb->asmfs_lock);
+	if (iid_info->gi_iid >= (u64)asb->next_iid)
+		iid_info->gi_iid = (u64)0;
+	spin_unlock_irq(&asb->asmfs_lock);
+
+	ret = 0;
+
+out:
+	iid_info->gi_abi.ai_status = ret;
+
+	return size;
+}
+
+/*
+ * Compute the maximum number of sectors the bdev can handle in one bio,
+ * as a power of two.
+ */
+static int compute_max_sectors(struct block_device *bdev)
+{
+	int max_pages, max_sectors, pow_two_sectors;
+
+	struct request_queue *q;
+
+	q = bdev_get_queue(bdev);
+	max_pages = q->max_sectors >> (PAGE_SHIFT - 9);
+	if (max_pages > BIO_MAX_PAGES)
+		max_pages = BIO_MAX_PAGES;
+	if (max_pages > q->max_phys_segments)
+		max_pages = q->max_phys_segments;
+	if (max_pages > q->max_hw_segments)
+		max_pages = q->max_hw_segments;
+	max_pages--; /* Handle I/Os that straddle a page */
+
+	max_sectors = max_pages << (PAGE_SHIFT - 9);
+
+	/* Why is fls() 1-based???? */
+	pow_two_sectors = 1 << (fls(max_sectors) - 1);
+
+	return pow_two_sectors;
+}
+
+static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_query_disk_v2 *qd_info;
+	struct file *filp;
+	struct block_device *bdev;
+	int ret;
+
+	if (size != sizeof(struct oracleasm_query_disk_v2))
+		return -EINVAL;
+
+	qd_info = (struct oracleasm_query_disk_v2 *)buf;
+
+	ret = asmfs_verify_abi(&qd_info->qd_abi);
+	if (ret)
+		goto out;
+
+	ret = -EBADR;
+	if (qd_info->qd_abi.ai_size !=
+	    sizeof(struct oracleasm_query_disk_v2))
+		goto out;
+	ret = -EBADRQC;
+	if (qd_info->qd_abi.ai_type != ASMOP_QUERY_DISK)
+		goto out;
+
+	ret = -ENODEV;
+	filp = fget(qd_info->qd_fd);
+	if (!filp)
+		goto out;
+
+	bdev = I_BDEV(filp->f_mapping->host);
+
+	qd_info->qd_max_sectors = compute_max_sectors(bdev);
+	qd_info->qd_hardsect_size = bdev_hardsect_size(bdev);
+
+	fput(filp);
+
+	ret = 0;
+
+out:
+	qd_info->qd_abi.ai_status = ret;
+
+	return size;
+}
+
+static ssize_t asmfs_svc_open_disk(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_open_disk_v2 od_info;
+	struct block_device *bdev = NULL;
+	struct file *filp;
+	int ret;
+
+	if (size != sizeof(struct oracleasm_open_disk_v2))
+		return -EINVAL;
+
+	if (copy_from_user(&od_info,
+			   (struct oracleasm_open_disk_v2 __user *)buf,
+			   sizeof(struct oracleasm_open_disk_v2)))
+		return -EFAULT;
+
+	od_info.od_handle = 0; /* Unopened */
+
+	ret = asmfs_verify_abi(&od_info.od_abi);
+	if (ret)
+		goto out_error;
+
+	ret = -EBADR;
+	if (od_info.od_abi.ai_size !=
+	    sizeof(struct oracleasm_open_disk_v2))
+		goto out_error;
+	ret = -EBADRQC;
+	if (od_info.od_abi.ai_type != ASMOP_OPEN_DISK)
+		goto out_error;
+
+	ret = -ENODEV;
+	filp = fget(od_info.od_fd);
+	if (!filp)
+		goto out_error;
+
+	if (igrab(filp->f_mapping->host)) {
+		bdev = I_BDEV(filp->f_mapping->host);
+
+		ret = asm_open_disk(file, bdev);
+	}
+	fput(filp);
+	if (ret)
+		goto out_error;
+
+	od_info.od_handle = (u64)(unsigned long)bdev;
+out_error:
+	od_info.od_abi.ai_status = ret;
+	if (copy_to_user((struct oracleasm_open_disk_v2 __user *)buf,
+			 &od_info,
+			 sizeof(struct oracleasm_open_disk_v2))) {
+		if (od_info.od_handle)
+			asm_close_disk(file,
+				       (unsigned long)od_info.od_handle);
+		/* Ignore close errors, this is the real error */
+		return -EFAULT;
+	}
+
+	return size;
+}
+
+static ssize_t asmfs_svc_close_disk(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_close_disk_v2 cd_info;
+	int ret;
+
+	if (size != sizeof(struct oracleasm_close_disk_v2))
+		return -EINVAL;
+
+	if (copy_from_user(&cd_info,
+			   (struct oracleasm_close_disk_v2 __user *)buf,
+			   sizeof(struct oracleasm_close_disk_v2)))
+		return -EFAULT;
+
+	ret = asmfs_verify_abi(&cd_info.cd_abi);
+	if (ret)
+		goto out_error;
+
+	ret = -EBADR;
+	if (cd_info.cd_abi.ai_size !=
+	    sizeof(struct oracleasm_close_disk_v2))
+		goto out_error;
+	ret = -EBADRQC;
+	if (cd_info.cd_abi.ai_type != ASMOP_CLOSE_DISK)
+		goto out_error;
+
+	ret = asm_close_disk(file, (unsigned long)cd_info.cd_handle);
+
+out_error:
+	cd_info.cd_abi.ai_status = ret;
+	if (copy_to_user((struct oracleasm_close_disk_v2 __user *)buf,
+			 &cd_info,
+			 sizeof(struct oracleasm_close_disk_v2)))
+		return -EFAULT;
+
+	return size;
+}
+
+static ssize_t asmfs_svc_io32(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_abi_info __user *user_abi_info;
+	struct oracleasm_io_v2 io_info;
+	int ret;
+
+	if (size != sizeof(struct oracleasm_io_v2))
+		return -EINVAL;
+
+	if (copy_from_user(&io_info,
+			   (struct oracleasm_io_v2 __user *)buf,
+			   sizeof(struct oracleasm_io_v2)))
+		return -EFAULT;
+
+	ret = asmfs_verify_abi(&io_info.io_abi);
+	if (ret)
+		goto out_error;
+
+	ret = -EBADR;
+	if (io_info.io_abi.ai_size !=
+	    sizeof(struct oracleasm_io_v2))
+		goto out_error;
+	ret = -EBADRQC;
+	if (io_info.io_abi.ai_type != ASMOP_IO32)
+		goto out_error;
+
+	ret = asm_do_io(file, &io_info, ASM_BPL_32);
+
+out_error:
+	user_abi_info = (struct oracleasm_abi_info __user *)buf;
+	if (put_user(ret, &(user_abi_info->ai_status)))
+		return -EFAULT;
+
+	return size;
+}
+
+#if BITS_PER_LONG == 64
+static ssize_t asmfs_svc_io64(struct file *file, char *buf, size_t size)
+{
+	struct oracleasm_abi_info __user *user_abi_info;
+	struct oracleasm_io_v2 io_info;
+	int ret;
+
+	if (size != sizeof(struct oracleasm_io_v2))
+		return -EINVAL;
+
+	if (copy_from_user(&io_info,
+			   (struct oracleasm_io_v2 __user *)buf,
+			   sizeof(struct oracleasm_io_v2)))
+		return -EFAULT;
+
+	ret = asmfs_verify_abi(&io_info.io_abi);
+	if (ret)
+		goto out_error;
+
+	ret = -EBADR;
+	if (io_info.io_abi.ai_size !=
+	    sizeof(struct oracleasm_io_v2))
+		goto out_error;
+	ret = -EBADRQC;
+	if (io_info.io_abi.ai_type != ASMOP_IO64)
+		goto out_error;
+
+	ret = asm_do_io(file, &io_info, ASM_BPL_64);
+
+out_error:
+	user_abi_info = (struct oracleasm_abi_info __user *)buf;
+	if (put_user(ret, &(user_abi_info->ai_status)))
+		return -EFAULT;
+
+	return size;
+}
+#endif  /* BITS_PER_LONG == 64 */
+
+
+/*
+ * Because each of these operations need to access the filp->private,
+ * we must multiplex.
+ */
+static ssize_t asmfs_file_read(struct file *file, char *buf, size_t size, loff_t *pos)
+{
+	struct oracleasm_abi_info __user *user_abi_info;
+	ssize_t ret;
+	int op;
+
+	asm_cleanup_bios(file);
+
+	user_abi_info = (struct oracleasm_abi_info __user *)buf;
+	if (get_user(op, &((user_abi_info)->ai_type)))
+		return -EFAULT;
+
+	switch (op) {
 		default:
-			LOG("ASM: Invalid ioctl 0x%u\n", cmd);
-			return -ENOTTY;
+			ret = -EBADRQC;
 			break;
 
-		case ASMIOC_QUERYDISK:
-			LOG("ASM: Operation is ASMIOC_QUERYDISK\n");
-			if (copy_from_user(&dq,
-					   (struct oracleasm_disk_query *)arg,
-					   sizeof(dq)))
-				return -EFAULT;
-			kdv = to_kdev_t(dq.dq_rdev);
-			LOG("ASM: Checking disk %d,%d\n", MAJOR(kdv),
-			    MINOR(kdv));
-#if 0
-			/* Right now we trust only SCSI ->request_fn */
-			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
-				return -EINVAL;
-#endif
-
-			ret = asm_validate_disk(kdv);
-			if (ret)
-				return ret;
-
-			dq.dq_maxio = ASM_MAX_IOSIZE;
-			if (copy_to_user((struct oracleasm_disk_query *)arg,
-					 &dq, sizeof(dq)))
-				return -EFAULT;
-			LOG("ASM: Valid disk %d,%d\n", MAJOR(kdv),
-			    MINOR(kdv));
+		case ASMOP_OPEN_DISK:
+			ret = asmfs_svc_open_disk(file, (char *)buf,
+						  size);
 			break;
 
-		case ASMIOC_OPENDISK:
-			LOG("ASM: Operation is ASMIOC_OPENDISK\n");
-			if (copy_from_user(&dq,
-					   (struct oracleasm_disk_query *)arg,
-					   sizeof(dq)))
-				return -EFAULT;
-			kdv = to_kdev_t(dq.dq_rdev);
-			LOG("ASM: Opening disk %d,%d\n", MAJOR(kdv),
-			    MINOR(kdv));
-
-			ret = asm_validate_disk(kdv);
-			if (ret)
-				return ret;
-
-			/* Userspace checks a 0UL return */
-			if (asm_disk_open(afi, aii, kdv))
-			    dq.dq_rdev = 0;
-#warning Doesn't free disk on EFAULT
-			if (copy_to_user((struct oracleasm_disk_query *)arg,
-					 &dq, sizeof(dq)))
-			    return -EFAULT;
-			LOG("ASM: Opened handle 0x%.8lX\n",
-			    (unsigned long)dq.dq_rdev);
+		case ASMOP_CLOSE_DISK:
+			ret = asmfs_svc_close_disk(file, (char *)buf,
+						   size);
 			break;
 
-		case ASMIOC_CLOSEDISK:
-			LOG("ASM: Operation is ASMIOC_CLOSEDISK\n");
-			if (copy_from_user(&dq,
-					   (struct oracleasm_disk_query *)arg,
-					   sizeof(dq)))
-				return -EFAULT;
-			LOG("ASM: Closing handle 0x%.8lX\n", (unsigned long)dq.dq_rdev);
-			kdv = to_kdev_t(dq.dq_rdev);
-			return asm_disk_close(afi, aii, kdv);
-			break;
-
-		case ASMIOC_IODISK32:
-			LOG("ASM: Operation is ASMIOC_IODISK32\n");
-			if (copy_from_user(&io,
-					   (struct oracleasm_io *)arg,
-					   sizeof(io)))
-				return -EFAULT;
-			return asm_do_io(afi, aii, &io, ASM_BPL_32);
+		case ASMOP_IO32:
+			ret = asmfs_svc_io32(file, (char *)buf, size);
 			break;
 
 #if BITS_PER_LONG == 64
-		case ASMIOC_IODISK64:
-			LOG("ASM: Operation is ASM_IODISK64\n");
-			if (copy_from_user(&io,
-					   (struct oracleasm_io *)arg,
-					   sizeof(io)))
-				return -EFAULT;
-			return asm_do_io(afi, aii, &io, ASM_BPL_64);
+		case ASMOP_IO64:
+			ret = asmfs_svc_io64(file, (char *)buf, size);
 			break;
 #endif  /* BITS_PER_LONG == 64 */
-
-		case ASMIOC_DUMP:
-			LOG("ASM: Operation is ASMIOC_DUMP\n");
-			/* Dump data */
-			/* Currently unimplemented */
-			break;
 	}
 
-	LOG_EXIT_RET(0);
-	return 0;
+	return ret;
 }
-
-static int asmfs_dir_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
-{
-	struct oracleasm_get_iid new_iid;
-	struct asmfs_sb_info *asb = ASMFS_SB(inode->i_sb);
-
-	switch (cmd) {
-		default:
-			return -ENOTTY;
-			break;
-
-		case ASMIOC_GETIID:
-			if (copy_from_user(&new_iid,
-					   (struct oracleasm_get_iid *)arg,
-					   sizeof(new_iid)))
-			    return -EFAULT;
-			if (new_iid.gi_version != (u64)ASM_ABI_VERSION)
-			    return -EINVAL;
-			lock_asb(asb);
-			new_iid.gi_iid = (u64)asb->next_iid;
-			asb->next_iid++;
-			unlock_asb(asb);
-			if (copy_to_user((struct oracleasm_get_iid *)arg,
-					 &new_iid, sizeof(new_iid)))
-			    return -EFAULT;
-			break;
-
-		case ASMIOC_CHECKIID:
-			if (copy_from_user(&new_iid,
-					   (struct oracleasm_get_iid *)arg,
-					   sizeof(new_iid)))
-			    return -EFAULT;
-			if (new_iid.gi_version != (u64)ASM_ABI_VERSION)
-			    return -EINVAL;
-			lock_asb(asb);
-			if (new_iid.gi_iid >= (u64)asb->next_iid)
-			    new_iid.gi_iid = (u64)0;
-			unlock_asb(asb);
-			if (!new_iid.gi_iid)
-			{
-			    if (copy_to_user((struct oracleasm_get_iid *)arg,
-					     &new_iid, sizeof(new_iid)))
-				return -EFAULT;
-			}
-			break;
-	}
-
-	return 0;
-}
-
-static int asmfs_sync_file(struct file * file, struct dentry *dentry, int datasync)
-{
-	return 0;
-}
-
-static struct address_space_operations asmfs_aops = {
-};
 
 static struct file_operations asmfs_file_operations = {
 	.open		= asmfs_file_open,
 	.release	= asmfs_file_release,
-	.ioctl		= asmfs_file_ioctl,
+	.read		= asmfs_file_read,
+};
+
+static struct inode_operations asmfs_file_inode_operations = {
+	.getattr	= simple_getattr,
 };
 
 /*  See init_asmfs_dir_operations() */
 static struct file_operations asmfs_dir_operations = {0, };
 
 static struct inode_operations asmfs_disk_dir_inode_operations = {
-	.lookup		= asmfs_lookup,
+	.lookup		= simple_lookup,
 	.unlink		= asmfs_unlink,
 	.mknod		= asmfs_mknod,
 };
 static struct inode_operations asmfs_iid_dir_inode_operations = {
 	.create		= asmfs_create,
-	.lookup		= asmfs_lookup,
+	.lookup		= simple_lookup,
 	.unlink		= asmfs_unlink,
-};
-static struct inode_operations asmfs_dir_inode_operations = {
-	.lookup		= asmfs_lookup,
 };
 
 static struct super_operations asmfs_ops = {
-	.statfs		= asmfs_statfs,
-	.put_inode	= force_delete,
+	.statfs		= simple_statfs,
+	.alloc_inode	= asmfs_alloc_inode,
+	.destroy_inode	= asmfs_destroy_inode,
+	.drop_inode	= generic_delete_inode,
 	/* These last three only required for limited maxinstances */
-	.delete_inode	= asmfs_delete_inode,
 	.put_super	= asmfs_put_super,
 	.remount_fs     = asmfs_remount,
 };
@@ -2308,46 +2452,12 @@ static struct super_operations asmfs_ops = {
  * Initialisation
  */
 
-/*
- * Because it isn't exported in 2.4
- * It is the same function in 2.4.9 thru 2.6.0, so this should be safe.
- */
-static void asmfs_d_genocide(struct dentry *root)
+static int asmfs_fill_super(struct super_block *sb,
+			    void *data, int silent)
 {
-	struct dentry *this_parent = root;
-	struct list_head *next;
-
-	spin_lock(&dcache_lock);
-repeat:
-	next = this_parent->d_subdirs.next;
-resume:
-	while (next != &this_parent->d_subdirs) {
-		struct list_head *tmp = next;
-		struct dentry *dentry = list_entry(tmp, struct dentry, d_child);
-		next = tmp->next;
-		if (d_unhashed(dentry)||!dentry->d_inode)
-			continue;
-		if (!list_empty(&dentry->d_subdirs)) {
-			this_parent = dentry;
-			goto repeat;
-		}
-		atomic_dec(&dentry->d_count);
-	}
-	if (this_parent != root) {
-		next = this_parent->d_child.next; 
-		atomic_dec(&this_parent->d_count);
-		this_parent = this_parent->d_parent;
-		goto resume;
-	}
-	spin_unlock(&dcache_lock);
-}
-
-
-static struct super_block *asmfs_read_super(struct super_block * sb, void * data, int silent)
-{
-	struct inode * inode;
-	struct dentry * root, * dentry;
-	struct asmfs_sb_info * asb;
+	struct inode *inode;
+	struct dentry *root, *dentry;
+	struct asmfs_sb_info *asb;
 	struct asmfs_params params;
 	struct qstr name;
 
@@ -2358,9 +2468,9 @@ static struct super_block *asmfs_read_super(struct super_block * sb, void * data
 	sb->s_maxbytes = MAX_NON_LFS;	/* Why? */
 
 	asb = kmalloc(sizeof(struct asmfs_sb_info), GFP_KERNEL);
-	ASMFS_SB(sb) = asb;
 	if (!asb)
-		return NULL;
+		return -ENOMEM;
+	sb->s_fs_info = asb;
 
 	asb->asmfs_super = sb;
 	asb->next_iid = 1;
@@ -2371,12 +2481,21 @@ static struct super_block *asmfs_read_super(struct super_block * sb, void * data
 
 	init_limits(asb, &params);
 
-	inode = asmfs_get_inode(sb, S_IFDIR | 0755, 0);
+	inode = new_inode(sb);
 	if (!inode)
-		goto out_free_asb;;
+		goto out_free_asb;
 
-	/* Set root owner */
+	inode->i_ino = (unsigned long)inode;
+	inode->i_mode = S_IFDIR | 0755;
 	inode->i_uid = inode->i_gid = 0;
+	inode->i_blksize = PAGE_CACHE_SIZE;
+	inode->i_blocks = 0;
+	inode->i_rdev = 0;
+	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	inode->i_op = &simple_dir_inode_operations;
+	inode->i_fop = &asmfs_dir_operations;
+	/* directory inodes start off with i_nlink == 2 (for "." entry) */
+	inode->i_nlink++;
 
 	root = d_alloc_root(inode);
 	if (!root) {
@@ -2393,12 +2512,12 @@ static struct super_block *asmfs_read_super(struct super_block * sb, void * data
 	inode = new_inode(sb);
 	if (!inode)
 		goto out_genocide;
+	inode->i_ino = (unsigned long)inode;
 	inode->i_mode = S_IFDIR | 0755;
 	inode->i_uid = inode->i_gid = 0;
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-	inode->i_fop = &asmfs_dir_operations;
 	inode->i_op = &asmfs_disk_dir_inode_operations;
-	inode->i_ino = (unsigned long)inode;
+	inode->i_fop = &asmfs_dir_operations;
 	d_add(dentry, inode);
 
 	name.name = ASM_MANAGER_INSTANCES;
@@ -2410,152 +2529,159 @@ static struct super_block *asmfs_read_super(struct super_block * sb, void * data
 	inode = new_inode(sb);
 	if (!inode)
 		goto out_genocide;
-	inode->i_mode = S_IFDIR | 0770;
-	inode->i_uid = params.uid;
-	inode->i_gid = params.gid;
-	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-	inode->i_fop = &asmfs_dir_operations;
-	inode->i_op = &asmfs_iid_dir_inode_operations;
 	inode->i_ino = (unsigned long)inode;
+	inode->i_mode = S_IFDIR | 0770;
+	inode->i_uid = inode->i_gid = 0;
+	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	inode->i_op = &asmfs_iid_dir_inode_operations;
+	inode->i_fop = &asmfs_dir_operations;
 	d_add(dentry, inode);
+
+	name.name = asm_operation_files[ASMOP_QUERY_VERSION];
+	name.len = strlen(asm_operation_files[ASMOP_QUERY_VERSION]);
+	name.hash = full_name_hash(name.name, name.len);
+	dentry = d_alloc(root, &name);
+	if (!dentry)
+		goto out_genocide;
+	inode = new_transaction_inode(sb, 0770,
+				      &trans_contexts[ASMOP_QUERY_VERSION]);
+	if (!inode)
+		goto out_genocide;
+       	d_add(dentry, inode);
+
+	name.name = asm_operation_files[ASMOP_GET_IID];
+	name.len = strlen(asm_operation_files[ASMOP_GET_IID]);
+	name.hash = full_name_hash(name.name, name.len);
+	dentry = d_alloc(root, &name);
+	if (!dentry)
+		goto out_genocide;
+	inode = new_transaction_inode(sb, 0770,
+				      &trans_contexts[ASMOP_GET_IID]);
+	if (!inode)
+		goto out_genocide;
+       	d_add(dentry, inode);
+
+	name.name = asm_operation_files[ASMOP_CHECK_IID];
+	name.len = strlen(asm_operation_files[ASMOP_CHECK_IID]);
+	name.hash = full_name_hash(name.name, name.len);
+	dentry = d_alloc(root, &name);
+	if (!dentry)
+		goto out_genocide;
+	inode = new_transaction_inode(sb, 0770,
+				      &trans_contexts[ASMOP_CHECK_IID]);
+	if (!inode)
+		goto out_genocide;
+       	d_add(dentry, inode);
+
+	name.name = asm_operation_files[ASMOP_QUERY_DISK];
+	name.len = strlen(asm_operation_files[ASMOP_QUERY_DISK]);
+	name.hash = full_name_hash(name.name, name.len);
+	dentry = d_alloc(root, &name);
+	if (!dentry)
+		goto out_genocide;
+	inode = new_transaction_inode(sb, 0770,
+				      &trans_contexts[ASMOP_QUERY_DISK]);
+	if (!inode)
+		goto out_genocide;
+       	d_add(dentry, inode);
 
 	sb->s_root = root;
 
 
 	printk(KERN_DEBUG "ASM: oracleasmfs mounted with options: %s\n", 
 	       data ? (char *)data : "<defaults>" );
-	printk(KERN_DEBUG "ASM:	uid=%d gid=%d mode=0%o maxinstances=%ld\n",
-	       params.uid, params.gid, params.mode,
-	       asb->max_inodes);
-	return sb;
+	printk(KERN_DEBUG "ASM:	maxinstances=%ld\n", asb->max_inodes);
+	return 0;
 
 out_genocide:
-	asmfs_d_genocide(root);  /* See comment */
+	d_genocide(root);
 	dput(root);
 
 out_free_asb:
+	sb->s_fs_info = NULL;
 	kfree(asb);
 
-	return NULL;
+	return -EINVAL;
 }
 
 
 static void __init init_asmfs_dir_operations(void) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,19)
-	asmfs_dir_operations.read	= generic_read_dir;
-	asmfs_dir_operations.readdir	= dcache_readdir;
-#else
-	asmfs_dir_operations		= dcache_dir_ops;
-#endif  /* LINUX_VERSION_CODE < 2.4.19 */
-	asmfs_dir_operations.fsync	= asmfs_sync_file;
-	asmfs_dir_operations.ioctl	= asmfs_dir_ioctl;
+	asmfs_dir_operations		= simple_dir_operations;
+	asmfs_dir_operations.fsync	= simple_sync_file;
 };
 
 
-#ifdef CONFIG_COMPAT  /* 64 bit module handling 32bit userspace */
-static int compat_ioctls [] = {
-	ASMIOC_GETIID,
-	ASMIOC_CHECKIID,
-	ASMIOC_QUERYDISK,
-	ASMIOC_OPENDISK,
-	ASMIOC_CLOSEDISK,
-	ASMIOC_IODISK32,
-	ASMIOC_IODISK64
+static struct super_block *asmfs_get_sb(struct file_system_type *fs_type,
+					int flags, const char *dev_name,
+					void *data)
+{
+	return get_sb_nodev(fs_type, flags, data, asmfs_fill_super);
+}
+
+static struct file_system_type asmfs_fs_type = {
+	.owner		= THIS_MODULE,
+	.name		= "oracleasmfs",
+	.get_sb		= asmfs_get_sb,
+	.kill_sb	= kill_litter_super,
 };
-
-/*
- * This is because 2.4 sys32_ioctl() will *OOPS* if you have a NULL
- * handler for register_ioctl32_conversion().
- */
-static int sys_ioctl_wrapper(unsigned int fd, unsigned int cmd,
-			     unsigned long arg, struct file *filp) {
-    return sys_ioctl(fd, cmd, arg);
-}
-
-static int __init init_asmfs_ioctl32(void) {
-	int ret, i;
-	int num = sizeof(compat_ioctls) / sizeof(*compat_ioctls);
-
-#if defined(__powerpc64__) && \
-	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
-	lock_kernel();
-#endif
-	for (i = 0; i < num; i++) {
-		ret = register_ioctl32_conversion(compat_ioctls[i],
-						  sys_ioctl_wrapper);
-		if (ret)
-			break;
-	}
-	if (ret) {
-		for (num = i, i = 0; i < num; i++) {
-			unregister_ioctl32_conversion(compat_ioctls[i]);
-		}
-	}
-#if defined(__powerpc64__)  && \
-	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
-	unlock_kernel();
-#endif
-	return ret;
-}
-
-static void __exit exit_asmfs_ioctl32(void) {
-	int i;
-	int num = sizeof(compat_ioctls) / sizeof(*compat_ioctls);
-#if defined(__powerpc64__) && \
-	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
-	lock_kernel();
-#endif
-	for (i = 0; i < num; i++) {
-		unregister_ioctl32_conversion(compat_ioctls[i]);
-	}
-#if defined(__powerpc64__)  && \
-	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
-	unlock_kernel();
-#endif
-}
-#endif  /* CONFIG_COMPAT */
-
-static DECLARE_FSTYPE(asmfs_fs_type, "oracleasmfs", asmfs_read_super, FS_LITTER);
 
 static int __init init_asmfs_fs(void)
 {
 	int ret;
 
-	LOG("sizeof asm_ioc32: %u\n", sizeof(asm_ioc32));
-	asm_request_cachep =
-		kmem_cache_create("asm_request",
-				  sizeof(struct asm_request),
-				  0, SLAB_HWCACHE_ALIGN, NULL, NULL);
-	if (!asm_request_cachep)
-		panic("Unable to create asm_request cache\n");
+	LOG("sizeof asm_ioc32: %lu\n",
+	    (unsigned long)sizeof(asm_ioc32));
+	ret = init_inodecache();
+	if (ret) {
+		printk("oracleasmfs: Unable to create asmfs_inode_cache\n");
+		goto out_inodecache;
+	}
 
-#ifdef CONFIG_COMPAT
-	ret = init_asmfs_ioctl32();
-	if (ret)
-		kmem_cache_destroy(asm_request_cachep);
-#endif  /* CONFIG_COMPAT */
+	ret = init_requestcache();
+	if (ret) {
+		printk("oracleasmfs: Unable to create asm_request cache\n");
+		goto out_requestcache;
+	}
+
+	ret = init_asmdiskcache();
+	if (ret) {
+		printk("oracleasmfs: Unable to initialize the disk cache\n");
+		goto out_diskcache;
+	}
 
 	init_asmfs_dir_operations();
 	ret = register_filesystem(&asmfs_fs_type);
 	if (ret) {
-		kmem_cache_destroy(asm_request_cachep);
-#ifdef CONFIG_COMPAT
-		exit_asmfs_ioctl32();
-#endif  /* CONFIG_COMPAT */
+		printk("oracleasmfs: Unable to register filesystem\n");
+		goto out_register;
 	}
 
+	return 0;
+
+out_register:
+	destroy_asmdiskcache();
+
+out_diskcache:
+	destroy_requestcache();
+
+out_requestcache:
+	destroy_inodecache();
+
+out_inodecache:
 	return ret;
 }
 
 static void __exit exit_asmfs_fs(void)
 {
 	unregister_filesystem(&asmfs_fs_type);
-	kmem_cache_destroy(asm_request_cachep);
-#ifdef CONFIG_COMPAT
-	exit_asmfs_ioctl32();
-#endif  /* CONFIG_COMPAT */
+	destroy_asmdiskcache();
+	destroy_requestcache();
+	destroy_inodecache();
 }
 
 module_init(init_asmfs_fs)
 module_exit(exit_asmfs_fs)
 MODULE_LICENSE("GPL");
+MODULE_VERSION(ASM_MODULE_VERSION);
+MODULE_AUTHOR("Joel Becker <joel.becker@oracle.com>");
+MODULE_DESCRIPTION("Kernel driver backing the Generic Linux ASM Library.");

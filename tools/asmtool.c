@@ -31,7 +31,8 @@
  * Boston, MA 021110-1307, USA.
  */
 
-
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -47,6 +48,8 @@
 #include <errno.h>
 
 #include <linux/types.h>
+#include "linux/asmcompat32.h"
+#include "linux/asmabi.h"
 #include "linux/asmdisk.h"
 #include "linux/asmmanager.h"
 
@@ -58,8 +61,20 @@
  */
 #define ASMFS_MAGIC             0x958459f6
 #define ASM_DISK_XOR_OFFSET     0x0C
+/* Ted T'so recommends clearing 16K at the front and end of disks. */
+#define CLEAR_DISK_SIZE         (16 * 1024)
 
+/* Kernel ABI ioctls for testing disks */
+#define HDIO_GETGEO             0x0301
+#define LOOP_GET_STATUS64       0x4C05
+#define LOOP_GET_STATUS         0x4C03
 
+struct hd_geometry {
+    unsigned char heads;
+    unsigned char sectors;
+    unsigned short cylinders;
+    unsigned long start;
+};
 
 /*
  * Enums
@@ -137,9 +152,13 @@ struct _ASMHeaderInfo
 static inline size_t strnlen(const char *s, size_t size);
 static void print_usage(int rc);
 static void print_version();
+static int device_is_partition(int fd);
+static int device_is_loopback(int fd);
 static int open_disk(const char *disk_name);
 static int read_disk(int fd, ASMHeaderInfo *ahi);
 static int write_disk(int fd, ASMHeaderInfo *ahi);
+static int clear_disk(int fd);
+static int clear_disk_chunk(int fd, char *buf);
 static int check_disk(ASMHeaderInfo *ahi, const char *label);
 static int mark_disk(int fd, ASMHeaderInfo *ahi,
                      const char *label);
@@ -229,6 +248,28 @@ static void print_version()
     exit(0);
 }  /* print_version() */
 
+static int device_is_partition(int fd)
+{
+    struct hd_geometry geo;
+    int rc;
+
+    rc = ioctl(fd, HDIO_GETGEO, &geo);
+    if (rc)
+        return 0;
+
+    return !!geo.start;
+}  /* device_is_partition() */
+
+static int device_is_loopback(int fd)
+{
+    int rc;
+    char buf[1024];
+
+    rc = ioctl(fd, LOOP_GET_STATUS64, buf);
+    if (rc)
+        rc = ioctl(fd, LOOP_GET_STATUS, buf);
+    return !rc;
+}  /* device_is_loopback() */
 
 static int open_disk(const char *disk_name)
 {
@@ -267,6 +308,7 @@ static int open_disk(const char *disk_name)
 
 static int read_disk(int fd, ASMHeaderInfo *ahi)
 {
+    off_t off;
     int rc, tot;
     struct asm_disk_label *adl;
     __u32 *xor_buf;
@@ -277,8 +319,8 @@ static int read_disk(int fd, ASMHeaderInfo *ahi)
     xor_buf = &ahi->ah_xor;
     adl = &ahi->ah_label;
 
-    rc = lseek(fd, ASM_DISK_XOR_OFFSET, SEEK_SET);
-    if (rc < 0)
+    off = lseek(fd, ASM_DISK_XOR_OFFSET, SEEK_SET);
+    if (off == (off_t)-1)
         return -errno;
 
     tot = 0;
@@ -300,8 +342,8 @@ static int read_disk(int fd, ASMHeaderInfo *ahi)
     if (tot < sizeof(__u32))
         return -ENOSPC;
 
-    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
-    if (rc < 0)
+    off = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
+    if (off == (off_t)-1)
         return -errno;
 
     tot = 0;
@@ -329,6 +371,7 @@ static int read_disk(int fd, ASMHeaderInfo *ahi)
 
 static int write_disk(int fd, ASMHeaderInfo *ahi)
 {
+    off_t off;
     int rc, tot;
     __u32 *xor_buf;
     struct asm_disk_label *adl;
@@ -339,8 +382,8 @@ static int write_disk(int fd, ASMHeaderInfo *ahi)
     xor_buf = &ahi->ah_xor;
     adl = &ahi->ah_label;
 
-    rc = lseek(fd, ASM_DISK_XOR_OFFSET, SEEK_SET);
-    if (rc < 0)
+    off = lseek(fd, ASM_DISK_XOR_OFFSET, SEEK_SET);
+    if (off == (off_t)-1)
         return -errno;
 
     tot = 0;
@@ -362,8 +405,8 @@ static int write_disk(int fd, ASMHeaderInfo *ahi)
     if (tot < sizeof(__u32))
         return -ENOSPC;
 
-    rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
-    if (rc < 0)
+    off = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
+    if (off == (off_t)-1)
         return -errno;
 
     tot = 0;
@@ -387,6 +430,71 @@ static int write_disk(int fd, ASMHeaderInfo *ahi)
 
     return 0;
 }  /* write_disk() */
+
+
+static int clear_disk_chunk(int fd, char *buf)
+{
+    int rc, tot = 0;
+
+    while (tot < CLEAR_DISK_SIZE)
+    {
+        rc = write(fd, buf + tot, CLEAR_DISK_SIZE - tot);
+        if (!rc)
+            break;
+        if (rc < 0)
+        {
+            if ((errno == EAGAIN) || (errno == EINTR))
+                continue;
+            else
+                return -errno;
+        }
+        tot += rc;
+    }
+
+    if (tot < CLEAR_DISK_SIZE)
+        return -ENOSPC;
+
+    return 0;
+}
+
+static int clear_disk(int fd)
+{
+    loff_t off;
+    int rc;
+    char *buf;
+
+    if (fd < 0)
+        return -EINVAL;
+
+    buf = malloc(sizeof(char) * CLEAR_DISK_SIZE);
+    if (!buf)
+        return -ENOMEM;
+    memset(buf, 0, CLEAR_DISK_SIZE);
+
+    off = lseek64(fd, 0, SEEK_SET);
+    if (off == (loff_t)-1) {
+        rc = -errno;
+        goto out_free;
+    }
+
+    rc = clear_disk_chunk(fd, buf);
+    if (rc)
+        goto out_free;
+
+    off = lseek64(fd, -CLEAR_DISK_SIZE, SEEK_END);
+    if (off == (loff_t)-1) {
+        rc = -errno;
+        goto out_free;
+    }
+
+    rc = clear_disk_chunk(fd, buf);
+
+out_free:
+    free(buf);
+
+    return rc;
+}  /* write_disk() */
+
 
 
 static int check_disk(ASMHeaderInfo *ahi, const char *label)
@@ -842,10 +950,22 @@ static int create_disk(const char *manager, char *disk,
         goto out;
     fd = rc;
 
+    rc = -EINVAL;
+    if (!device_is_loopback(fd) && !device_is_partition(fd))
+    {
+        fprintf(stderr, 
+                "asmtool: Device \"%s\" is not a partition\n",
+                target);
+        if (!attrs->force)
+                goto out_close;
+        else
+            fprintf(stderr, "asmtool: Continuing anyway\n");
+    }
+
     rc = read_disk(fd, &ahi);
     if (rc)
     {
-        fprintf(stdout,
+        fprintf(stderr,
                 "asmtool: Unable to read device \"%s\": %s\n",
                 target, strerror(-rc));
         goto out_close;
@@ -885,6 +1005,14 @@ static int create_disk(const char *manager, char *disk,
             fprintf(stderr,
                     "asmtool: Device \"%s\" is not labeled as an ASM disk\n",
                     target);
+            goto out_close;
+        }
+        rc = clear_disk(fd);
+        if (rc)
+        {
+            fprintf(stderr,
+                    "asmtool: Unable to clear device \"%s\": %s\n",
+                    target, strerror(-rc));
             goto out_close;
         }
         rc = mark_disk(fd, &ahi, disk);
@@ -940,6 +1068,7 @@ static int get_info_asmdisk_by_name(const char *manager,
     int c, rc, fd;
     char *label, *asm_disk;
     ASMHeaderInfo ahi;
+    struct stat stat_buf;
 
     rc = -EINVAL;
     c = asmdisk_toupper(disk, -1, 0);
@@ -1007,9 +1136,19 @@ static int get_info_asmdisk_by_name(const char *manager,
     }
     else
     {
-        fprintf(stdout,
-                "asmtool: Disk \"%s\" is a valid ASM disk\n",
-                disk);
+        rc = fstat(fd, &stat_buf);
+        if (rc)
+        {
+            fprintf(stdout,
+                    "asmtool: Disk \"%s\" is a valid ASM disk [unknown]\n",
+                    disk);
+        }
+        else
+        {
+            fprintf(stdout,
+                    "asmtool: Disk \"%s\" is a valid ASM disk on device [%d, %d]\n",
+                    disk, major(stat_buf.st_rdev), minor(stat_buf.st_rdev));
+        }
     }
 
 out_close:

@@ -10,16 +10,15 @@ Do not destroy your data.
 
 Second things later.
 
-	Building ASMlib requires a quick run of the Configure script
+	Building ASMlib requires a quick run of the configure script
 in the toplevel directory.  It will ask the location to the includes for
-your kernel.  This code currently only supports the kernels from Red Hat
-Advanced Server 2.1 (2.4.9-e.3+).  So, your path is likely to look like
-/usr/src/linux-2.4.9-e.3/include or so.  You then can run a make.
+your kernel.  This code currently only supports Linux 2.6.  You then can
+run a make.
 	Testing ASMlib is pretty easy.  First, install and mount the
 filesystem:
 
 	# mkdir /dev/oracleasm
-	# insmod kernel/oracleasm.o
+	# insmod kernel/oracleasm.ko
 	# mount -t oracleasmfs oracleasmfs /dev/oracleasm
 
 	Next, you have to mark disks as candidates for ASM.  asmtool is

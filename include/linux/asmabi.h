@@ -11,6 +11,8 @@
  * 	kernel driver.
  *
  * MODIFIED   (YYYY/MM/DD)
+ *      2004/08/19 - Joel Becker <joel.becker@oracle.com>
+ *      	Start working on the V2 ABI.
  *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
  *              Initial LGPL header.
  *
@@ -72,79 +74,111 @@
 
 
 /*
- * Structures
+ * Defines
  */
+#define ASM_ABI_MAGIC	0x41534DU
 
-/*
- * These are __u64 to handle 32<->64 pointer stuff.
- */
-struct oracleasm_io
-{
-    __u64               io_handle;	/* asm_ctx */
-    __u64               io_requests;	/* asm_ioc ** */
-    __u64               io_waitreqs;	/* asm_ioc ** */
-    __u64               io_completions;	/* asm_ioc ** */
-    __u64               io_timeout;	/* struct timespec * */
-    __u64               io_statusp;	/* __u32 * */
-    __u32               io_reqlen;
-    __u32               io_waitlen;
-    __u32               io_complen;
-    __u32               io_pad1;	/* Pad to 64bit aligned size */
-};
-
-struct oracleasm_disk_query
-{
-    __u64 dq_rdev;
-    __u64 dq_maxio;  /* gcc padding is lame */
-};
-
-#define ASM_ABI_VERSION	1UL
-struct oracleasm_get_iid
-{
-    __u64 gi_iid;
-    __u64 gi_version;  /* gcc padding is lame */
-};
-
+#define ASM_ABI_VERSION_V2	2UL
+#define ASM_ABI_VERSION		ASM_ABI_VERSION_V2
 
 
 /*
- * ioctls
+ * Enums
  */
-#define ASM_IOCTL_BASE          0xFD
 
-/* ioctls on /dev/oracleasm */
-#define ASMIOC_GETIID           _IOR(ASM_IOCTL_BASE, 0, struct oracleasm_get_iid)
-#define ASMIOC_CHECKIID         _IOWR(ASM_IOCTL_BASE, 1, struct oracleasm_get_iid)
+enum asm_operation_types
+{
+	ASMOP_NONE = 0,
+	ASMOP_QUERY_VERSION,
+	ASMOP_GET_IID,
+	ASMOP_CHECK_IID,
+	ASMOP_QUERY_DISK,
+#define ASM_LAST_TRANSACTION_OP ASMOP_QUERY_DISK
+	ASMOP_OPEN_DISK,
+	ASMOP_CLOSE_DISK,
+	ASMOP_IO32,
+	ASMOP_IO64,
+	ASM_NUM_OPERATIONS  /* This must always be last */
+};
 
-/* ioctls on /dev/oracleasm/<iid> */
-#define ASMIOC_QUERYDISK        _IOWR(ASM_IOCTL_BASE, 2, struct oracleasm_disk_query)
-#define ASMIOC_OPENDISK		_IOWR(ASM_IOCTL_BASE, 3, struct oracleasm_disk_query)
-#define ASMIOC_CLOSEDISK	_IOW(ASM_IOCTL_BASE, 4, struct oracleasm_disk_query)
-
-
-/*
- * We have separate ioctls so we *know* when the pointers are 32bit
- * or 64bit.
- * 
- * All userspace callers should use ASMIOC_IODISK.
- */
-#define ASMIOC_IODISK32         _IOWR(ASM_IOCTL_BASE, 5, struct oracleasm_io)
-
+/* Users of the commands should always use ASMOP_IO */
 #if BITS_PER_LONG == 32
-# define ASMIOC_IODISK ASMIOC_IODISK32
+# define ASMOP_IO ASMOP_IO32
 #else
 # if BITS_PER_LONG == 64
-#  define ASMIOC_IODISK64         _IOWR(ASM_IOCTL_BASE, 6, struct oracleasm_io)
-#  define ASMIOC_IODISK ASMIOC_IODISK64
+#  define ASMOP_IO ASMOP_IO64
 # else
 #  error Invalid number of bits (BITS_PER_LONG)
 # endif  /* BITS_PER_LONG == 64 */
 #endif  /* BITS_PER_LONG == 32 */
 
 
-/* ioctl for testing */
-#define ASMIOC_DUMP             _IO(ASM_IOCTL_BASE, 16)
 
+/*
+ * Structures
+ */
+
+struct oracleasm_abi_info
+{
+/*00*/	__u32		ai_magic;	/* ASM_ABI_MAGIC */
+	__u16		ai_version;	/* ABI version */
+	__u16		ai_type;	/* Type of operation */
+	__u32		ai_size;	/* Size of passed structure */
+	__u32		ai_status;	/* Did it succeed */
+/*10*/	
+};
+
+/*
+ * These are __u64 to handle 32<->64 pointer stuff.
+ */
+struct oracleasm_io_v2
+{
+/*00*/	struct oracleasm_abi_info	io_abi;		/* ABI info */
+/*10*/	__u64				io_handle;	/* asm_ctx */
+	__u64				io_requests;	/* asm_ioc ** */
+/*20*/	__u64				io_waitreqs;	/* asm_ioc ** */
+	__u64				io_completions;	/* asm_ioc ** */
+/*30*/	__u64				io_timeout;	/* struct timespec * */
+	__u64				io_statusp;	/* __u32 * */
+/*40*/	__u32				io_reqlen;
+	__u32				io_waitlen;
+	__u32				io_complen;
+	__u32				io_pad1;	/* Pad to 64bit aligned size */
+/*50*/
+};
+
+struct oracleasm_query_disk_v2
+{
+/*00*/	struct oracleasm_abi_info	qd_abi;
+/*10*/	__u32				qd_fd;
+	__u32				qd_max_sectors;
+	__u32				qd_hardsect_size;
+	__u32				qd_pad1;	/* Pad to 64bit aligned size */
+/*20*/
+};
+
+struct oracleasm_open_disk_v2
+{
+/*00*/	struct oracleasm_abi_info	od_abi;
+/*10*/	__u32				od_fd;
+	__u32				od_pad1;
+	__u64				od_handle;
+/*20*/	
+};
+
+struct oracleasm_close_disk_v2
+{
+/*00*/	struct oracleasm_abi_info	cd_abi;
+/*10*/	__u64				cd_handle;
+/*18*/
+};
+
+struct oracleasm_get_iid_v2
+{
+/*00*/	struct oracleasm_abi_info	gi_abi;
+/*10*/	__u64				gi_iid;
+/*18*/
+};
 
 #endif  /* _ASMABI_H */
 

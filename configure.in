@@ -17,9 +17,9 @@ AC_SUBST(PACKAGE)
 #
 MAJOR_VERSION=1
 MINOR_VERSION=0
-MICRO_VERSION=3
-INTERFACE_AGE=3
-BINARY_AGE=3
+MICRO_VERSION=94
+INTERFACE_AGE=0
+BINARY_AGE=0
 VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${MICRO_VERSION}"
 AC_SUBST(MAJOR_VERSION)
 AC_SUBST(MINOR_VERSION)
@@ -139,13 +139,13 @@ if test "x$GCC" != "xyes"; then
 fi
 
 AC_MSG_CHECKING(for directory with kernel source)
-AC_ARG_WITH(kernel, [  --with-kernel=dir       Path to the kernel source tree [/usr/src/linux]], kerneldir="$withval",
+AC_ARG_WITH(kernel, [  --with-kernel=dir       Path to the kernel source tree [/usr/src/linux]], kerneldir="$withval", [
   if test -d "/lib/modules/`uname -r`/build" -o -L "/lib/modules/`uname -r`/build"; then
     kerneldir="/lib/modules/`uname -r`/build"
   else
     kerneldir="/usr/src/linux"
   fi
-)
+])
 AC_MSG_RESULT($kerneldir)
 
 KERNELDIR=$kerneldir
@@ -161,60 +161,6 @@ saved_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="-I$KERNELINC $CPPFLAGS"
 saved_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS $M64"
-
-AC_MSG_CHECKING(for kernel version)
-rm -f conf.kvertest
-AC_TRY_RUN([
-#include <stdio.h>
-#include <linux/version.h>
-
-int
-main (void)
-{
-#ifdef UTS_RELEASE
-  FILE *f;
-  f = fopen ("conf.kvertest", "w");
-  if (!f)
-    return 1;
-  fprintf (f, "%s", UTS_RELEASE);
-  fclose (f);
-  return 0;
-#else
-  return 1;
-#endif
-}],kversion=`cat conf.kvertest`, kversion="none")
-AC_MSG_RESULT($kversion)
-rm -f conf.kvertest
-
-if test "x$kversion" = "xnone"; then
-  AC_MSG_ERROR([Could not determine kernel version.])
-fi
-
-case "$kversion" in
-  2.4.*)
-    ;;
-  *)
-    AC_MSG_ERROR([This module only supports kernel version 2.4.x])
-    ;;
-esac
-
-KERNELVER=$kversion
-AC_SUBST(KERNELVER)
-
-AC_MSG_CHECKING([for Red Hat kernel])
-AC_EGREP_CPP(kernel_is_Red_Hat,
-[#include <linux/autoconf.h>
-#ifdef RED_HAT_LINUX_KERNEL
-  kernel_is_Red_Hat
-#endif
-}], rhkernel=yes, rhkernel=no)
-AC_MSG_RESULT($rhkernel)
-
-KVER=
-if test "x$rhkernel" = "xyes"; then
-  KVER=smp
-fi
-AC_SUBST(KVER)
 
 AC_CHECK_SIZEOF(unsigned long)
 
@@ -243,6 +189,47 @@ AC_MSG_RESULT($moddir)
 MODULEDIR=$moddir
 AC_SUBST(MODULEDIR)
 
+AC_MSG_CHECKING(for kernel version)
+rm -f conf.kvertest
+AC_TRY_RUN([
+#include <stdio.h>
+#include <linux/version.h>
+
+int
+main (void)
+{
+#ifdef UTS_RELEASE
+  FILE *f;
+  f = fopen ("conf.kvertest", "w");
+  if (!f)
+    return 1;
+  fprintf (f, "%s", UTS_RELEASE);
+  fclose (f);
+  return 0;
+#else
+  return 1;
+#endif
+}],kversion=`cat conf.kvertest`, kversion="none")
+rm -f conf.kvertest
+
+BUILD_DRIVER=
+case "$kversion" in
+  2.6.*)
+    AC_MSG_RESULT($kversion)
+    BUILD_DRIVER=yes
+    ;;
+  none)
+    AC_MSG_RESULT([Could not determine kernel version, disabling driver build])
+    ;;
+  *)
+    AC_MSG_RESULT([This module only supports kernel version 2.6.x, disabling driver build])
+    ;;
+esac
+AC_SUBST(BUILD_DRIVER)
+
+KERNELVER=$kversion
+AC_SUBST(KERNELVER)
+
 AC_MSG_CHECKING(for gcc include path)
 gccdir="`$CC -print-search-dirs | sed -n 's/^install: \(.*\)/\1/p'`include"
 if test -z "$gccdir"; then
@@ -263,10 +250,7 @@ RPM_VERSION=$rpmversion
 AC_SUBST(RPM_VERSION)
 
 AC_OUTPUT([Config.make
+include/linux/asm_module_version.h
 vendor/common/oracleasm-support.spec
-vendor/redhat/oracleasm.init
-vendor/redhat/oracleasm-2.4.9-e.spec
-vendor/redhat/oracleasm-2.4.21-EL.spec
-vendor/unitedlinux/oracleasm.init
-vendor/unitedlinux/oracleasm-2.4.21.spec-generic
+vendor/suse/oracleasm-2.6.5.spec-generic
 ])

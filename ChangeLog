@@ -1,8 +1,66 @@
 
+2004-09-17	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/suse/oracleasm.init.in: Fix ordering with ypbind.
+	* vendor/redhat/oracleasm.init.in: Fix ordering with ypbind.
+	* vendor/common/oracleasm.init.functions: Add scan ordering.
+
+2004-09-17	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Make maxio power of 2.
+
+2004-09-17	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Ok, seems to work!
+
+2004-09-13	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Here's a shot at alloc_inode.
+
+2004-09-11	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: bio_unmap_user() lost an argument
+		recently.
+
+2004-09-11	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Get porting done, add svc_io{32,64}
+		service wrappers.  It compiles!
+
+2004-09-10	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Whoa.  Port mostly done. Still doesn't
+		compile (yay strsep), but getting there.
+
 2004-08-27	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Make startup
 		after NIS (Fixes bug #3860229).
+
+2004-08-24	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Change asm_disk_info lifetimes, implement
+		OPEN_DISK.
+
+2004-08-24	Joel Becker <joel.becker@oracle.com>
+
+	* include/linux/asmabi.h: Add hardsect_size and change maxio to
+		max_sectors for oracleasm_query_disk_v2.
+	* kernel/oracleasm.c: Implement querydisk.
+
+2004-08-23	Joel Becker <joel.becker@oracle.com>
+
+	* include/linux/asmabi.h: Mark structures _v2.
+	* kernel/oracleasm.c: _v2.
+
+2004-08-23	Joel Becker <joel.becker@oracle.com>
+
+	* .: Check in the major ABI changes.  DOES NOT COMPILE.
+	* include/linux/asmabi.h: The new V2 ABI.
+	* include/linux/asmabi_compat.h: Move the V1 ABI here.
+	* include/asmerror.h: Add ASM_ERR_INSTALL.
+	* configure.in: Bump version to 1.90.0.
+	* kernel/oracleasm.c: Some ABI work.
 
 2004-08-19	Joel Becker <joel.becker@oracle.com>
 

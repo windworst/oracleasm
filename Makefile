@@ -8,6 +8,8 @@ TOPDIR = .
 #
 include $(TOPDIR)/Preamble.make
 
+TOOLSARCH = $(shell $(TOPDIR)/rpmarch.guess tools $(TOPDIR))
+MODULEARCH = $(shell $(TOPDIR)/rpmarch.guess module $(TOPDIR))
 
 #
 # Add any directories to recurse into via the SUBDIRS variable.
@@ -29,7 +31,13 @@ DIST_FILES = \
 	configure	\
 	configure.in	\
 	install-sh	\
-	mkinstalldirs
+	mkinstalldirs	\
+	rpmarch.guess
+
+
+#
+# Support files
+#
 
 $(TOPDIR)/oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm: $(TOPDIR)/vendor/common/oracleasm-support.spec
 	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" "$(TOPDIR)/vendor/common/oracleasm-support.spec"
@@ -37,32 +45,24 @@ $(TOPDIR)/oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm: $(TOPDIR)/ve
 support_srpm: $(TOPDIR)/oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm
 
 support_rpm: support_srpm
-	$(RPMBUILD) --rebuild --target $(TOOLSARCH) "oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
-
-rhas_srpm: dist support_srpm $(TOPDIR)/vendor/redhat/oracleasm-2.4.9-e.spec
-	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-2.4.9-e.spec"
-
-rhas_rpm: rhas_srpm support_rpm
-	$(RPMBUILD) --rebuild --target $(MODULEARCH) "oracleasm-2.4.9-e-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
-
-rhel3_srpm: dist support_srpm $(TOPDIR)/vendor/redhat/oracleasm-2.4.21-EL.spec
-	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" "$(TOPDIR)/vendor/redhat/oracleasm-2.4.21-EL.spec"
-
-rhel3_rpm: rhel3_srpm support_rpm
-	$(RPMBUILD) --rebuild --target $(MODULEARCH) "oracleasm-2.4.21-EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+	$(RPMBUILD) --rebuild $(TOOLSARCH) "oracleasm-support-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
 
-$(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21-%.spec: $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21.spec-generic
+#
+# SLES 9
+#
+
+$(TOPDIR)/vendor/suse/oracleasm-2.6.5-%.spec: $(TOPDIR)/vendor/suse/oracleasm-2.6.5.spec-generic
 	SPECVER="$@"; \
-		SPECVER="$${SPECVER#*oracleasm-2.4.21-}"; \
+		SPECVER="$${SPECVER#*oracleasm-2.6.5-}"; \
 		SPECVER="$${SPECVER%.spec}"; \
 		sed -e 's/^%define sver.*%{generic}$$/%define sver		'$${SPECVER}'/' < $< > $@
 
-ul10sp3_%_srpm: dist support_srpm $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21-%.spec
-	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21-$(patsubst ul10sp3_%_srpm,%,$@).spec
+sles9_%_srpm: dist $(TOPDIR)/vendor/suse/oracleasm-2.6.5-%.spec
+	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/suse/oracleasm-2.6.5-$(patsubst sles9_%_srpm,%,$@).spec
 
-ul10sp3_%_rpm: ul10sp3_%_srpm support_rpm
-	$(RPMBUILD) --rebuild --target $(MODULEARCH) "oracleasm-2.4.21-$(patsubst ul10sp3_%_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+sles9_%_rpm: sles9_%_srpm
+	$(RPMBUILD) --rebuild $(MODULEARCH) "oracleasm-2.6.5-$(patsubst sles9_%_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
 
 #

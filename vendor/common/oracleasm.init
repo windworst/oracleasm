@@ -1,13 +1,134 @@
-# -*-Shell-script-*-
-# init functions for oracleasm
+#! /bin/sh
+# init fragment for oracleasm
 #
-# Parent caller must have sourced init.d functions
-# . /etc/init.d/functions on Red Hat
-# . /etc/rc.status on UnitedLinux
+# chkconfig: 2345 29 20
+# description: Load OracleASM driver at system boot
 #
+### BEGIN INIT INFO
+# Provides: oracleasm
+# Required-Start: hwscan
+# Should-Start: ypbind
+# Required-Stop:
+# Default-Start: 2 3 5
+# Default-Stop:
+# Description: Load OCFS driver at system boot
+### END INIT INFO
+
 
 # Force LC_ALL=C
 export LC_ALL=C
+ 
+if [ -f /etc/redhat-release ]
+then
+. /etc/init.d/functions
+
+init_status()
+{
+    return 0
+}
+
+success_status()
+{
+    success
+    echo
+}
+
+failure_status()
+{
+    failure $1
+    echo
+}
+
+exit_status()
+{
+    exit $?
+}
+elif [ -f /etc/SuSE-release -o -f /etc/UnitedLinux-release ]
+then
+. /etc/rc.status
+
+init_status()
+{
+    rc_reset
+}
+
+success_status()
+{
+    /bin/true
+    rc_status -v
+}
+
+failure_status()
+{
+    /bin/false
+    rc_status -v
+}
+
+exit_status()
+{
+    rc_exit
+}
+else
+init_status()
+{
+    return 0
+}
+
+success_status()
+{
+    echo "OK"
+    return 0
+}
+
+failure_status()
+{
+    echo "Failed"
+    return 0
+}
+
+exit_status()
+{
+    exit $?
+}
+fi
+
+# Source configuration
+[ -f /etc/sysconfig/oracleasm ] && . /etc/sysconfig/oracleasm
+
+init_status
+
+KVER="`uname -r`"
+MODNAME="oracleasm"
+
+if [ -z "${ORACLE_ASMMANAGER}" ]
+then
+    ORACLE_ASMMANAGER="/dev/oracleasm"
+fi
+
+
+
+#
+# if_fail()
+#
+# Evaluates return codes.  If 0, prints "OK", if 1, prints "Failed"
+# and exits.  If 2, status is "already done" and nothing is printed.
+# The rest of the functions in here all honor this convention.
+#
+if_fail()
+{
+    RC="$1"
+    REASON="$2"
+    if [ "$RC" = "0" ]
+    then
+        success_status
+        return
+    elif [ "$RC" = "2" ]
+    then
+        return
+    fi
+    failure_status ${REASON}
+    exit 1
+}
 
 
 #
@@ -34,68 +155,13 @@ dev_create()
         return 1
     fi
 
-    echo -n "Creating $DEV mount point "
+    echo -n "Creating $DEV mount point: "
     mkdir "$DEV" 2>/dev/null
     if [ $? != 0 ]
     then
         echo "Unable to create mount point $DEV" >&2
         return 1
     fi
-    return 0
-}
-
-
-#
-# module_link()
-#
-# Link $1 from path $2 to $3
-# Returns 0 on success, 1 on error, 2 if it already exists.
-#
-module_link()
-{
-    if [ "$#" -lt 3 -o -z "$1" -o -z "$2" -o -z "$3" ]
-    then
-        echo -n "module_link(): Requires 3 arguments" >&2
-        return 1
-    fi
-    MODULENAME="$1"
-    SRCPATH="$2"
-    TARGETPATH="$3"
-
-    # Assume any symlink is OK - caveat emptor for non-RPM users
-    test -L "${TARGETPATH}/${MODULENAME}" && return 2
-    # If the source module isn't there, this is a first install
-    test -f "${SRCPATH}/${MODULENAME}" || return 2
-
-    echo -n "Linking module ${MODULENAME} into the module path "
-
-    # Same deal for modules that are physically there
-    if test -f "${TARGETPATH}/${MODULENAME}" ; then
-        echo
-        echo "Leaving existing module in place"
-        return 2
-    fi
-
-    if test ! -d "$TARGETPATH" ; then
-        if test -e "${TARGETPATH}"; then
-            echo "Path \"${TARGETPATH}\" already exists, but is not a directory" >&2
-            return 1
-        else
-            mkdir -p "$TARGETPATH" >/dev/null 2>&1
-            if test $? != 0; then
-                echo "Unable to create directory \"${TARGETPATH}\"" >&2
-                return 1
-            fi
-        fi
-    fi
-
-    ln -s "${SRCPATH}/${MODULENAME}" "${TARGETPATH}/${MODULENAME}" >/dev/null 2>&1
-    if test $? != 0; then
-        echo "Unable to create symbolic link \"${TARGETPATH}/${MODULENAME}\"" >&2
-        return 1
-    fi
-    depmod -a
-
     return 0
 }
 
@@ -121,7 +187,7 @@ load_module()
         return 2
     fi
 
-    echo -n "Loading module \"$MODNAME\" "
+    echo -n "Loading module \"$MODNAME\": "
     modprobe -s "$MODNAME"
     if [ "$?" != 0 ]
     then
@@ -164,7 +230,7 @@ unload_module()
         ;;
     esac
 
-    echo -n "Unloading module \"$MODNAME\" "
+    echo -n "Unloading module \"$MODNAME\": "
     modprobe -rs "$MODNAME"
     if [ "$?" != 0 ]
     then
@@ -197,7 +263,7 @@ mount_device()
         return 2
     fi
 
-    echo -n "Mounting ASMlib driver filesystem "
+    echo -n "Mounting ASMlib driver filesystem: "
     mount $OPTS -t oracleasmfs oracleasmfs $ORACLE_ASMMANAGER
     if [ $? != 0 ]
     then
@@ -205,6 +271,20 @@ mount_device()
         return 1
     fi
 
+    for i in ${ORACLE_ASMMANAGER}/.[a-z]*
+    do
+        if [ "$i" = ${ORACLE_ASMMANAGER}'/.[a-z]*' ]
+        then
+            break
+        fi
+        perm_disk "$i"
+        if [ $? = 1 ]
+        then
+            echo "Unable to fix ASM driver permissions" >&2
+            return 1
+        fi
+    done
+        
     perm_disk ${ORACLE_ASMMANAGER}/iid
     if [ $? = 1 ]
     then
@@ -245,7 +325,7 @@ unmount_device()
         return 2
     fi
 
-    echo -n "Unmounting ASMlib driver filesystem "
+    echo -n "Unmounting ASMlib driver filesystem: "
     umount $ORACLE_ASMMANAGER
     if [ $? != 0 ]
     then
@@ -264,7 +344,7 @@ unmount_device()
 #
 write_sysconfig()
 {
-    echo -n "Writing Oracle ASM library driver configuration "
+    echo -n "Writing Oracle ASM library driver configuration: "
     cat >/etc/sysconfig/oracleasm <<EOF
 #
 # This is a configuration file for automatic loading of the Oracle
@@ -381,7 +461,7 @@ EOF
             break
             ;;
         *)
-            echo "Invalid GID: $LINE" >&2
+            echo "Invalid response: $LINE" >&2
             ;;
         esac
     done
@@ -413,7 +493,7 @@ EOF
             break
             ;;
         *)
-            echo "Invalid GID: $LINE" >&2
+            echo "Invalid response: $LINE" >&2
             ;;
         esac
     done
@@ -461,7 +541,8 @@ make_disk()
     OUTPUT="`asmtool -C -l "${ORACLE_ASMMANAGER}" -n "${LABEL}" -s "${DISKNAME}" $MARK 2>&1`"
     if [ $? != 0 ]
     then
-        echo -n "Marking disk \"$DISKNAME\" as an ASM disk "
+        echo -n "Marking disk \"$DISKNAME\" as an ASM disk: "
+	echo "$OUTPUT"
         return 1
     fi
     case "$OUTPUT" in
@@ -471,7 +552,7 @@ make_disk()
     *)
         ;;
     esac
-    echo -n "Marking disk \"$DISKNAME\" as an ASM disk "
+    echo -n "Marking disk \"$DISKNAME\" as an ASM disk: "
     return 0
 }
 
@@ -506,10 +587,10 @@ relabel_disk()
         then
             echo "If you really wish to change the label, rerun with the force-renamedisk command." >&2
         fi
-        echo -n "Renaming disk \"$OLDDISK\" to \"$NEWLABEL\" "
+        echo -n "Renaming disk \"$OLDDISK\" to \"$NEWLABEL\": "
         return 1
     fi
-    echo -n "Renaming disk \"$OLDDISK\" to \"$NEWLABEL\" "
+    echo -n "Renaming disk \"$OLDDISK\" to \"$NEWLABEL\": "
     return 0
 }
 
@@ -532,7 +613,7 @@ remove_disk()
     OUTPUT="`asmtool -D -l "${ORACLE_ASMMANAGER}" -n "${DISKNAME}" 2>&1`"
     if [ $? != 0 ]
     then
-        echo -n "Removing ASM disk \"$DISKNAME\" "
+        echo -n "Removing ASM disk \"$DISKNAME\": "
         return 1
     fi
     case "$OUTPUT" in
@@ -542,7 +623,7 @@ remove_disk()
     *)
         ;;
     esac
-    echo -n "Removing ASM disk \"$DISKNAME\" "
+    echo -n "Removing ASM disk \"$DISKNAME\": "
     return 0
 }
 
@@ -560,7 +641,7 @@ check_disk()
     fi
     DISKNAME="$1"
 
-    asmtool -I -l "$ORACLE_ASMMANAGER" -n "$DISKNAME" | sed -e 's/^asmtool: //'
+    asmtool -I -l "$ORACLE_ASMMANAGER" -n "$DISKNAME" -a label 2>&1| sed -e 's/^asmtool: //'
 }
 
 
@@ -582,7 +663,7 @@ perm_disk()
     OUTPUT="`ls -ld "${DISKNAME}" 2>/dev/null`"
     if [ $? != 0 ]
     then
-        echo -n "Checking ownership of disk \"${DISKNAME}\" "
+        echo -n "Checking ownership of disk \"${DISKNAME}\": "
         return 1
     fi
     OUID="`echo "$OUTPUT" | awk '{print $3}'`"
@@ -624,7 +705,7 @@ scan_disks()
         return 2
     fi
 
-    echo -n "Scanning system for ASM disks "
+    echo -n "Scanning system for ASM disks: "
     RC=0
 
     SCANARGS=
@@ -656,4 +737,193 @@ scan_disks()
 
     return 0
 }
+
+configure()
+{
+    configure_ask
+    write_sysconfig
+    if_fail $? "Unable to write the driver configuration"
+}
+
+
+scandisks()
+{
+    scan_disks
+    if_fail "$?" "Unable to scan for ASM disks"
+}
+
+
+start()
+{
+    dev_create "${ORACLE_ASMMANAGER}"
+    if_fail "$?" "Unable to create ${ORACLE_ASMMANAGER}"
+
+    if [ "$ORACLEASM_ENABLED" != "true" ]
+    then
+        exit 0
+    fi
+
+    load_module "${MODNAME}"
+    if_fail "$?" "Unable to load the ASMlib driver module"
+
+    mount_device
+    if_fail "$?" "Unable to mount the ASMlib driver filesystem"
+
+    scandisks
+}
+
+
+stop()
+{
+    unmount_device
+    if_fail "$?" "Unable to unmount the ASMlib driver filesystem"
+
+    unload_module oracleasm
+    if_fail "$?" "Unable to unload the ASM library driver"
+}
+
+
+
+case "$1" in
+    start)
+        start
+	;;
+	
+    status)
+        echo -n $"Checking if ASM is loaded: "
+	grep '^oracleasm ' /proc/modules >/dev/null 2>&1
+        if_fail $?
+
+        echo -n $"Checking if $ORACLE_ASMMANAGER is mounted: "
+        ORACLE_ASMMANAGERSEARCH="`echo $ORACLE_ASMMANAGER | sed -e 's/\//\\\\\//g'`"
+        grep "^oracleasmfs $ORACLE_ASMMANAGERSEARCH oracleasmfs" /proc/mounts >/dev/null 2>&1
+        if_fail $?
+
+        exit 0
+        ;;
+
+    configure)
+        configure
+        if [ "$ORACLEASM_ENABLED" = "true" ]
+        then
+            start
+        else
+            stop
+        fi
+        ;;
+
+    enable)
+        ORACLEASM_ENABLED=true
+        write_sysconfig
+        if_fail $? "Unable to write the driver configuration"
+        start
+        ;;
+
+    disable)
+        ORACLEASM_ENABLED=false
+        write_sysconfig
+        if_fail $? "Unable to write the driver configuration"
+        stop
+        ;;
+
+    createdisk)
+        if [ -z "$2" -o -z "$3" ]
+        then
+            echo "Action \"createdisk\" requires two arguments" >&2
+            exit 1
+        fi
+        UPDISK="`upper_disk "$2"`"
+        make_disk "$UPDISK" "$3"
+        if [ $? = 1 ]
+        then
+            if_fail 1 "Unable to create disk \"$UPDISK\""
+        fi
+        perm_disk "${ORACLE_ASMMANAGER}/disks/$UPDISK"
+        if_fail $? "Unable to change ownership of disk \"$UPDISK\""
+        ;;
+
+    deletedisk)
+        if [ -z "$2" ]
+        then
+            echo "Action \"deletedisk\" requires an argument" >&2
+            exit 1
+        fi
+        UPDISK="`upper_disk "$2"`"
+        remove_disk "$UPDISK"
+        if_fail $? "Unable to delete disk \"$UPDISK\""
+        ;;
+
+    renamedisk)
+        if [ -z "$2" -o -z "$3" ]
+        then
+            echo "Action \"renamedisk\" requires two arguments" >&2
+            exit 1
+        fi
+        OLDDISK="$2"
+        NEWDISK="`upper_disk "$3"`"
+        relabel_disk "$OLDDISK" "$NEWDISK"
+        # We know this will error via asmtool
+        if_fail 1 "Unable to rename disk \"$OLDDISK\"" >&2
+        ;;
+    
+    force-renamedisk)
+        if [ -z "$2" -o -z "$3" ]
+        then
+            echo "Action \"renamedisk\" requires two arguments" >&2
+            exit 1
+        fi
+        OLDDISK="$2"
+        NEWDISK="`upper_disk "$3"`"
+        relabel_disk "$OLDDISK" "$NEWDISK" "-a force=yes"
+        if [ $? = 1 ]
+        then
+            if_fail 1 "Unable to rename disk \"$OLDDISK\"" >&2
+        fi
+        perm_disk "${ORACLE_ASMMANAGER}/disks/$NEWDISK"
+        if_fail $? "Unable to change ownership of disk \"$NEWDISK\""
+        ;;
+
+    listdisks)
+	if [ -d "${ORACLE_ASMMANAGER}/disks/" ]
+        then
+            ls -1 "${ORACLE_ASMMANAGER}/disks/"
+        fi
+        ;;
+
+    querydisk)
+        if [ -z "$2" ]
+        then
+            echo "Action \"querydisk\" requires an argument" >&2
+            exit 1
+        fi
+	case "$2" in
+        */*)
+            check_disk "$2"
+            ;;
+        *)
+            UPDISK="`upper_disk "$2"`"
+            check_disk "$UPDISK"
+            ;;
+        esac
+        ;;
+
+    scandisks)
+        scandisks
+        ;;
+
+    stop)
+        stop
+        ;;
+
+    restart)
+        stop
+        start
+	;;
+
+    *)
+	echo "Usage: $0 {start|stop|restart|enable|disable|configure|createdisk|deletedisk|querydisk|listdisks|scandisks|status}"
+        exit 1
+esac
+
+exit 0
 

@@ -1,72 +1,56 @@
+# See if we are being included by 2.6 kbuild
+ifeq ($(KERNELRELEASE),)
 TOPDIR = ..
 
 include $(TOPDIR)/Preamble.make
+else #ifeq ($(KERNELRELEASE),)
+# We are included by kbuild
 
-DEFINES = -DMODULE -DLINUX -D__KERNEL__ 
+ORACLEASM_SRC_DIR	:= $(M)
 
-# Red Hat kernel magic
-# Note that arch is still retrieved from /boot/kernel.h.
-# Set __MODULE_KERNEL_<arch> on the make command line to override.
-ifeq ($(KVER),smp)
-  DEFINES += -D__BOOT_KERNEL_ENTERPRISE=0
-  DEFINES += -D__BOOT_KERNEL_HUGEMEM=0
-  DEFINES += -D__BOOT_KERNEL_SMP=1 
-  DEFINES += -D__BOOT_KERNEL_UP=0 
-endif
-# Ugh - Silly Kurt
-ifeq ($(KVER),ent)
-  DEFINES += -D__BOOT_KERNEL_ENTERPRISE=1
-  DEFINES += -D__BOOT_KERNEL_HUGEMEM=0
-  DEFINES += -D__BOOT_KERNEL_SMP=0 
-  DEFINES += -D__BOOT_KERNEL_UP=0 
-endif
-ifeq ($(KVER),enterprise)
-  DEFINES += -D__BOOT_KERNEL_ENTERPRISE=1
-  DEFINES += -D__BOOT_KERNEL_HUGEMEM=0
-  DEFINES += -D__BOOT_KERNEL_SMP=0 
-  DEFINES += -D__BOOT_KERNEL_UP=0 
-endif
-ifeq ($(KVER),hugemem)
-  DEFINES += -D__BOOT_KERNEL_ENTERPRISE=0
-  DEFINES += -D__BOOT_KERNEL_HUGEMEM=1
-  DEFINES += -D__BOOT_KERNEL_SMP=0 
-  DEFINES += -D__BOOT_KERNEL_UP=0 
-endif
-ifeq ($(KVER),up)
-  DEFINES += -D__BOOT_KERNEL_ENTERPRISE=0
-  DEFINES += -D__BOOT_KERNEL_HUGEMEM=0 
-  DEFINES += -D__BOOT_KERNEL_SMP=0 
-  DEFINES += -D__BOOT_KERNEL_UP=1 
+include $(ORACLEASM_SRC_DIR)/../Config.make
 endif
 
-INCLUDES = -I. -I$(TOPDIR)/include -I$(KERNELINC) -I$(GCCINC)
 
-WARNINGS = -Wall -Wstrict-prototypes
-
-CPPFLAGS = -nostdinc $(MODVERSIONS)
-CFLAGS += -fomit-frame-pointer $(WARNINGS) $(MCMODEL) $(M64)
-LDADD = -nostdlib
-
-MODULES = oracleasm.o
-
-SOURCES = oracleasm.c
+HEADERS = transaction_file.h
+SOURCES = oracleasm.c transaction_file.c
 OBJECTS = $(subst .c,.o,$(SOURCES))
 
-HEADERS =					\
-	$(TOPDIR)/include/linux/asmkernel.h	\
-	$(TOPDIR)/include/linux/asmcompat32.h	\
-	$(TOPDIR)/include/linux/asmabi.h	\
-	$(TOPDIR)/include/linux/asmdisk.h	\
-	$(TOPDIR)/include/asmerror.h
+ifeq ($(KERNELRELEASE),)
+# Called as "make" part of makefile.  This executes kbuild
 
-oracleasm.o: $(HEADERS)
+INSTALL_MODULE = oracleasm.ko
 
-INSTALL_RULES = install-asm
+ifeq ($(BUILD_DRIVER), yes)
+ALL_RULES = build-oracleasm
 
-install-asm: oracleasm.o
-	$(TOPDIR)/mkinstalldirs $(DESTDIR)$(MODULEDIR)
-	$(INSTALL_DATA) oracleasm.o $(DESTDIR)$(MODULEDIR)/oracleasm.o
+CLEAN_RULES = clean-oracleasm
 
-DIST_FILES = $(SOURCES)
+INSTALL_RULES = install-oracleasm
+endif
+
+build-oracleasm:
+	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) modules
+
+clean-oracleasm:
+	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) clean
+
+install-oracleasm: $(INSTALL_MODULE)
+	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) modules_install
+
+DIST_FILES = $(SOURCES) $(HEADERS)
 
 include $(TOPDIR)/Postamble.make
+
+else
+# Called from kbuild
+
+STAMP_DIR = $(ORACLEASM_SRC_DIR)
+
+INCLUDES = -I. -I$(ORACLEASM_SRC_DIR)/../include
+EXTRA_CFLAGS += $(DEFINES) $(INCLUDES)
+
+obj-m += oracleasm.o
+#oracleasm-objs := $(OBJECTS)
+
+endif

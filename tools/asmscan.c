@@ -49,6 +49,9 @@
 #include <errno.h>
 
 #include <linux/types.h>
+#include <linux/hdreg.h>
+#include "linux/asmcompat32.h"
+#include "linux/asmabi.h"
 #include "linux/asmdisk.h"
 #include "linux/asmmanager.h"
 
@@ -62,7 +65,10 @@
 #define DEV_PREFIX      "/dev/"
 #define PROC_IDE_FORMAT "/proc/ide/%s/media"
 
-
+/* So as not to include linux/fs.h, let's explicitly do this here. */
+#ifndef BLKRRPART
+#define BLKRRPART  _IO(0x12,95) /* re-read partition table */
+#endif
 
 
 /*
@@ -104,6 +110,8 @@ static void as_pattern_free(ASMScanPattern *pattern);
 static int as_pattern_match(ASMScanPattern *pattern,
                             const char *dev_name);
 static void as_clean_pattern_list(struct list_head *pattern_list);
+static void as_pattern_empty(ASMScanPattern *pattern);
+static void as_empty_pattern_list(struct list_head *pattern_list);
 static ASMScanDevice *as_device_new(struct list_head *device_list,
                                     const char *dev_name);
 static void as_device_free(ASMScanDevice *device);
@@ -191,7 +199,7 @@ static ASMScanPattern *as_pattern_new(struct list_head *pattern_list,
 }  /* as_pattern_new() */
 
 
-static void as_pattern_free(ASMScanPattern *pattern)
+static void as_pattern_empty(ASMScanPattern *pattern)
 {
     struct list_head *pos, *tmp;
     ASMScanDevice *device;
@@ -205,6 +213,15 @@ static void as_pattern_free(ASMScanPattern *pattern)
                 as_device_free(device);
             }
         }
+    }
+}  /* as_pattern_empty() */
+
+
+static void as_pattern_free(ASMScanPattern *pattern)
+{
+    if (pattern)
+    {
+        as_pattern_empty(pattern);
         list_del(&pattern->sp_list);
         free(pattern);
     }
@@ -238,6 +255,18 @@ static void as_clean_pattern_list(struct list_head *pattern_list)
         as_pattern_free(pattern);
     }
 }  /* as_clean_pattern_list() */
+
+
+static void as_empty_pattern_list(struct list_head *pattern_list)
+{
+    struct list_head *pos;
+    ASMScanPattern *pattern;
+
+    list_for_each(pos, pattern_list) {
+        pattern = list_entry(pos, ASMScanPattern, sp_list);
+        as_pattern_empty(pattern);
+    }
+}  /* as_empty_pattern_list() */
 
 
 static ASMScanDevice *as_device_new(struct list_head *device_list,
@@ -365,7 +394,7 @@ static int as_ide_disk(const char *dev_name)
 
 /* Um, wow, this is, like, one big hardcode */
 static int scan_devices(struct list_head *order_list,
-                      struct list_head *exclude_list)
+                        struct list_head *exclude_list)
 {
     int rc, major, minor;
     FILE *f;
@@ -712,13 +741,13 @@ static int clean_disks(const char *manager)
     if (!dir)
         goto out;
 
+    rc = 0;
     while ((d_ent = readdir(dir)) != NULL)
     {
         if (!strcmp(d_ent->d_name, ".") || !strcmp(d_ent->d_name, ".."))
             continue;
 
-        rc = needs_clean(manager, d_ent->d_name);
-        if (!rc)
+        if (!needs_clean(manager, d_ent->d_name))
             continue;
 
         fprintf(stdout, "Cleaning disk \"%s\"\n", d_ent->d_name);
@@ -728,6 +757,7 @@ static int clean_disks(const char *manager)
 out:
     return rc;
 }  /* clean_disks() */
+
 
 static int device_is_disk(const char *manager, const char *device,
                           char **disk_name)
@@ -866,6 +896,74 @@ static int instantiate_disk(const char *manager,
 
     return rc;
 }
+
+
+static int device_is_partition(ASMScanDevice *device)
+{
+    struct hd_geometry geo;
+    int rc, fd;
+
+    /* Any errors, return false.  This will force BLKRRPART on the device. */
+    fd = open(device->sd_path, O_RDONLY);
+    if (fd < 0)
+        return 0;
+
+    rc = ioctl(fd, HDIO_GETGEO, &geo);
+
+    close(fd);
+
+    if (rc)
+        return 0;
+
+    return !!geo.start;
+}  /* device_is_partition() */
+
+
+static int reread_single_device(ASMScanDevice *device)
+{
+    int rc, fd;
+
+    /* Any errors, return false.  This will force BLKRRPART on the device. */
+    fd = open(device->sd_path, O_RDONLY);
+    if (fd < 0)
+        return -errno;
+
+    rc = ioctl(fd, BLKRRPART, NULL);
+
+    if (rc)
+        rc = -errno;
+
+    close(fd);
+
+    return rc;
+}  /* reread_single_device() */
+
+
+static int reread_partitions(struct list_head *order_list)
+{
+    int rc;
+    struct list_head *pos_l, *pos_d;
+    ASMScanPattern *pattern;
+    ASMScanDevice *device;
+
+    list_for_each(pos_l, order_list) {
+        pattern = list_entry(pos_l, ASMScanPattern, sp_list);
+        list_for_each(pos_d, &pattern->sp_matches) {
+            device = list_entry(pos_d, ASMScanDevice, sd_list);
+            if (device_is_partition(device))
+                continue;
+            rc = reread_single_device(device);
+            /*
+             * Drop rc to the fllor, as failing to reread partitions
+             * just means we go with the existing partition map.
+             * (Keep rc as a variable, just in case we care later.)
+             */
+        }
+    }
+
+    /* Ignore errors */
+    return 0;
+}  /* rescan_partitions() */
 
 
 static int make_disks(const char *manager, struct list_head *order_list)
@@ -1027,6 +1125,21 @@ int main(int argc, char *argv[])
                 strerror(-rc));
         goto out;
     }
+
+    rc = scan_devices(&order_list, &exclude_list);
+    if (rc)
+        goto out;
+
+    rc = reread_partitions(&order_list);
+    if (rc)
+        goto out;
+
+    /*
+     * With BLKRRPART called, the devices might not exist anymore.
+     * We rescan below.
+     */
+    as_empty_pattern_list(&order_list);
+    as_empty_pattern_list(&exclude_list);
 
     rc = clean_disks(manager);
     if (rc)

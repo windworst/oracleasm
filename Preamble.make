@@ -12,7 +12,6 @@ MODULES =
 MANS =
 
 ALL_RULES =
-
 INSTALL_RULES =
 
 CLEAN_FILES =
@@ -26,6 +25,8 @@ DEFINES =
 
 CFLAGS += $($(subst /,_,$(basename $@))_CFLAGS)
 CFLAGS += -pipe
+# protect with configure?
+CDEPFLAGS = -MD -MP -MF $(@D)/.$(basename $(@F)).d
 
 LINK = $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^
 

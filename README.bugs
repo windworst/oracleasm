@@ -2,6 +2,11 @@ README.bugs
 
 Bugs fixed by release.
 
+oracleasm 2.0.0
+---------------
+3919995: oracleasm listdisks should also correlate with the devices
+4113520: ASMLib FOR Linux allows use of disk without a partition table
+
 oracleasm 1.0.3
 ---------------
 3843206: ASM_INIT_INSTALL while trying to load generic Linux ASMLib

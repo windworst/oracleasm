@@ -3,7 +3,7 @@ TOPDIR = ../..
 include $(TOPDIR)/Preamble.make
 
 DIST_FILES =				\
-	oracleasm.init.functions	\
+	oracleasm.init			\
 	oracleasm.sysconfig		\
 	oracleasm-support.spec.in
 

@@ -14,14 +14,17 @@ include $(TOPDIR)/Preamble.make
 # 
 SUBDIRS = 
 
-HEADERS =		\
-	asmabi.h	\
-	asmdisk.h	\
-	asmmanager.h	\
-	asmkernel.h	\
-	asmcompat32.h
+HEADERS =			\
+	asmabi.h		\
+	asmabi_compat.h		\
+	asmdisk.h		\
+	asmmanager.h		\
+	asmmanager_compat.h	\
+	asmkernel.h		\
+	asmcompat32.h		\
+	asm_module_version.h
 
-DIST_FILES = $(HEADERS)
+DIST_FILES = $(HEADERS) asm_module_version.h.in
 
 
 #
