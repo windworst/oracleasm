@@ -1,6 +1,19 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* test/{osmbad,asmbad}.c: Rename osmbad.c to asmbad.c.
+	* test/{osmtest,asmtest}.c: Rename osmtest.c to asmtest.c.
+	* test/{osmtest-multi,asmtest-multi}.c: Rename osmtest-multi.c
+		to asmtest-multi.c.
+	* test/{osmprofile,asmprofile}.c: Rename osmprofile.c to
+		asmprofile.c.
+	* test/sizes.c: OSM->ASM.
+	* test/Makefile: Handle all the renames.
+	* tools/{osmtool,asmtool}.c: Rename osmtool.c to asmtool.c.
+	* tools/Makefile: Handle the rename.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* kernel/oracleasm.c: Last little 'osm' bits.
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>

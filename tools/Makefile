@@ -2,7 +2,7 @@ TOPDIR = ..
 
 include $(TOPDIR)/Preamble.make
 
-SBIN_PROGRAMS = osmtool
+SBIN_PROGRAMS = asmtool
 
 VERSION_FLAGS = -DVERSION="\"${VERSION}\""
 CPPFLAGS = -DLINUX ${VERSION_FLAGS} $(DEFS)
@@ -10,7 +10,7 @@ CFLAGS = -Wall -g -O2
 
 INCLUDES = -I. -I$(TOPDIR)/include
 
-SOURCES = osmtool.c
+SOURCES = asmtool.c
 HEADERS =					\
 	$(TOPDIR)/include/oratypes.h		\
 	$(TOPDIR)/include/osmlib.h		\
@@ -21,9 +21,9 @@ OBJECTS = $(subst .c,.o,$(SOURCES))
 
 DIST_FILES = $(SOURCES)
 
-osmtool.o: $(HEADERS)
+asmtool.o: $(HEADERS)
 
-osmtool: $(OBJECTS)
+asmtool: $(OBJECTS)
 	$(LINK)
 
 include $(TOPDIR)/Postamble.make
