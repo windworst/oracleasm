@@ -1,7 +1,12 @@
 
+2003-06-20	Joel Becker <joel.becker@oracle.com>
+
+	* redhat/osm.init: Link OSM ABI on boot.
+	* redhat/osm-2.4.9-e.spec.in: RHAS 2.1 specfile
+
 2003-06-04	Joel Becker <joel.becker@oracle.com>
 
-	* Makefile.orgi: Same as Configure.
+	* Makefile.orig: Same as Configure.
 
 2003-06-04	Joel Becker <joel.becker@oracle.com>
 

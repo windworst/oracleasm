@@ -1,0 +1,120 @@
+#! /bin/sh
+# init fragment for osm
+#
+# chkconfig: 2345 26 20
+# description: OSM ABI link fixup.
+
+#
+# Note that the start priority is 26.  This is the same as raw devices.
+# It seemed appropriate.
+#
+#
+
+KVER="`uname -r`"
+case "$KVER" in
+2.4.9-e.*enterprise)
+    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
+    OBJPATH="/lib/modules/2.4.9-e-enterprise-ABI/osm"
+    ;;
+2.4.9-e.*smp)
+    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
+    OBJPATH="/lib/modules/2.4.9-e-smp-ABI/osm"
+    ;;
+2.4.9-e.*summit)
+    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
+    OBJPATH="/lib/modules/2.4.9-e-summit-ABI/osm"
+    ;;
+2.4.9-e.*)
+    MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
+    OBJPATH="/lib/modules/2.4.9-e-ABI/osm"
+    ;;
+*)
+    # Not a supported kernel
+    exit 0
+    ;;
+esac
+
+test -r "$OBJPATH/osm.o" || exit 0
+
+# Source init.d functions
+. /etc/init.d/functions
+
+
+module_link()
+{
+    # Assume any symlink is OK - caveat emptor for non-RPM users
+    test -L "${MODPATH}/osm.o" && return
+
+    echo -n "Linking OSM module into the module path"
+
+    # Same deal for modules that are physically there
+    if test -f "${MODPATH}/osm.o" ; then
+        EXISTVER="`modinfo "${MODPATH}/osm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
+        if test -n "${EXISTVER}" ; then
+            ABIVER="`modinfo "${OBJPATH}/osm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
+
+            echo
+            echo "Leaving existing osm module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
+            success
+            echo
+            return
+        else
+            # The existing module is too old - pre-ABI packaging
+            echo
+            echo "Warning: Moving ancient osm.o out of the way"
+            mv -f "${MODPATH}/osm.o" "${MODPATH}/osm.o.preABI" >/dev/null 2>&1
+            if test "$?" != 0 ; then
+                failure $"Unable to move ancient osm module out of the way"
+                echo
+                exit 1
+            fi
+        fi
+    fi
+
+    if test ! -d "$MODPATH" ; then
+        if test -e "${MODPATH}"; then
+            failure $"Path \"${MODPATH}\" already exists, but is not a directory"
+            echo
+            exit 1
+        else
+            mkdir -p "$MODPATH" >/dev/null 2>&1
+            if test $? != 0; then
+                failure $"Unable to create directory \"${MODPATH}\""
+                echo
+                exit 1
+            fi
+        fi
+    fi
+
+    ln -s "${OBJPATH}/osm.o" "${MODPATH}/osm.o" >/dev/null 2>&1
+    if test $? != 0; then
+        failure $"Unable to create symbolic link \"${MODPATH}/osm.o\""
+        echo
+        exit 1
+    fi
+
+    success
+    echo
+}
+
+case "$1" in
+    start)
+        module_link
+        RETVAL=0
+	;;
+	
+    link)
+	module_link
+        RETVAL=0
+        ;;
+
+    stop|force-reload|restart)
+        RETVAL=0
+	;;
+
+    *)
+	echo "Usage: $0 {start|stop|restart|force-reload|link}"
+        RETVAL=1
+esac
+
+exit $RETVAL
