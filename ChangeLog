@@ -1,6 +1,15 @@
 
 2003-08-25	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: Add RPM_VERSION.
+	* Config.make.in: Add RPM_VERSION.
+	* Makefile: Add RHAS srpm and rpm rules.
+	* test/{osmtest,osmtest-multi}: Remove wrappers.
+	* test/Makefile: Make osmtest and osmtest-multi build with
+		-rpath.
+
+2003-08-25	Joel Becker <joel.becker@oracle.com>
+
 	* redhat/ocfs.init: Modernize based on ocfs lessons.
 
 2003-08-22	Joel Becker <joel.becker@oracle.com>
