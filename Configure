@@ -1,0 +1,70 @@
+#!/bin/sh
+
+#
+# Quick and easy config script
+#
+
+ARCH=
+KERNEL_INCLUDES=
+
+if [ -f .config -a -r .config ]
+then
+    . .config
+fi
+
+RAWHW=`uname -m`
+
+# Map uname -m output to linux architecture names.  Please add as fits.
+case "$RAWHW" in
+i?86)
+    ARCH=i386
+    ;;
+*)
+    echo "Unknown processor type: $RAWHW.  Please add it!" >&2
+    ;;
+esac
+
+if [ -z "$KERNEL_INCLUDES" ]
+then
+    echo -n "What is the path to the kernel include files? "
+else
+    echo -n "What is the path to the kernel include files [$KERNEL_INCLUDES]? "
+fi
+read LINE
+
+if [ -z "$LINE" ]
+then
+    if [ -z "$KERNEL_INCLUDES" ]
+    then
+        echo "Kernel include path not specified, aborting." >&2
+        exit 1
+    fi
+else
+    KERNEL_INCLUDES="$LINE"
+fi
+
+if [ ! -e "$KERNEL_INCLUDES" ]
+then
+    echo "Kernel include path \"$KERNEL_INCLUDES\" does not exist, aborting." >&2
+    exit 1
+fi
+
+if [ ! -r "$KERNEL_INCLUDES" ]
+then
+    echo "Kernel include path \"$KERNEL_INCLUDES\" is not readable, aborting." >&2
+    exit 1
+fi
+
+if [ ! -d "$KERNEL_INCLUDES" ]
+then
+    echo "Kernel include path \"$KERNEL_INCLUDES\" is not a directory, aborting." >&2
+    exit 1
+fi
+
+cat <<EOF >.config
+KERNEL_INCLUDE_PATH=$KERNEL_INCLUDES
+ARCH=$ARCH
+EOF
+
+rm include/arch
+ln -s arch-$ARCH include/arch
