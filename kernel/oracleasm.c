@@ -66,6 +66,7 @@
 #include <linux/mount.h>
 #include <linux/smp_lock.h>
 #include <linux/parser.h>
+#include <linux/backing-dev.h>
 
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
@@ -281,6 +282,11 @@ static struct transaction_context trans_contexts[] = {
 #if BITS_PER_LONG == 64
 	[ASMOP_IO64]			= {asmfs_svc_io64},
 #endif
+};
+
+static struct backing_dev_info memory_backing_dev_info = {
+	.ra_pages	= 0,	/* No readahead */
+	.memory_backed	= 1,	/* Does not contribute to dirty memory */
 };
 
 
@@ -561,6 +567,7 @@ static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode, stru
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode->i_op = &asmfs_file_inode_operations;
 	inode->i_fop = &asmfs_file_operations;
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
 
 	d_instantiate(dentry, inode);
 
@@ -622,8 +629,6 @@ static int asmfs_unlink(struct inode * dir, struct dentry *dentry)
 	}
 	return retval;
 }
-
-#define asmfs_rmdir asmfs_unlink
 
 static void asmfs_put_super(struct super_block *sb)
 {
@@ -792,6 +797,8 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 		if (d->d_live)
 			BUG();
 
+		disk_inode->i_mapping->backing_dev_info =
+			&memory_backing_dev_info;
 		d->d_bdev = bdev;
 		d->d_max_sectors = compute_max_sectors(bdev);
 		d->d_live = 1;
@@ -2435,13 +2442,13 @@ static struct file_operations asmfs_dir_operations = {0, };
 
 static struct inode_operations asmfs_disk_dir_inode_operations = {
 	.lookup		= simple_lookup,
-	.unlink		= asmfs_unlink,
+	.unlink		= simple_unlink,
 	.mknod		= asmfs_mknod,
 };
 static struct inode_operations asmfs_iid_dir_inode_operations = {
 	.create		= asmfs_create,
 	.lookup		= simple_lookup,
-	.unlink		= asmfs_unlink,
+	.unlink		= simple_unlink,
 };
 
 static struct super_operations asmfs_ops = {
@@ -2500,6 +2507,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode->i_op = &simple_dir_inode_operations;
 	inode->i_fop = &asmfs_dir_operations;
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
 	/* directory inodes start off with i_nlink == 2 (for "." entry) */
 	inode->i_nlink++;
 
@@ -2524,6 +2532,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode->i_op = &asmfs_disk_dir_inode_operations;
 	inode->i_fop = &asmfs_dir_operations;
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
 	d_add(dentry, inode);
 
 	name.name = ASM_MANAGER_INSTANCES;
@@ -2541,6 +2550,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode->i_op = &asmfs_iid_dir_inode_operations;
 	inode->i_fop = &asmfs_dir_operations;
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
 	d_add(dentry, inode);
 
 	name.name = asm_operation_files[ASMOP_QUERY_VERSION];
@@ -2553,7 +2563,8 @@ static int asmfs_fill_super(struct super_block *sb,
 				      &trans_contexts[ASMOP_QUERY_VERSION]);
 	if (!inode)
 		goto out_genocide;
-       	d_add(dentry, inode);
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
+	d_add(dentry, inode);
 
 	name.name = asm_operation_files[ASMOP_GET_IID];
 	name.len = strlen(asm_operation_files[ASMOP_GET_IID]);
@@ -2565,7 +2576,8 @@ static int asmfs_fill_super(struct super_block *sb,
 				      &trans_contexts[ASMOP_GET_IID]);
 	if (!inode)
 		goto out_genocide;
-       	d_add(dentry, inode);
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
+	d_add(dentry, inode);
 
 	name.name = asm_operation_files[ASMOP_CHECK_IID];
 	name.len = strlen(asm_operation_files[ASMOP_CHECK_IID]);
@@ -2577,7 +2589,8 @@ static int asmfs_fill_super(struct super_block *sb,
 				      &trans_contexts[ASMOP_CHECK_IID]);
 	if (!inode)
 		goto out_genocide;
-       	d_add(dentry, inode);
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
+	d_add(dentry, inode);
 
 	name.name = asm_operation_files[ASMOP_QUERY_DISK];
 	name.len = strlen(asm_operation_files[ASMOP_QUERY_DISK]);
@@ -2589,7 +2602,8 @@ static int asmfs_fill_super(struct super_block *sb,
 				      &trans_contexts[ASMOP_QUERY_DISK]);
 	if (!inode)
 		goto out_genocide;
-       	d_add(dentry, inode);
+	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
+	d_add(dentry, inode);
 
 	sb->s_root = root;
 
