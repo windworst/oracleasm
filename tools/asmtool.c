@@ -45,8 +45,6 @@
 #include <errno.h>
 
 #include <linux/types.h>
-#include "oratypes.h"
-#include "asmlib.h"
 #include "linux/asmdisk.h"
 #include "linux/asmmanager.h"
 
@@ -1170,7 +1168,7 @@ static int parse_options(int argc, char *argv[], ASMToolOperation *op,
                             attr_name);
                     return -EINVAL;
                 }
-                attr->oa_set = TRUE;
+                attr->oa_set = 1;
                 if (attr_value)
                 {
                     attr->oa_value = strdup(attr_value);
@@ -1343,8 +1341,8 @@ int main(int argc, char *argv[])
     ASMToolOperation op = ASMTOOL_NOOP;
     char *attr_names[] = { "label", "mark", "force" };
     ASMToolAttrs attrs = {
-        .force = FALSE,
-        .mark = TRUE
+        .force = 0,
+        .mark = 1
     };
 
     INIT_LIST_HEAD(&attrs.attr_list);

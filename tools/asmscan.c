@@ -47,8 +47,6 @@
 #include <errno.h>
 
 #include <linux/types.h>
-#include "oratypes.h"
-#include "asmlib.h"
 #include "linux/asmdisk.h"
 #include "linux/asmmanager.h"
 

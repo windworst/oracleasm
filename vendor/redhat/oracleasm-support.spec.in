@@ -13,61 +13,38 @@
 
 
 
-Summary: The Oracle Automatic Storage Management library userspace code.
-Name: oracleasm-userspace
+Summary: The Oracle Automatic Storage Management support programs.
+Name: oracleasm-support
 Version: @DIST_VERSION@
 Release: @RPM_VERSION@
 Copyright: GPL
 Group: System Environment/Kernel
-Source: asmlib-@DIST_VERSION@.tar.gz
-URL: http://oss.oracle.com/
+Source: oracleasm-@DIST_VERSION@.tar.gz
+URL: http://oss.oracle.com/projects/oracleasm/
 Distribution: Oracle
 Vendor: Oracle Corporation
 Packager: Joel Becker <joel.becker@oracle.com>
-Provides: oracleasm-userspace = %{version}
 AutoReqProv: no
-Requires: oracleasm-support >= %{support_ver}
 
 
-BuildRoot: %{_tmppath}/asmlib-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+
 
 
 %description
-Userspace tools and library for the Oracle Automatic Storage Manager.
-
-
-
-%package -n oracleasm-lib
-Summary: Userspace library for Oracle Automatic Storage Management
-Group: System Environment/Kernel
-AutoReqProv: no
-Requires: glibc >= 2.2.4
-
-%description -n oracleasm-lib
-The Oracle userspace library for Oracle Automatic Storage Management
-
-%package -n oracleasm-support
-Summary: Tools for managing the Oracle Automatic Storage Management library
-Group: System Environment/Kernel
-AutoReqProv: no
-Requires: glibc >= 2.2.4
-
-
-%description -n oracleasm-support
-Tools to manage the Oracle Automatic Storage Management library
+Tools to manage the Oracle Automatic Storage Management library driver
 
 
 %prep
-%setup -n asmlib-%{version}
+%setup
 
 
 %build
 %configure --sbindir=/usr/sbin --with-kernel=/usr/src/linux
 
-cd libasm
+cd tools
 make
-cd ../tools
-make
+cd ..
 
 
 
@@ -80,18 +57,6 @@ cp -f vendor/common/oracleasm.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/oracleasm
 mkdir -p $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm
 cp -f vendor/common/oracleasm.init.functions $RPM_BUILD_ROOT/usr/%{_lib}/oracleasm/oracleasm.init.functions
 
-if [ "%{_lib}" = "lib64" ]
-then
-    BPL=64
-elif [ "${RPM_ARCH}" = "ia64" ]
-then
-    BPL=64
-else
-    BPL=32
-fi
-mkdir -p ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1
-cp libasm/libasm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
-
 cd tools
 make DESTDIR="$RPM_BUILD_ROOT" install
 
@@ -100,16 +65,12 @@ make DESTDIR="$RPM_BUILD_ROOT" install
 rm -rf "$RPM_BUILD_ROOT"
 
 
-%post -n oracleasm-support
+%post
 chkconfig oracleasm on
 /etc/init.d/oracleasm link
 
 
-%files -n oracleasm-lib
-%defattr(-,root,root)
-/opt/extapi
-
-%files -n oracleasm-support
+%files
 %defattr(-,root,root)
 /usr/sbin/asmtool
 /usr/sbin/asmscan
@@ -120,6 +81,9 @@ chkconfig oracleasm on
 
 
 %changelog
+* Wed Jan 07 2004 Joel Becker <joel.becker@oracle.com>
+- Make open package.
+
 * Thu Dec 11 2003 Joel Becker <joel.becker@oracle.com>
 - Try at userspace thingie.
 

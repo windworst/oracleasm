@@ -20,6 +20,7 @@ HEADERS =		\
 	asmmanager.h	\
 	asmkernel.h	\
 	asmcompat32.h
+
 DIST_FILES = $(HEADERS)
 
 

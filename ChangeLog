@@ -1,4 +1,8 @@
 
+2004-01-07	Joel Becker <joel.becker@oracle.com>
+
+	* *: Seperate out Open code.
+
 2004-01-05	Joel Becker <joel.becker@oracle.com>
 
 	* include/asmerror.h: Dual GPL/BSD license.

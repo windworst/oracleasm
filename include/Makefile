@@ -15,9 +15,8 @@ include $(TOPDIR)/Preamble.make
 SUBDIRS = linux
 
 HEADERS =		\
-	oratypes.h	\
-	asmerror.h	\
-	asmlib.h
+	asmerror.h
+
 DIST_FILES = $(HEADERS)
 
 #

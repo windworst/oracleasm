@@ -1,6 +1,6 @@
 AC_INIT(Makefile)
 
-PACKAGE=asmlib
+PACKAGE=oracleasm
 
 AC_SUBST(PACKAGE)
 
