@@ -1513,7 +1513,7 @@ static int asm_maybe_wait_io(struct asmfs_file_info *afi,
 	/* Somebody got here first */
 	ret = 0;
 	if (r->r_status & ASM_FREE)
-		goto out;
+		goto out;  /* FIXME: Eek, holding lock */
 	if (list_empty(&afi->f_complete))
 		BUG();
 #ifdef DEBUG

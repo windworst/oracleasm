@@ -70,6 +70,7 @@ typedef enum
     ASMTOOL_LIST_MANAGERS,
     ASMTOOL_CREATE,
     ASMTOOL_DELETE,
+    ASMTOOL_CHANGE,
 } ASMToolOperation;
 
 
@@ -198,9 +199,10 @@ static void print_usage(int rc)
 
     fprintf(output,
             "Usage: asmtool -M\n"
-            "       asmtool -C -l <manager> -n <object> -s <device> [-a <attribute> ...]\n"
+            "       asmtool -C -l <manager> -n <object> -s <device> [-a <attribute> ] ...\n"
             "       asmtool -D -l <manager> -n <object>\n"
             "       asmtool -I -l <manager> [-n <object>] [-t <type>] [-a <attribute>] ...\n"
+            "       asmtool -H -l <manager> [-n <object>] [-t <type>] [-a <attribute>] ...\n"
             "       asmtool -h\n"
             "       asmtool -V\n");
     exit(rc);
@@ -537,14 +539,6 @@ static int delete_disk_by_device(const char *manager,
                 "asmtool: Unable to determine ASM disk: %s\n",
                 strerror(ENOMEM));
         goto out_close;
-    }
-
-    rc = -ENODEV;
-    if (!*id)
-    {
-        fprintf(stderr,
-                "asmtool: Invalid ASM disk: missing ID\n");
-        goto out_free;
     }
 
     rc = -ENOMEM;
@@ -1054,6 +1048,233 @@ out:
 }  /* get_info() */
 
 
+static int change_attr_asmdisk_by_device(const char *manager,
+                                         const char *target,
+                                         ASMToolAttrs *attrs);
+static int change_attr_asmdisk_by_device(const char *manager,
+                                         const char *target,
+                                         ASMToolAttrs *attrs)
+{
+    int rc, dev_fd, disk_fd;
+    char *id, *asm_disk, *label;
+    struct asm_disk_label adl;
+    struct stat dev_stat_buf, disk_stat_buf;
+
+    rc = -EINVAL;
+    label = attr_string(&attrs->attr_list, "label", NULL);
+    if (!label)
+        goto out;
+    if (!*label)
+        goto out_free_label;
+
+    rc = asmdisk_toupper(label, -1, 0);
+    if (rc)
+    {
+        fprintf(stderr,
+                "asmtool: Invalid character in ASM disk name: \"%c\"\n",
+                rc);
+        goto out_free_label;
+    }
+
+    rc = open_disk(target);
+    if (rc < 0)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to open device \"%s\": %s\n",
+                target, strerror(-rc));
+        goto out;
+    }
+    dev_fd = rc;
+
+    rc = read_disk(dev_fd, &adl);
+    if (rc)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to query device \"%s\": %s\n",
+                target, strerror(-rc));
+        goto out_close;
+    }
+
+    rc = check_disk(&adl, label);
+    if (rc == -ENXIO)
+    {
+        fprintf(stderr,
+                "asmtool: Device \"%s\" is not labeled for ASM\n",
+                target);
+        goto out_close;
+    }
+    if (!rc)
+        goto out_close;  /* No need to change identical label */
+
+    rc = -ENOMEM;
+    id = asm_disk_id(&adl);  /* id, btw, is the *old* label */
+    if (!id)
+    {
+        fprintf(stderr,
+                "asmtool: Unable to determine ASM disk: %s\n",
+                strerror(ENOMEM));
+        goto out_close;
+    }
+
+    if (*id)
+    {
+        rc = -ENOMEM;
+        asm_disk = asm_disk_path(manager, id);
+        if (!asm_disk)
+        {
+            fprintf(stderr,
+                    "asmtool: Unable to determine ASM disk: %s\n",
+                    strerror(-rc));
+            goto out_free;
+        }
+
+        rc = open_disk(asm_disk);
+    }
+    else
+        rc = -ENOENT;
+
+    if (rc < 0)
+    {
+        if (rc == -ENXIO)
+        {
+            /* If the actual device behind asm_disk is not there... */
+            rc = unlink_disk(manager, id);
+            if (rc)
+                goto out_free;
+        }
+        else if (rc != -ENOENT)
+        {
+            fprintf(stderr,
+                    "asmtool: Unable to open ASM disk \"%s\": %s\n",
+                    id, strerror(-rc));
+            goto out_free;
+        }
+    }
+    else
+    {
+        /* We've successfully opened the ASM disk */
+        disk_fd = rc;
+
+        rc = fstat(disk_fd, &disk_stat_buf);
+        close(disk_fd);
+        if (rc)
+        {
+            fprintf(stderr,
+                    "asmtool: Unable to stat ASM disk \"%s\": %s\n",
+                    id, strerror(errno));
+            goto out_free;
+        }
+        rc = fstat(dev_fd, &dev_stat_buf);
+        if (rc)
+        {
+            fprintf(stderr,
+                    "asmtool: Unable to stat device \"%s\": %s\n",
+                    target, strerror(errno));
+            goto out_free;
+        }
+
+        if (dev_stat_buf.st_rdev == disk_stat_buf.st_rdev)
+        {
+            /*
+             * Ok, if /dev/foo was labeled 'VOL1', and opening
+             * <manager>/disks/VOL1 yields the same st_rdev as /dev/foo,
+             * Then <manager>/disks/VOL1 is, indeed, the associated
+             * ASM disk.  Now let's blow it away.
+             */
+            rc = unlink_disk(manager, id);
+            if (rc)
+                goto out_free;
+        }
+    }
+
+    rc = mark_disk(dev_fd, &adl, label);
+    if (rc)
+    {
+        fprintf(stderr, "Unable to change device \"%s\": %s\n",
+                target, strerror(-rc));
+        goto out_free;
+    }
+
+    rc = make_disk(manager, label, target);
+    if (rc < 0)
+    {
+        fprintf(stderr, "Unable to create ASM disk: %s: %s\n",
+                label, strerror(-rc));
+        goto out_free;
+    }
+    close(rc);
+
+out_free:
+    free(id);
+
+out_close:
+    close(dev_fd);
+
+out_free_label:
+    free(label);
+
+out:
+    return rc;
+}  /* change_attr_asmdisk_by_device() */
+
+
+static int change_attr(const char *manager, char *object,
+                       const char *stype, ASMToolAttrs *attrs)
+{
+    int rc;
+
+    rc = -ENOSYS;
+    if (!object || !*object)
+    {
+        fprintf(stderr, "asmtool: No object specified: %s\n",
+                strerror(-rc));
+        goto out;
+    }
+
+    rc = -EPERM;
+    if (attr_string(&attrs->attr_list, "label", NULL) && !attrs->force)
+    {
+        fprintf(stderr,
+"WARNING: Changing the label of an disk marked for ASM is a very dangerous\n"
+"         operation.  If this is really what you mean to do, you must\n"
+"         ensure that all Oracle and ASM instances have ceased using\n"
+"         this disk.  Otherwise, you may LOSE DATA.\n");
+        goto out;
+    }
+
+    rc = -EINVAL;
+    if (strchr(object, '/'))
+    {
+        if (stype && strcmp(stype, "device"))
+        {
+            fprintf(stderr,
+                    "asmtool: Object \"%s\" is not of type \"%s\"\n",
+                    object,
+                    stype);
+            goto out;
+        }
+
+        rc = change_attr_asmdisk_by_device(manager, object, attrs);
+    }
+    else
+    {
+        if (stype && strcmp(stype, "asmdisk"))
+        {
+            fprintf(stderr,
+                    "asmtool: Object \"%s\" is not of type \"%s\"\n",
+                    object,
+                    stype);
+            goto out;
+        }
+
+        /*rc = change_attr_asmdisk_by_name(manager, object, attrs);*/
+    }
+
+out:
+    return rc;
+}  /* change_attr() */
+
+
 static int is_manager(const char *filename)
 {
     int rc;
@@ -1105,7 +1326,7 @@ static int parse_options(int argc, char *argv[], ASMToolOperation *op,
     OptionAttr *attr;
 
     opterr = 0;
-    while((c = getopt(argc, argv, ":hVMCDIl:n:s:t:a:")) != EOF)
+    while((c = getopt(argc, argv, ":hVMCDIHl:n:s:t:a:")) != EOF)
     {
         switch(c)
         {
@@ -1139,6 +1360,12 @@ static int parse_options(int argc, char *argv[], ASMToolOperation *op,
                 if (*op != ASMTOOL_NOOP)
                     return -EINVAL;
                 *op = ASMTOOL_INFO;
+                break;
+
+            case 'H':
+                if (*op != ASMTOOL_NOOP)
+                    return -EINVAL;
+                *op = ASMTOOL_CHANGE;
                 break;
 
             case 'l':
@@ -1339,7 +1566,7 @@ static int attr_boolean(struct list_head *attr_list,
         if (!strcmp(attr->oa_name, attr_name))
         {
             if (!attr->oa_set || !attr->oa_value || !*(attr->oa_value))
-                return 1;
+                break;
             for (i = 0; i < (sizeof(bt) / sizeof(*bt)); i++)
             {
                 if (!strcmp(bt[i].match, attr->oa_value))
@@ -1456,6 +1683,10 @@ int main(int argc, char *argv[])
 
         case ASMTOOL_INFO:
             rc = get_info(manager, object, stype, &attrs);
+            break;
+
+        case ASMTOOL_CHANGE:
+            rc = change_attr(manager, object, stype, &attrs);
             break;
 
         case ASMTOOL_LIST_MANAGERS:

@@ -1,4 +1,9 @@
 
+2004-04-13	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/oracleasm.c: Add a FIXME.
+	* tools/asmtool.c: Add rename of a disk by device.
+
 2004-03-26	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/unitedlinux/Makefile: Remove the version-specific
