@@ -43,9 +43,6 @@
  * Defines
  */
 #define OSMLIB_NAME "OSM Library - Generic Linux"
-#define OSMLIB_MAJOR 0
-#define OSMLIB_MINOR 7
-#define OSMLIB_MICRO 0
 
 
 
@@ -91,9 +88,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
     struct osm_get_iid new_iid;
 
     if (len)
-        snprintf(name, len, "%s, version %d.%d.%d", OSMLIB_NAME,
-                 OSMLIB_MAJOR, OSMLIB_MINOR, OSMLIB_MICRO);
-
+        snprintf(name, len, "%s, version %s", OSMLIB_NAME, VERSION);
 
     ret = OSM_INIT_VERSION;
     if (*version & OSM_API_V1)

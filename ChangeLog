@@ -1,6 +1,22 @@
 
 2003-05-27	Joel Becker <joel.becker@oracle.com>
 
+	* Preamble.make: Added.
+	* Postamble.make: Added.
+	* Makefile: Added.
+	* libosm/Makefile: Added.
+	* tools/Makefile: Added.
+	* test/Makefile: Added.
+	* test/osmtest.c: Change include <> to "" and OSMLIB_MAJOR, etc
+		to VERSION.
+	* test/osmtest-multi.c: Change include <> to "" and
+		OSMLIB_MAJOR, etc to VERSION.
+	* libosm/osmlib.c: Change OSMLIB_MAJOR, etc to VERSION
+	* tools/osmtool.c: Change include <> to "" and OSMLIB_MAJOR,
+		etc to VERSION.
+
+2003-05-27	Joel Becker <joel.becker@oracle.com>
+
 	* Makefile.orig: Moved Makefile out of the way.
 
 2003-05-27	Joel Becker <joel.becker@oracle.com>

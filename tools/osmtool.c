@@ -28,8 +28,8 @@
 
 /* Ugh, have to include all this just to get osmprivate.h.*/
 #include <linux/types.h>
-#include <oratypes.h>
-#include <osmlib.h>
+#include "oratypes.h"
+#include "osmlib.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
 
@@ -66,8 +66,7 @@ static void print_usage(int rc)
 
 static void print_version()
 {
-    fprintf(stderr, "osmtool version %d.%d.%d\n",
-            OSMLIB_MAJOR, OSMLIB_MINOR, OSMLIB_MICRO);
+    fprintf(stderr, "osmtool version %s\n", VERSION);
     exit(0);
 }
 
