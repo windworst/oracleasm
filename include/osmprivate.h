@@ -28,7 +28,7 @@
 #define OSMLIB_NAME "OSM Library - Generic Linux"
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
 #define OSMLIB_MINOR 1
-#define OSMLIB_MICRO 0
+#define OSMLIB_MICRO 1
 
 /*
  * Max I/O is 100k.  Why 100?  Because the MegaRAID card supports only
