@@ -859,12 +859,12 @@ static int asm_close_disk(struct file *file, unsigned long handle)
 		/* No need for a fast path */
 		add_wait_queue(&ASMFS_FILE(file)->f_wait, &wait);
 		do {
-			blk_run_address_space(bdev->bd_inode->i_mapping);
 			set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
 			if (!atomic_read(&d->d_ios))
 				break;
 
+			blk_run_address_space(bdev->bd_inode->i_mapping);
 			/*
 			 * Timeout of one second.  This is slightly
 			 * subtle.  In this wait, and *only* this wait,
