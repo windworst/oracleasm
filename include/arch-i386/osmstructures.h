@@ -75,8 +75,17 @@ struct _osm_name_private
           ub4 reserved_osm_name_4_0, reserved_osm_name_4_1;
       } reserved_osm_name_4;
   } reserved_osm_name_u;
+#if defined(__LITTLE_ENDIAN)
+#define reserved_osm_name_high reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_4_1
+#define reserved_osm_name_low reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_4_0
+#else
+#if defined(__BIG_ENDIAN)
 #define reserved_osm_name_high reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_4_0
 #define reserved_osm_name_low reserved_osm_name_u.reserved_osm_name_4.reserved_osm_name_4_1
+#else
+#error BYTESEX
+#endif
+#endif
 };
 
 
@@ -112,8 +121,17 @@ struct _osm_ioc_private {
           ub4 reserved_osm_ioc_4_0, reserved_osm_ioc_4_1;
       } reserved_osm_ioc_4;
   } reserved_osm_ioc_u;
-#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_0
-#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_1
+#if defined(__LITTLE_ENDIAN)
+#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
+#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
+#else
+#if defined(__BIG_ENDIAN)
+#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
+#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
+#else
+#error BYTESEX
+#endif
+#endif
 };
 
 #endif  /* _OSMSTRUCTURES */

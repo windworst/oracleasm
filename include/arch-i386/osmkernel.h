@@ -28,6 +28,8 @@
 /*
  * OSM Defines
  */
+
+/* i/o status bits */
 #define OSM_BUSY         0x0001                       /* too busy to process */
 #define OSM_SUBMITTED    0x0002          /* request submitted for processing */
 #define OSM_COMPLETED    0x0004                         /* request completed */
@@ -38,6 +40,16 @@
 #define OSM_BADKEY       0x0080                         /* disk key mismatch */
 #define OSM_FENCED       0x0100      /* I/O was not allowed by the fence key */
 
+/* special timeout values */
+#define    OSM_NOWAIT    0x0                   /* return as soon as possible */
+#define    OSM_WAIT      0xffffffff                         /* never timeout */
+
+/* status flags indicating reasons for return */
+#define    OSM_IO_POSTED    0x1                       /* posted to run by OS */
+#define    OSM_IO_TIMEOUT   0x2                                   /* timeout */
+#define    OSM_IO_WAITED    0x4                        /* wait list complete */
+#define    OSM_IO_FULL      0x8                      /* completion list full */
+#define    OSM_IO_IDLE      0x10                       /* no more active I/O */
 
 
 /*
@@ -89,9 +101,20 @@ struct _osm_ioc {
 			 __u32 reserved_osm_ioc_4_1;
 		} reserved_osm_ioc_4;
 	} reserved_osm_ioc_u;
+#if defined(__LITTLE_ENDIAN)
+#define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
+#define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
+#else
+#if defined(__BIG_ENDIAN)
 #define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
 #define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
+#else
+#error BYTESEX
+#endif
+#endif
+
 #define request_key_osm_ioc reserved_osm_ioc_low
 };
 
 #endif  /* _OSMKERNEL */
+

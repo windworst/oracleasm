@@ -31,9 +31,11 @@
 
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
+#include <linux/kiovec.h>
 
 #include "arch/osmkernel.h"
 #include "osmprivate.h"
+#include "kiovec.c"
 
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
@@ -146,7 +148,6 @@ struct osm_disk_head {
 
 
 /* OSM I/O requests */
-
 struct osm_request {
 	struct list_head r_list;
 	struct list_head r_queue;
@@ -847,11 +848,17 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 static int osm_update_user_ioc(struct osm_request *r)
 {
 	osm_ioc *ioc;
+	__u16 tmp_status;
 
 	ioc = r->r_ioc;
 	printk("OSM: User IOC is 0x%p\n", ioc);
 
-	printk("Putting r_status (0x%08X)\n", r->r_status);
+	/* Need to get the current userspace bits because OSM_CANCELLED is currently set there */
+	printk("OSM: Getting tmp_status\n");
+	if (get_user(tmp_status, &(ioc->status_osm_ioc)))
+		return -EFAULT;
+	r->r_status |= tmp_status;
+	printk("OSM: Putting r_status (0x%08X)\n", r->r_status);
 	if (put_user(r->r_status, &(ioc->status_osm_ioc)))
 		return -EFAULT;
 	if (r->r_status & OSM_ERROR) {
@@ -862,7 +869,7 @@ static int osm_update_user_ioc(struct osm_request *r)
 		if (put_user(r->r_elapsed, &(ioc->elaptime_osm_ioc)))
 			return -EFAULT;
 	}
-	printk("r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
+	printk("OSM: r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
 	       r->r_status,
 	       (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR),
 	       (r->r_status & (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR)));
@@ -872,7 +879,7 @@ static int osm_update_user_ioc(struct osm_request *r)
 	} else if ((r->r_status &
 		    (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR)) ==
 		   OSM_SUBMITTED) {
-		printk("Putting key 0x%p\n", r);
+		printk("OSM: Putting key 0x%p\n", r);
 		/* Only on first submit */
 		if (put_user(r, &(ioc->request_key_osm_ioc)))
 			return -EFAULT;
@@ -909,6 +916,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 		return -EFAULT;
 
 	if (tmp.status_osm_ioc)
+		return -EINVAL;
+	if (tmp.rcount_osm_ioc > OSM_MAX_IOSIZE)
 		return -EINVAL;
 
 	ret = -ENOMEM;
@@ -972,7 +981,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	spin_lock(&ofi->f_lock);
 	/* Is it valid? */
 	if (!r->r_file || (r->r_file != ofi) ||
-	    (r->r_list.next == &r->r_list)) {
+	    list_empty(&r->r_list)) {
 		spin_unlock(&ofi->f_lock);
 		return -EINVAL;
 	}
@@ -1072,11 +1081,10 @@ static void osm_finish_io(struct osm_request *r)
 	unlock_oi(oi);
 	osm_put_disk(d);
 
-	r->r_status |= (OSM_COMPLETED | OSM_FREE);
-
 	spin_lock(&ofi->f_lock);
 	list_del(&r->r_list);
 	list_add(&r->r_list, &ofi->f_complete);
+	r->r_status |= (OSM_COMPLETED | OSM_FREE);
 	spin_unlock(&ofi->f_lock);
 }  /* osm_finish_io() */
 
@@ -1090,7 +1098,6 @@ static void hack_io(struct osmfs_file_info *ofi)
 
 	list_for_each_safe(l, p, &ofi->f_ios) {
 		r = list_entry(l, struct osm_request, r_list);
-
 		osm_finish_io(r);
 	}
 }  /* END hack_io() HACK */
@@ -1102,6 +1109,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 {
 	long ret = 0;
 	__u32 i;
+	__u32 status = 0;
 	osm_ioc *iocp;
 
 	/* HACK HACK HACK */
@@ -1136,13 +1144,14 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 			if (ret)
 				goto out;
 		}
+		status |= OSM_IO_WAITED;
 	}
 
 	if (ioc->completions) {
 		for (i = 0; i < ioc->complen; i++) {
 			ret = osm_complete_io(ofi, oi, &iocp);
 			if (ret)
-				return ret;
+				goto out;
 			if (iocp) {
 				ret = put_user(iocp,
 					       ioc->completions + i);
@@ -1153,9 +1162,21 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 				/* FIXME: Wait on some I/Os */
 			}
 		}
+		if (i >= ioc->complen)
+			status |= OSM_IO_FULL;
 	}
 
 out:
+	if (ret == -EINTR) {
+		ret = 0;
+		status |= OSM_IO_POSTED;
+	} else if (ret == -ETIMEDOUT) {
+		ret = 0;
+		status |= OSM_IO_TIMEOUT;
+	}
+
+	if (put_user(status, ioc->statusp))
+		return -EFAULT;
 	return ret;
 }  /* osm_do_io() */
 
@@ -1223,11 +1244,18 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	list_del(&ofi->f_ctx);
 	unlock_oi(oi);
 
-	if (!list_empty(&ofi->f_ios))
-		printk("OSM: There are still I/Os on ofi 0x%p\n", ofi);
-	
-	/* I don't *think* we need the lock */
 	spin_lock(&ofi->f_lock);
+	while (!list_empty(&ofi->f_ios)) {
+		printk("OSM: There are still I/Os on ofi 0x%p\n", ofi);
+		spin_unlock(&ofi->f_lock);
+		/* FIXME: Needs a better wait */
+		schedule();
+		spin_lock(&ofi->f_lock);
+	}
+	
+	/* I don't *think* we need the lock here anymore, but... */
+
+	/* Clear unreaped I/Os */
 	while (!list_empty(&ofi->f_complete)) {
 		p = ofi->f_complete.prev;
 		r = list_entry(p, struct osm_request, r_list);

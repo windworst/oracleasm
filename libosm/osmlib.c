@@ -78,7 +78,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
         OSM_OSNAME | OSM_HARDEN;
 
     /* This should probably be returned from the kernel */
-    *maxio = 1024 * 128;
+    *maxio = OSM_MAX_IOSIZE;
 
     ret = OSM_INIT_SUCCESS;
 
@@ -389,7 +389,7 @@ const oratext *osm_errstr_pos[] =
 {
     "No error",                         /* OSM_ERR_NONE */
     "Operation not permitted",          /* OSM_ERR_PERM */
-    "Out of memory */",                 /* OSM_ERR_NOMEM */
+    "Out of memory",                    /* OSM_ERR_NOMEM */
 };
 
 const oratext *osm_errstr_neg[] = 

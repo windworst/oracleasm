@@ -29,6 +29,7 @@
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
 #define OSMLIB_MINOR 1
 #define OSMLIB_MICRO 0
+#define OSM_MAX_IOSIZE  (1024 * 128) /* Max I/O is 128k */
 
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
