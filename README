@@ -22,8 +22,13 @@ filesystem:
 	# insmod kernel/osm.o
 	# mount -t osmfs osmfs /dev/osm
 
-	Once you have osm mounted, you can then either use 10i or the
-test programs to try things out.  Have fun.  Report bugs.
+	Next, you have to mark disks as candidates for OSM.  osmtool is
+the tool for this.  It exists in the tools/ subdirectory.  eg:
+
+	# tools/osmtool -m /dev/sdf5
+
+	Now you can then either use 10i or the test programs to try
+things out.  Have fun.  Report bugs.
 
 
 Third things fourth.
