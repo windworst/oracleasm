@@ -1,4 +1,11 @@
 
+2004-05-03	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/redhat/oracleasm.init.in: UPDISK on rename.
+	* vendor/unitedlinux/oracleasm.init.in: Add the rename bits.
+	* tools/asmtool.c: Change to handle the xor update in the ASM
+		header.
+
 2004-04-15	Joel Becker <joel.becker@oracle.com>
 
 	* TAXES

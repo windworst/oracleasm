@@ -56,7 +56,8 @@
 /*
  * Defines
  */
-#define ASMFS_MAGIC     0x958459f6
+#define ASMFS_MAGIC             0x958459f6
+#define ASM_DISK_XOR_OFFSET     0x0C
 
 
 
@@ -82,6 +83,7 @@ typedef struct _OptionAttr      OptionAttr;
 typedef struct _ASMToolAttrs    ASMToolAttrs;
 typedef struct _ASMDisk         ASMDisk;
 typedef struct _ASMDevice       ASMDevice;
+typedef struct _ASMHeaderInfo   ASMHeaderInfo;
 
 
 
@@ -121,6 +123,13 @@ struct _ASMDevice
 };
 
 
+struct _ASMHeaderInfo
+{
+    __u32 ah_xor;
+    struct asm_disk_label ah_label;
+};
+
+
 
 /*
  * Function prototypes
@@ -129,13 +138,13 @@ static inline size_t strnlen(const char *s, size_t size);
 static void print_usage(int rc);
 static void print_version();
 static int open_disk(const char *disk_name);
-static int read_disk(int fd, struct asm_disk_label *adl);
-static int write_disk(int fd, struct asm_disk_label *adl);
-static int check_disk(struct asm_disk_label *adl, const char *label);
-static int mark_disk(int fd, struct asm_disk_label *adl,
+static int read_disk(int fd, ASMHeaderInfo *ahi);
+static int write_disk(int fd, ASMHeaderInfo *ahi);
+static int check_disk(ASMHeaderInfo *ahi, const char *label);
+static int mark_disk(int fd, ASMHeaderInfo *ahi,
                      const char *label);
-static int unmark_disk(int fd, struct asm_disk_label *adl);
-static char *asm_disk_id(struct asm_disk_label *adl);
+static int unmark_disk(int fd, ASMHeaderInfo *ahi);
+static char *asm_disk_id(ASMHeaderInfo *ahi);
 static int delete_disk_by_name(const char *manager,
                                char *disk,
                                ASMToolAttrs *attrs);
@@ -256,12 +265,40 @@ static int open_disk(const char *disk_name)
 }  /* open_disk() */
 
 
-static int read_disk(int fd, struct asm_disk_label *adl)
+static int read_disk(int fd, ASMHeaderInfo *ahi)
 {
     int rc, tot;
+    struct asm_disk_label *adl;
+    __u32 *xor_buf;
 
-    if ((fd < 0) || !adl)
+    if ((fd < 0) || !ahi)
         return -EINVAL;
+
+    xor_buf = &ahi->ah_xor;
+    adl = &ahi->ah_label;
+
+    rc = lseek(fd, ASM_DISK_XOR_OFFSET, SEEK_SET);
+    if (rc < 0)
+        return -errno;
+
+    tot = 0;
+    while (tot < sizeof(__u32))
+    {
+        rc = read(fd, xor_buf + tot, sizeof(__u32) - tot);
+        if (!rc)
+            break;
+        if (rc < 0)
+        {
+            if ((errno == EAGAIN) || (errno == EINTR))
+                continue;
+            else
+                return -errno;
+        }
+        tot += rc;
+    }
+
+    if (tot < sizeof(__u32))
+        return -ENOSPC;
 
     rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
     if (rc < 0)
@@ -290,12 +327,40 @@ static int read_disk(int fd, struct asm_disk_label *adl)
 }  /* read_disk() */
 
 
-static int write_disk(int fd, struct asm_disk_label *adl)
+static int write_disk(int fd, ASMHeaderInfo *ahi)
 {
     int rc, tot;
+    __u32 *xor_buf;
+    struct asm_disk_label *adl;
 
-    if ((fd < 0) || !adl)
+    if ((fd < 0) || !ahi)
         return -EINVAL;
+
+    xor_buf = &ahi->ah_xor;
+    adl = &ahi->ah_label;
+
+    rc = lseek(fd, ASM_DISK_XOR_OFFSET, SEEK_SET);
+    if (rc < 0)
+        return -errno;
+
+    tot = 0;
+    while (tot < sizeof(__u32))
+    {
+        rc = write(fd, xor_buf + tot, sizeof(__u32) - tot);
+        if (!rc)
+            break;
+        if (rc < 0)
+        {
+            if ((errno == EAGAIN) || (errno == EINTR))
+                continue;
+            else
+                return -errno;
+        }
+        tot += rc;
+    }
+
+    if (tot < sizeof(__u32))
+        return -ENOSPC;
 
     rc = lseek(fd, ASM_DISK_LABEL_OFFSET, SEEK_SET);
     if (rc < 0)
@@ -324,23 +389,25 @@ static int write_disk(int fd, struct asm_disk_label *adl)
 }  /* write_disk() */
 
 
-static int check_disk(struct asm_disk_label *adl, const char *label)
+static int check_disk(ASMHeaderInfo *ahi, const char *label)
 {
     int tot;
 
-    if (!adl)
+    if (!ahi)
         return -EINVAL;
 
     /* Not an ASM disk */
-    if (memcmp(adl->dl_tag, ASM_DISK_LABEL_MARKED, sizeof(adl->dl_tag)))
+    if (memcmp(ahi->ah_label.dl_tag, ASM_DISK_LABEL_MARKED,
+               sizeof(ahi->ah_label.dl_tag)))
         return -ENXIO;
 
     if (label)
     {
-        tot = strnlen(label, sizeof(adl->dl_id));
-        if (tot != strnlen(adl->dl_id, sizeof(adl->dl_id)))
+        tot = strnlen(label, sizeof(ahi->ah_label.dl_id));
+        if (tot != strnlen(ahi->ah_label.dl_id,
+                           sizeof(ahi->ah_label.dl_id)))
             return -ESRCH;
-        if (memcmp(adl->dl_id, label, tot))
+        if (memcmp(ahi->ah_label.dl_id, label, tot))
             return -ESRCH;
     }
 
@@ -348,13 +415,26 @@ static int check_disk(struct asm_disk_label *adl, const char *label)
 }  /* check_disk() */
 
 
-static int mark_disk(int fd, struct asm_disk_label *adl,
-                     const char *label)
+static __u32 xor_buffer(const char *buf, int bufsize)
+{
+    int i;
+    __u32 xor_buf = 0;
+    __u32 *xor_ptr = (__u32 *)buf;
+
+    for (i = 0; i < (bufsize / sizeof(__u32)); i++)
+        xor_buf ^= xor_ptr[i];
+
+    return xor_buf;
+}  /* xor_buffer() */
+
+
+static int mark_disk(int fd, ASMHeaderInfo *ahi, const char *label)
 {
     int rc;
     size_t len;
+    __u32 xor_buf;
 
-    if ((fd < 0) || !adl)
+    if ((fd < 0) || !ahi)
         return -EINVAL;
 
     if (!label || !*label)
@@ -363,50 +443,60 @@ static int mark_disk(int fd, struct asm_disk_label *adl,
         return -EINVAL;
     }
 
-    memcpy(adl->dl_tag, ASM_DISK_LABEL_MARKED, sizeof(adl->dl_tag));
+    memcpy(ahi->ah_label.dl_tag, ASM_DISK_LABEL_MARKED,
+           sizeof(ahi->ah_label.dl_tag));
 
-    memset(adl->dl_id, 0, sizeof(adl->dl_id));
-    len = strnlen(label, sizeof(adl->dl_id));
-    memcpy(adl->dl_id, label, len);
+    xor_buf = xor_buffer(ahi->ah_label.dl_id,
+                         sizeof(ahi->ah_label.dl_id));
 
-    rc = write_disk(fd, adl);
+    memset(ahi->ah_label.dl_id, 0, sizeof(ahi->ah_label.dl_id));
+    len = strnlen(label, sizeof(ahi->ah_label.dl_id));
+    memcpy(ahi->ah_label.dl_id, label, len);
+
+    xor_buf ^= xor_buffer(ahi->ah_label.dl_id,
+                          sizeof(ahi->ah_label.dl_id));
+
+    ahi->ah_xor ^= xor_buf;
+
+    rc = write_disk(fd, ahi);
 
     return rc;
 }  /* mark_disk() */
 
 
-static int unmark_disk(int fd, struct asm_disk_label *adl)
+static int unmark_disk(int fd, ASMHeaderInfo *ahi)
 {
     int rc;
 
-    if ((fd < 0) || !adl)
+    if ((fd < 0) || !ahi)
         return -EINVAL;
 
-    rc = check_disk(adl, NULL);
+    rc = check_disk(ahi, NULL);
     if (rc == -ENXIO)
         return -ESRCH;
     if (!rc)
     {
-        memcpy(adl->dl_tag, ASM_DISK_LABEL_CLEAR, sizeof(adl->dl_tag));
-        memset(adl->dl_id, 0, sizeof(adl->dl_id));
+        memcpy(ahi->ah_label.dl_tag, ASM_DISK_LABEL_CLEAR,
+               sizeof(ahi->ah_label.dl_tag));
+        memset(ahi->ah_label.dl_id, 0, sizeof(ahi->ah_label.dl_id));
 
-        rc = write_disk(fd, adl);
+        rc = write_disk(fd, ahi);
     }
 
     return rc;
 }  /* unmark_disk() */
 
 
-static char *asm_disk_id(struct asm_disk_label *adl)
+static char *asm_disk_id(ASMHeaderInfo *ahi)
 {
     char *id;
 
     id = (char *)malloc(sizeof(char) *
-                        (sizeof(adl->dl_id) + 1));
+                        (sizeof(ahi->ah_label.dl_id) + 1));
     if (id)
     {
-        memcpy(id, adl->dl_id, sizeof(adl->dl_id));
-        id[sizeof(adl->dl_id)] = '\0';
+        memcpy(id, ahi->ah_label.dl_id, sizeof(ahi->ah_label.dl_id));
+        id[sizeof(ahi->ah_label.dl_id)] = '\0';
     }
 
     return id;
@@ -418,7 +508,7 @@ static int delete_disk_by_name(const char *manager, char *disk,
 {
     int c, rc, fd = -1;
     char *asm_disk;
-    struct asm_disk_label adl;
+    ASMHeaderInfo ahi;
 
     rc = -EINVAL;
     c = asmdisk_toupper(disk, -1, 0);
@@ -457,7 +547,7 @@ static int delete_disk_by_name(const char *manager, char *disk,
     }
     fd = rc;
 
-    rc = read_disk(fd, &adl);
+    rc = read_disk(fd, &ahi);
     if (rc)
     {
         switch (rc)
@@ -474,10 +564,10 @@ static int delete_disk_by_name(const char *manager, char *disk,
         }
     }
 
-    rc = check_disk(&adl, disk);
+    rc = check_disk(&ahi, disk);
     if (!rc)
     {
-        rc = unmark_disk(fd, &adl);
+        rc = unmark_disk(fd, &ahi);
         if (rc && (rc != -ESRCH))
         {
             fprintf(stderr,
@@ -505,7 +595,7 @@ static int delete_disk_by_device(const char *manager,
 {
     int rc, dev_fd, disk_fd;
     char *id, *asm_disk;
-    struct asm_disk_label adl;
+    ASMHeaderInfo ahi;
     struct stat dev_stat_buf, disk_stat_buf;
 
     rc = open_disk(target);
@@ -518,7 +608,7 @@ static int delete_disk_by_device(const char *manager,
     }
     dev_fd = rc;
 
-    rc = read_disk(dev_fd, &adl);
+    rc = read_disk(dev_fd, &ahi);
     if (rc)
     {
         fprintf(stderr,
@@ -527,7 +617,7 @@ static int delete_disk_by_device(const char *manager,
         goto out_close;
     }
 
-    rc = check_disk(&adl, NULL);
+    rc = check_disk(&ahi, NULL);
     if (rc)
     {
         fprintf(stderr,
@@ -537,7 +627,7 @@ static int delete_disk_by_device(const char *manager,
     }
 
     rc = -ENOMEM;
-    id = asm_disk_id(&adl);
+    id = asm_disk_id(&ahi);
     if (!id)
     {
         fprintf(stderr,
@@ -623,7 +713,7 @@ static int delete_disk_by_device(const char *manager,
         }
     }
 
-    rc = unmark_disk(dev_fd, &adl);
+    rc = unmark_disk(dev_fd, &ahi);
     if (rc)
     {
         fprintf(stderr, "Unable to clear device \"%s\": %s\n",
@@ -724,7 +814,7 @@ static int create_disk(const char *manager, char *disk,
 {
     int rc, fd;
     char *id;
-    struct asm_disk_label adl;
+    ASMHeaderInfo ahi;
 
     if (!disk || !*disk)
     {
@@ -752,7 +842,7 @@ static int create_disk(const char *manager, char *disk,
         goto out;
     fd = rc;
 
-    rc = read_disk(fd, &adl);
+    rc = read_disk(fd, &ahi);
     if (rc)
     {
         fprintf(stdout,
@@ -761,13 +851,13 @@ static int create_disk(const char *manager, char *disk,
         goto out_close;
     }
 
-    rc = check_disk(&adl, disk);
+    rc = check_disk(&ahi, disk);
     if (rc)
     {
         if (rc == -ESRCH)
         {
             rc = -ENOMEM;
-            id = asm_disk_id(&adl);
+            id = asm_disk_id(&ahi);
             if (!id)
             {
                 fprintf(stderr,
@@ -797,7 +887,7 @@ static int create_disk(const char *manager, char *disk,
                     target);
             goto out_close;
         }
-        rc = mark_disk(fd, &adl, disk);
+        rc = mark_disk(fd, &ahi, disk);
         if (rc)
         {
             if (rc != -EEXIST)
@@ -849,7 +939,7 @@ static int get_info_asmdisk_by_name(const char *manager,
 {
     int c, rc, fd;
     char *label, *asm_disk;
-    struct asm_disk_label adl;
+    ASMHeaderInfo ahi;
 
     rc = -EINVAL;
     c = asmdisk_toupper(disk, -1, 0);
@@ -888,7 +978,7 @@ static int get_info_asmdisk_by_name(const char *manager,
     }
     fd = rc;
 
-    rc = read_disk(fd, &adl);
+    rc = read_disk(fd, &ahi);
     if (rc)
     {
         fprintf(stderr, "asmtool: Unable to read ASM disk \"%s\": %s\n",
@@ -896,7 +986,7 @@ static int get_info_asmdisk_by_name(const char *manager,
         goto out_close;
     }
 
-    rc = check_disk(&adl, disk);
+    rc = check_disk(&ahi, disk);
     if (rc)
     {
         if (rc == -ENXIO)
@@ -907,7 +997,7 @@ static int get_info_asmdisk_by_name(const char *manager,
         }
         else if (rc == -ESRCH)
         {
-            label = asm_disk_id(&adl);
+            label = asm_disk_id(&ahi);
             fprintf(stderr,
                     "asmtool: ASM disk \"%s\" is labeled for ASM disk \"%s\"\n",
                     disk, label ? label : "<unknown>");
@@ -936,7 +1026,7 @@ static int get_info_asmdisk_by_device(const char *manager,
 {
     int rc, fd;
     char *id;
-    struct asm_disk_label adl;
+    ASMHeaderInfo ahi;
 
     rc = open_disk(target);
     if (rc < 0)
@@ -947,7 +1037,7 @@ static int get_info_asmdisk_by_device(const char *manager,
     }
     fd = rc;
 
-    rc = read_disk(fd, &adl);
+    rc = read_disk(fd, &ahi);
     if (rc)
     {
         fprintf(stderr,
@@ -956,7 +1046,7 @@ static int get_info_asmdisk_by_device(const char *manager,
         goto out_close;
     }
 
-    rc = check_disk(&adl, NULL);
+    rc = check_disk(&ahi, NULL);
     if (!rc)
     {
         if (attr_set(&attrs->attr_list, "label"))
@@ -968,7 +1058,7 @@ static int get_info_asmdisk_by_device(const char *manager,
                         "asmtool: Cannot set attribute \"label\"\n");
                 goto out_close;
             }
-            id = asm_disk_id(&adl);
+            id = asm_disk_id(&ahi);
             if (!id)
             {
                 fprintf(stderr,
@@ -1052,7 +1142,7 @@ static int change_attr_asmdisk_by_name(const char *manager, char *disk,
 {
     int c, rc, fd = -1;
     char *asm_disk, *label, *label_disk;
-    struct asm_disk_label adl;
+    ASMHeaderInfo ahi;
     struct stat stat_buf;
 
     rc = -EINVAL;
@@ -1160,7 +1250,7 @@ static int change_attr_asmdisk_by_name(const char *manager, char *disk,
         goto out_close;
     }
 
-    rc = read_disk(fd, &adl);
+    rc = read_disk(fd, &ahi);
     if (rc)
     {
         switch (rc)
@@ -1181,13 +1271,13 @@ static int change_attr_asmdisk_by_name(const char *manager, char *disk,
         }
     }
 
-    rc = check_disk(&adl, disk);
+    rc = check_disk(&ahi, disk);
     switch (rc)
     {
 
         case -ESRCH:
             /* Check to see if it already has the new label */
-            rc = check_disk(&adl, label);
+            rc = check_disk(&ahi, label);
             if (!rc)
                 break;
             /* FALL THROUGH */
@@ -1217,7 +1307,7 @@ static int change_attr_asmdisk_by_name(const char *manager, char *disk,
         goto out_close;
     }
 
-    rc = mark_disk(fd, &adl, label);
+    rc = mark_disk(fd, &ahi, label);
     if (rc)
     {
         fprintf(stderr,
@@ -1255,7 +1345,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
 {
     int rc, dev_fd, disk_fd;
     char *id, *asm_disk, *label;
-    struct asm_disk_label adl;
+    ASMHeaderInfo ahi;
     struct stat dev_stat_buf, disk_stat_buf;
 
     rc = -EINVAL;
@@ -1294,7 +1384,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
     }
     dev_fd = rc;
 
-    rc = read_disk(dev_fd, &adl);
+    rc = read_disk(dev_fd, &ahi);
     if (rc)
     {
         fprintf(stderr,
@@ -1303,7 +1393,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
         goto out_close;
     }
 
-    rc = check_disk(&adl, label);
+    rc = check_disk(&ahi, label);
     if (rc == -ENXIO)
     {
         fprintf(stderr,
@@ -1321,7 +1411,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
     }
 
     rc = -ENOMEM;
-    id = asm_disk_id(&adl);  /* id, btw, is the *old* label */
+    id = asm_disk_id(&ahi);  /* id, btw, is the *old* label */
     if (!id)
     {
         fprintf(stderr,
@@ -1401,7 +1491,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
         }
     }
 
-    rc = mark_disk(dev_fd, &adl, label);
+    rc = mark_disk(dev_fd, &ahi, label);
     if (rc)
     {
         fprintf(stderr, "Unable to change device \"%s\": %s\n",
