@@ -345,28 +345,71 @@ osm_erc osm_open(osm_ctx ctx, osm_name *name, osm_handle *hand)
 {
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
     osm_erc err;
-    int rc;
+    int rc, fd;
     struct osm_disk_query handle;
+    struct stat stat_buf;
 
     err = OSM_ERR_INVAL;
     if (!priv || !name || !hand ||
         !name->blksz_osm_name || !(name->interface_osm_name & OSM_IO))
         goto out;
 
+
+    fd = open(name->path_osm_name, O_RDWR);
+    if (fd < 0)
+    {
+        switch (errno)
+        {
+            case EPERM:
+            case EACCES:
+            case EROFS:
+            case EMFILE:
+            case ENFILE:
+                err = OSM_ERR_PERM;
+                break;
+
+            case ENOMEM:
+                err = OSM_ERR_NOMEM;
+                break;
+
+            case EINVAL:
+                err = OSM_ERR_INVAL;
+                break;
+
+            default:
+                err = OSM_ERR_NODEV;
+                break;
+        }
+
+        goto out;
+    }
+
+    err = OSM_ERR_INVAL;
+    rc = fstat(fd, &stat_buf);
+    if (rc)
+        goto out_close;
+    err = OSM_ERR_NODEV;
+    if (!S_ISBLK(stat_buf.st_mode) ||
+        ((__u64)stat_buf.st_rdev != name->reserved_osm_name)) 
+        goto out_close;
+
     /* FIXME: need to handle fatal errors when the kernel can tell */
     err = OSM_ERR_PERM;
     handle.dq_rdev = name->reserved_osm_name;
     rc = ioctl(priv->fd, OSMIOC_OPENDISK, &handle);
     if (rc)
-        goto out;
+        goto out_close;
 
     err = OSM_ERR_NOMEM;
     if (!handle.dq_rdev)
-        goto out;
+        goto out_close;
 
     *hand = handle.dq_rdev;
 
     err = OSM_ERR_NONE;
+
+out_close:
+    close(fd);
 
 out:
     return err;
