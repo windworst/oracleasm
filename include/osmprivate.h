@@ -27,8 +27,18 @@
  */
 #define OSMLIB_NAME "OSM Library - Generic Linux"
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
-#define OSMLIB_MINOR 4
+#define OSMLIB_MINOR 5
 #define OSMLIB_MICRO 0
+
+/*
+ * Disk label.  This is a 32 byte quantity at offset 32 (0x20) on the 
+ * disk.  The first 8 bytes are "ORCLDISK".  The remaining 24 bytes
+ * are reserved for future use.
+ */
+#define OSM_DISK_LABEL          "ORCLDISK"
+#define OSM_DISK_LABEL_CLEAR    "ORCLCLRD"
+#define OSM_DISK_LABEL_SIZE     8
+#define OSM_DISK_LABEL_OFFSET   32
 
 /*
  * Max I/O is 64K.  Why 64?  Because the MegaRAID card supports only
@@ -89,3 +99,4 @@ struct osm_disk_query
 
 
 #endif  /* _OSMPRIVATE_H */
+

@@ -26,19 +26,12 @@
 #include <unistd.h>
 #include <errno.h>
 
+/* Ugh, have to include all this just to get osmprivate.h.*/
 #include <linux/types.h>
-
 #include <oratypes.h>
 #include <osmlib.h>
 #include "osmprivate.h"
 
-/*
- * Defines
- */
-#define OSM_DISK_LABEL          "ORCLDISK"
-#define OSM_DISK_LABEL_CLEAR    "ORCLCLRD"
-#define OSM_DISK_LABEL_SIZE     8
-#define OSM_DISK_LABEL_OFFSET   32
 
 
 /*
@@ -50,6 +43,8 @@ typedef enum
     OSMTOOL_MARK,
     OSMTOOL_UNMARK
 } OsmtoolOperation;
+
+
 
 /*
  * Functions
