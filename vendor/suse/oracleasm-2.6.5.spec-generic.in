@@ -34,7 +34,7 @@
 %define karch ia64
 
 %define buildsmp		0
-%define buildbig		0
+%define buildbigsmp		0
 %define build64kpagesize	1
 %define buildsn2		1
 %endif
@@ -158,14 +158,14 @@ Requires: kernel-64k-pagesize = %{kver}
 Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
-%description 64kpagesize
+%description 64k-pagesize
 Kernel driver for the Oracle Automatic Storage Management library.
 This package is compiled for Itanium kernels with a 64KB pagesize.
 %endif
 
 
 %if %{buildsn2}
-%package itanium2
+%package sn2
 Summary: The Oracle Automatic Storage Management library driver for Altix systems.
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
