@@ -1,6 +1,12 @@
 
 2003-11-20	Joel Becker <joel.becker@oracle.com>
 
+	* vendor/common/oracleasm.init.functions: Added disk marking.
+	* vendor/{redhat,unitedlinux}/oracleasm.init.in: Add disk
+		marking.
+
+2003-11-20	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: 0.9.1
 
 2003-11-20	Joel Becker <joel.becker@oracle.com>

@@ -293,13 +293,19 @@ write_sysconfig()
 #
 
 # ORACLEASM_ENABELED: 'true' means to load the driver on boot.
-ORACLEASM_ENABLED=${ORACLEASM_ENABLED}
+ORACLEASM_ENABLED=${ORACLEASM_ENABLED:-false}
 
 # ORACLEASM_UID: Default UID owning the $DEVASM mount point.
 ORACLEASM_UID=${ORACLEASM_UID}
 
 # ORACLEASM_GID: Default GID owning the $DEVASM mount point.
 ORACLEASM_GID=${ORACLEASM_GID}
+
+# ORACLEASM_SCANBOOT: 'true' means fix disk perms on boot
+ORACLEASM_SCANBOOT=${ORACLEASM_SCANBOOT:-true}
+
+# ORACLEASM_CLEARBOOT: 'true' means clean old disk perms on boot
+ORACLEASM_CLEARBOOT=${ORACLEASM_CLEARBOOT:-true}
 
 EOF
 
@@ -311,6 +317,11 @@ EOF
 }
 
 
+#
+# configure_ask()
+#
+# Ask configuration questions, setting the shell vars.
+#
 configure_ask()
 {
     cat <<EOF
@@ -387,5 +398,198 @@ EOF
             ;;
         esac
     done
+
+    while :
+    do
+        if [ "$ORACLEASM_SCANBOOT" = "true" ]
+        then
+            CUR=y
+        else
+            CUR=n
+        fi
+        echo -n "Fix permissions of Oracle ASM disks on boot (y/n) [$CUR]: "
+        read LINE
+        case "$LINE" in
+        "")
+            break
+            ;;
+        y|Y)
+            ORACLEASM_SCANBOOT=true
+            break
+            ;;
+        n|N)
+            ORACLEASM_SCANBOOT=false
+            break
+            ;;
+        *)
+            echo "Invalid GID: $LINE" >&2
+            ;;
+        esac
+    done
 }
+
+
+#
+# mark_disk()
+# Marks a disk as an ASM disk.
+#
+# Returns 0 on success, 1 on error, 2 on already marked.
+#
+mark_disk()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "mark_disk(): Requires an argument" >&2
+        return 1
+    fi
+    DISKNAME="$1"
+   
+    OUTPUT="`asmtool -m "${DISKNAME}" 2>&1`"
+    if [ $? != 0 ]
+    then
+        echo -n "Marking disk \"$DISKNAME\" as an ASM disk "
+        return 1
+    fi
+    case "$OUTPUT" in
+    *is\ marked*)
+        return 2
+        ;;
+    *)
+        ;;
+    esac
+    echo -n "Marking disk \"$DISKNAME\" as an ASM disk "
+    return 0
+}
+
+
+#
+# unmark_disk()
+# Removes the mark from a disk.
+#
+# Returns 0 on success, 1 on error, 2 on not marked.
+#
+unmark_disk()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "unmark_disk(): Requires an argument" >&2
+        return 1
+    fi
+    DISKNAME="$1"
+   
+    OUTPUT="`asmtool -u "${DISKNAME}" 2>&1`"
+    if [ $? != 0 ]
+    then
+        echo -n "Unmarking disk \"$DISKNAME\" as an ASM disk "
+        return 1
+    fi
+    case "$OUTPUT" in
+    *not\ marked*)
+        return 2
+        ;;
+    *)
+        ;;
+    esac
+    echo -n "Unmarking disk \"$DISKNAME\" as an ASM disk "
+    return 0
+}
+
+
+#
+# check_disk()
+# Check if the disk is an ASM disk
+#
+check_disk()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "check_disk(): Requires an argument" >&2
+        return 1
+    fi
+    DISKNAME="$1"
+
+    asmtool -c "$DISKNAME" | sed -e 's/^asmtool: //'
+}
+
+
+#
+# perm_disk()
+# Set the appropriate permissions on a disk.
+#
+# Returns 0 on success, 1 on error, 2 on already correct
+#
+perm_disk()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "perm_disk(): Requires an argument" >&2
+        return 1
+    fi
+    DISKNAME="$1"
+
+    OUTPUT="`ls -n "${DISKNAME}" 2>/dev/null`"
+    if [ $? != 0 ]
+    then
+        echo -n "Checking ownership of disk \"${DISKNAME}\" "
+        return 1
+    fi
+    OUID="`echo "$OUTPUT" | awk '{print $3}'`"
+    OGID="`echo "$OUTPUT" | awk '{print $4}'`"
+
+    if [ "$OUID" = "${ORACLEASM_UID:-0}" -a "$OGID" = "${ORACLEASM_GID:-0}" ]
+    then
+        return 2
+    fi
+
+    echo -n "Changing ownership of disk \"$DISKNAME\" "
+    chown "${ORACLEASM_UID:-0}:${ORACLEASM_GID:-0}" "$DISKNAME"
+    if [ $? != 0 ]
+    then
+        return 1
+    fi
+
+    return 0
+}
+
+
+#
+# unperm_disk()
+# Set the appropriate permissions on a disk.
+#
+# Returns 0 on success, 1 on error, 2 on already correct
+#
+unperm_disk()
+{
+    if [ "$#" -lt "1" -o -z "$1" ]
+    then
+        echo "unperm_disk(): Requires an argument" >&2
+        return 1
+    fi
+    DISKNAME="$1"
+
+    OUTPUT="`ls -n "${DISKNAME}" 2>/dev/null`"
+    if [ $? != 0 ]
+    then
+        echo -n "Checking ownership of disk \"${DISKNAME}\" "
+        return 1
+    fi
+    OUID="`echo "$OUTPUT" | awk '{print $3}'`"
+    OGID="`echo "$OUTPUT" | awk '{print $4}'`"
+
+    # 'disk' group is gid 6 on Red Hat and United Linux
+    if [ "$OUID" = "0" -a "$OGID" = "6" ]
+    then
+        return 2
+    fi
+
+    echo -n "Changing ownership of disk \"$DISKNAME\" "
+    chown root:disk "$DISKNAME"
+    if [ $? != 0 ]
+    then
+        return 1
+    fi
+
+    return 0
+}
+
 

@@ -293,6 +293,39 @@ case "$1" in
         stop
         ;;
 
+    markdisk)
+        if [ -z "$2" ]
+        then
+            echo "Action \"markdisk\" requires an argument" >&2
+            exit 1
+        fi
+        mark_disk "$2"
+        if_fail $? "Unable to mark disk \"$2\""
+        perm_disk "$2"
+        if_fail $? "Unable to change ownership of disk \"$2\""
+        ;;
+
+    unmarkdisk)
+        if [ -z "$2" ]
+        then
+            echo "Action \"unmarkdisk\" requires an argument" >&2
+            exit 1
+        fi
+        unmark_disk "$2"
+        if_fail $? "Unable to unmark disk \"$2\""
+        unperm_disk "$2"
+        if_fail $? "Unable to change ownership of disk \"$2\""
+        ;;
+
+    checkdisk)
+        if [ -z "$2" ]
+        then
+            echo "Action \"checkdisk\" requires an argument" >&2
+            exit 1
+        fi
+        check_disk "$2"
+        ;;
+
     stop)
         stop
         ;;
@@ -303,7 +336,7 @@ case "$1" in
 	;;
 
     *)
-	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|status}"
+	echo "Usage: $0 {start|stop|restart|link|enable|disable|configure|markdisk|unmarkdisk|checkdisk|status}"
         exit 1
 esac
 
