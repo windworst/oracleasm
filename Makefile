@@ -66,6 +66,23 @@ sles9_%_rpm: sles9_%_srpm
 
 
 #
+# RHEL 4
+#
+
+$(TOPDIR)/vendor/redhat/oracleasm-2.6.9-%.spec: $(TOPDIR)/vendor/redhat/oracleasm-2.6.9-EL.spec-generic
+	SPECVER="$@"; \
+		SPECVER="$${SPECVER#*oracleasm-2.6.9-}"; \
+		SPECVER="$${SPECVER%.EL.spec}"; \
+		sed -e 's/^%define sver.*%{generic}$$/%define sver		'$${SPECVER}'/' < $< > $@
+
+rhel4_%_srpm: dist $(TOPDIR)/vendor/redhat/oracleasm-2.6.9-%.EL.spec
+	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/redhat/oracleasm-2.6.9-$(patsubst rhel4_%_srpm,%,$@).EL.spec
+
+rhel4_%_rpm: rhel4_%_srpm
+	$(RPMBUILD) --rebuild $(MODULEARCH) "oracleasm-2.6.9-$(patsubst rhel4_%_rpm,%,$@).EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+
+
+#
 # Include this at the very end of the Makefile
 #
 include $(TOPDIR)/Postamble.make

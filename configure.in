@@ -153,14 +153,14 @@ AC_SUBST(KERNELDIR)
 
 KERNELINC="$kerneldir/include"
 
-if test ! -f "$KERNELINC/linux/autoconf.h"; then
-  AC_MSG_ERROR(No configured kernel include tree found)
-fi
-
 saved_CPPFLAGS="$CPPFLAGS"
 CPPFLAGS="-I$KERNELINC $CPPFLAGS"
 saved_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS $M64"
+
+if test ! -f "$KERNELINC/linux/autoconf.h"; then
+  AC_MSG_ERROR(No configured kernel include tree found)
+fi
 
 AC_CHECK_SIZEOF(unsigned long)
 
@@ -178,16 +178,6 @@ if test "x$modversions" = "xyes"; then
   MODVERSIONS="-include \$(KERNELINC)/linux/modversions.h -DMODVERSIONS"
 fi
 AC_SUBST(MODVERSIONS)
-
-CPPFLAGS="$saved_CPPFLAGS"
-CFLAGS="$saved_CFLAGS"
-
-AC_MSG_CHECKING(for directory for kernel modules)
-AC_ARG_WITH(moddir, [  --with-moddir=/path     Path to where modules should be installed [/lib/modules/<KVER>/fs]], moddir="$withval", moddir="/lib/modules/$kversion/kernel/fs")
-AC_MSG_RESULT($moddir)
-
-MODULEDIR=$moddir
-AC_SUBST(MODULEDIR)
 
 AC_MSG_CHECKING(for kernel version)
 rm -f conf.kvertest
@@ -230,6 +220,16 @@ AC_SUBST(BUILD_DRIVER)
 KERNELVER=$kversion
 AC_SUBST(KERNELVER)
 
+AC_MSG_CHECKING(for directory for kernel modules)
+AC_ARG_WITH(moddir, [  --with-moddir=/path     Path to where modules should be installed [/lib/modules/<KVER>/fs]], moddir="$withval", moddir="/lib/modules/$kversion/kernel/fs")
+AC_MSG_RESULT($moddir)
+
+MODULEDIR=$moddir
+AC_SUBST(MODULEDIR)
+
+CPPFLAGS="$saved_CPPFLAGS"
+CFLAGS="$saved_CFLAGS"
+
 AC_MSG_CHECKING(for gcc include path)
 gccdir="`$CC -print-search-dirs | sed -n 's/^install: \(.*\)/\1/p'`include"
 if test -z "$gccdir"; then
@@ -253,4 +253,5 @@ AC_OUTPUT([Config.make
 include/linux/asm_module_version.h
 vendor/common/oracleasm-support.spec
 vendor/suse/oracleasm-2.6.5.spec-generic
+vendor/redhat/oracleasm-2.6.9-EL.spec-generic
 ])

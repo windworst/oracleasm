@@ -896,15 +896,19 @@ case "$1" in
             echo "Action \"querydisk\" requires an argument" >&2
             exit 1
         fi
-	case "$2" in
-        */*)
-            check_disk "$2"
-            ;;
-        *)
-            UPDISK="`upper_disk "$2"`"
-            check_disk "$UPDISK"
-            ;;
-        esac
+	shift
+	for d in "$@"
+        do
+	    case "$d" in
+            */*)
+                check_disk "$d"
+                ;;
+            *)
+                UPDISK="`upper_disk "$d"`"
+                check_disk "$UPDISK"
+                ;;
+            esac
+        done
         ;;
 
     scandisks)

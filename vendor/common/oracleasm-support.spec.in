@@ -40,14 +40,7 @@ Tools to manage the Oracle Automatic Storage Management library driver
 
 
 %build
-# UL/SLES SP3 - this no longer quite works.
-# workaround: ln -s linux-include/smp linux-2.4
-KPATH=/usr/src/linux-2.4
-if [ ! -d "${KPATH}" ]
-then
-    KPATH=/usr/src/linux
-fi
-%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
+%configure --sbindir=/usr/sbin
 
 cd tools
 make
