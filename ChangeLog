@@ -1,4 +1,9 @@
 
+2003-08-18	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/osm.c: Fix osmfs_dir_operations for 2.4.19/20/21.
+	* test/osmtest.c: Fix buffer aligning for 64bit.
+
 2003-06-24	Joel Becker <joel.becker@oracle.com>
 
 	* kernel/osm.c: Fix complete_ios_thunk like I fixed _native.

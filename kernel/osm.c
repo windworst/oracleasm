@@ -1322,7 +1322,7 @@ static int osm_build_io(int rw, struct osm_request *r,
 		{
 			r->r_bhtail->b_next = tmp;
 #ifdef RED_HAT_LINUX_KERNEL
-# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20))
+# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 			r->r_bhtail->b_reqnext = tmp;
 # else
 #  error Invalid Red Hat Linux kernel
@@ -1481,7 +1481,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	bh = r->r_bh;
 #ifdef RED_HAT_LINUX_KERNEL
-# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20))
+# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 	submit_bh_linked(rw, bh);
 # else
 #  error Invalid Red Hat Linux kernel
@@ -2308,12 +2308,8 @@ static struct file_operations osmfs_file_operations = {
 	.ioctl		= osmfs_file_ioctl,
 };
 
-static struct file_operations osmfs_dir_operations = {
-	.read		= generic_read_dir,
-	.readdir	= dcache_readdir,
-	.fsync		= osmfs_sync_file,
-	.ioctl		= osmfs_dir_ioctl,
-};
+/*  See init_osmfs_dir_operations() */
+static struct file_operations osmfs_dir_operations = {0, };
 
 static struct inode_operations osmfs_dir_inode_operations = {
 	.create		= osmfs_create,
@@ -2324,6 +2320,7 @@ static struct inode_operations osmfs_dir_inode_operations = {
 static struct super_operations osmfs_ops = {
 	.statfs		= osmfs_statfs,
 	.put_inode	= force_delete,
+	/* These last three only required for limited maxinstances */
 	.delete_inode	= osmfs_delete_inode,
 	.put_super	= osmfs_put_super,
 	.remount_fs     = osmfs_remount,
@@ -2389,6 +2386,19 @@ static struct super_block *osmfs_read_super(struct super_block * sb, void * data
 	return sb;
 }
 
+
+static void __init init_osmfs_dir_operations(void) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,19)
+	osmfs_dir_operations.read	= generic_read_dir;
+	osmfs_dir_operations.readdir	= dcache_readdir;
+#else
+	osmfs_dir_operations		= dcache_dir_ops;
+#endif  /* LINUX_VERSION_CODE < 2.4.19 */
+	osmfs_dir_operations.fsync	= osmfs_sync_file;
+	osmfs_dir_operations.ioctl	= osmfs_dir_ioctl;
+};
+
+
 static DECLARE_FSTYPE(osmfs_fs_type, "osmfs", osmfs_read_super, FS_LITTER);
 
 static int __init init_osmfs_fs(void)
@@ -2400,6 +2410,7 @@ static int __init init_osmfs_fs(void)
 	if (!osm_request_cachep)
 		panic("Unable to create osm_request cache\n");
 
+	init_osmfs_dir_operations();
 	return register_filesystem(&osmfs_fs_type);
 }
 
