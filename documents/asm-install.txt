@@ -101,26 +101,20 @@ The automatic start can be enabled or disabled with the 'enable' and
 
 The system administrator has one last task.  Every disk that ASMLib is
 going to be accessing needs to be made available.  This is accomplished
-via two things.  The permissions of the disk device file must be such
-that the database user or group ('oracle' and 'dba', in the above
-example) can read the device file.  This can often be accomplished via
-adding the database user to the 'disk' group or changing the ownership
-of the disk device file to the database group.  To change the
-group ownership of the SCSI disk /dev/sdg:
+by creating an ASM disk.  The /etc/init.d/oracleasm script is again
+used for this task:
 
-	chgrp dba /dev/sdg
-	chmod g+r /dev/sdg
+	[root@ca-test1 /]# /etc/init.d/oracleasm createdisk vol1 /dev/sdg
+	Creating Oracle ASM disk "vol1"                            [  OK  ]
 
-Finally, the disk must be 'marked' as an ASM disk.  The tool asmtool(8)
-is used to mark the disk.  The '-m' option marks a disk, the '-u' option
-unmarks a disk, and the '-c' option checks to see if a disk is marked.
-To mark the disks /dev/sdg and /dev/sdh as ASM disks, use the command:
+Disks that are no longer used by ASM can be unmarked as well:
 
-	asmtool -m /dev/sdg /dev/sdh
+	[root@ca-test1 /]# /etc/init.d/oracleasm deletedisk vol1
+	Deleting Oracle ASM disk "vol1"                            [  OK  ]
 
-The ASM instance will now be able to load ASMLib and see the disks
-/dev/sdg and /dev/sdh to access them via the library.  This only needs
-to be done once for each disk.  It will be permanently marked on the
-disk, so each disk will remain marked even if the server reboots.  Also,
-other nodes in a RAC cluster will be able to see the marking.
+Any operating system disk can be queried to see if it is used by ASM:
+
+	[root@ca-test1 /]# /etc/init.d/oracleasm querydisk /dev/sdg
+	Checking if device "/dev/sdg" is an Oracle ASM disk        [  OK  ]
+
 

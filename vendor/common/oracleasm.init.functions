@@ -606,7 +606,7 @@ is_ide_disk()
 {
     if [ "$#" -lt "1" -o -z "$1" ]
     then
-        echo "not_ide_disk(): Requires an argument" >&2
+        echo "is_ide_disk(): Requires an argument" >&2
         return 1
     fi
     DISKNAME="$1"

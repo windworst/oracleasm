@@ -1,4 +1,11 @@
 
+2003-12-08	Joel Becker <joel.becker@oracle.com>
+
+	* documents/asm-install.txt: Newer oracleasm plans.
+	* tools/asmtool.c: Started towards true ASM disks.
+	* tools/list.h: list_head for asmtool.
+	* vendors/common/oracleasm.init.functions: some tweaks.
+
 2003-12-07	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/common/oracleasm.init.functions: Call new asmtool.
