@@ -35,7 +35,7 @@ case "$KVER" in
     ;;
 esac
     
-EVER="${KVER#${KASE_VER}}"
+EVER="${KVER#${BASE_VER}}"
 ETYPE=""
 case "$EVER" in
 *hugemem)
