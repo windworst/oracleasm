@@ -31,10 +31,6 @@ AC_SUBST(VERSION)
 DIST_VERSION=$MAJOR_VERSION.$MINOR_VERSION.$MICRO_VERSION
 AC_SUBST(DIST_VERSION)
 
-# Bump this only to update the RPM package version
-RPM_VERSION=1
-AC_SUBST(RPM_VERSION)
-
 AC_CANONICAL_HOST
 
 AC_PROG_CC
@@ -258,6 +254,13 @@ fi
 
 GCCINC=$gccdir
 AC_SUBST(GCCINC)
+
+AC_MSG_CHECKING(RPM package version)
+AC_ARG_WITH(rpmversion, [  --with-rpmversion=version  Version for the RPM package [1]], rpmversion="$withval", rpmversion="1")
+AC_MSG_RESULT($rpmversion)
+
+RPM_VERSION=$rpmversion
+AC_SUBST(RPM_VERSION)
 
 AC_OUTPUT([Config.make
 vendor/common/oracleasm-support.spec
