@@ -40,7 +40,7 @@
 #include "linux/osmkernel.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
-#include "osmerror.h"
+#include "asmerror.h"
 
 
 #if PAGE_CACHE_SIZE % 1024

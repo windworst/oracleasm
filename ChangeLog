@@ -1,6 +1,13 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* include/{osm,asm}error.h: Rename osmerror.h to asmerror.h.
+	* kernel/oracleasm.c: Reference asmerror.h.
+	* libosm/asmlib.c: Reference asmerror.h.
+	* test/asmbad.c: Reference asmerror.h.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* libosm/{osm,asm}lib.c: Rename osmlib.c to asmlib.c.
 	* libosm/Makefile: Handle the rename.
 

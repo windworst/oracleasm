@@ -35,7 +35,7 @@
 
 #include "oratypes.h"
 #include "osmlib.h"
-#include "osmerror.h"
+#include "asmerror.h"
 #include "linux/osmcompat32.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
@@ -532,7 +532,7 @@ osm_erc osm_io(osm_ctx ctx,
 
 
 /*
- * Error code strings must be kept in sync with osmerror.h
+ * Error code strings must be kept in sync with asmerror.h
  */
 const oratext *osm_errstr_pos[] =
 {

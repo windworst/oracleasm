@@ -10,23 +10,23 @@
 
 /*
   NAME
-    osmerror.h - Oracle Storage Manager internal error header
+    asmerror.h - Oracle Advanced Storage Management library internal error header
     
   DESCRIPTION
   
-  This file defines the error codes and descriptions for the OSM
+  This file defines the error codes and descriptions for the ASM
   library on Linux.
 */
 
 
-#ifndef _OSMERROR_H
-#define _OSMERROR_H
+#ifndef _ASMERROR_H
+#define _ASMERROR_H
 
 /*
  * Error codes.  Positive means runtime error, negative means software
- * error.  See osmlib.c for the description strings.
+ * error.  See asmlib.c for the description strings.
  */
-enum _OSMErrors
+enum _ASMErrors
 {
     ASM_ERR_FAULT       = -4,   /* Invalid address */
     ASM_ERR_NODEV       = -3,   /* Invalid device */
@@ -38,4 +38,4 @@ enum _OSMErrors
     ASM_ERR_IO          = 3,    /* I/O error */
 };
 
-#endif  /* _OSMERROR_H */
+#endif  /* _ASMERROR_H */
