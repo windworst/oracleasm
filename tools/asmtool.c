@@ -1427,7 +1427,7 @@ int main(int argc, char *argv[])
 out:
     clear_attrs(&attrs.attr_list);
 
-    return 0;
+    return rc;
 }  /* main() */
 
 

@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/statfs.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <libgen.h>
@@ -67,7 +68,7 @@ struct _ASMScanPattern
 struct _ASMScanDevice
 {
     struct list_head sd_list;
-    const char *sd_name;
+    char *sd_name;
     char *sd_path;
 };
 
@@ -92,6 +93,8 @@ static int as_exclude_device(struct list_head *exclude_list,
                              const char *dev_name);
 static int as_order_device(struct list_head *order_list,
                            const char *dev_name);
+static int scan_devices(struct list_head *order_list,
+                      struct list_head *exclude_list);
 static int is_manager(const char *filename);
 static int parse_options(int argc, char *argv[], char **manager,
                          struct list_head *order_list,
@@ -215,7 +218,7 @@ static ASMScanDevice *as_device_new(struct list_head *device_list,
     if (!device)
         return NULL;
 
-    device->sd_name = dev_name;
+    device->sd_name = strdup(dev_name);
     len = strlen(DEV_PREFIX) + strlen(device->sd_name) + 1;
     device->sd_path = (char *)malloc(sizeof(char) * len);
     if (!device->sd_path)
@@ -237,6 +240,8 @@ static void as_device_free(ASMScanDevice *device)
     if (device)
     {
         list_del(&device->sd_list);
+        if (device->sd_name)
+            free(device->sd_name);
         if (device->sd_path)
             free(device->sd_path);
         free(device);
@@ -289,7 +294,188 @@ static int as_order_device(struct list_head *order_list,
     }
 
     return 0;
-}  /* as_exclude_device() */
+}  /* as_order_device() */
+
+
+static int scan_devices(struct list_head *order_list,
+                      struct list_head *exclude_list)
+{
+    int rc, major, minor;
+    FILE *f;
+    char *buffer, *name;
+
+    buffer = (char *)malloc(sizeof(char) * (PATH_MAX + 1));
+    if (!buffer)
+        return -ENOMEM;
+
+    name = (char *)malloc(sizeof(char) * (PATH_MAX + 1));
+    if (!name)
+    {
+        free(buffer);
+        return -ENOMEM;
+    }
+
+    f = fopen("/proc/partitions", "r");
+    if (!f)
+    {
+        rc = -errno;
+        goto out_free;
+    }
+
+    while (1)
+    {
+        rc = 0;
+        if ((fgets(buffer, PATH_MAX + 1, f)) == NULL)
+            break;
+
+        name[0] = '\0';
+        major = minor = 0;
+
+        /* FIXME: If this is bad, send patches */
+        if (sscanf(buffer, "%d %d %*d %99[^ \t\n]",
+                   &major, &minor, name) < 3)
+            continue;
+
+        if (*name && major)
+        {
+            if (as_exclude_device(exclude_list, name))
+                continue;
+
+            if (!as_order_device(order_list, name))
+            {
+                fprintf(stderr,
+                        "asmscan: Unable to order device \"%s\"!\n",
+                        name);
+            }
+        }
+    }
+
+    fclose(f);
+
+out_free:
+    free(buffer);
+    free(name);
+
+    return rc;
+}  /* scan_devices() */
+
+
+static int collect_asmtool(pid_t pid,
+                           int out_pipe[], int err_pipe[],
+                           char *output, int outlen,
+                           char *errput, int errlen)
+{
+    int status, rc;
+    pid_t wait_pid;
+
+    while ((wait_pid = wait(&status)) != pid)
+        ;
+
+    close(out_pipe[1]); close(err_pipe[1]);
+
+
+out:
+    close(out_pipe[0]); close(err_pipe[0]);
+    return rc;
+}  /* collect_asmtool() */
+
+
+static int run_asmtool(const char **args[],
+                       char **output, int *outlen,
+                       char **errput, int *errlen)
+{
+    int rc;
+    size_t put_size = getpagesize() * 8;
+    int err_fd[2], out_fd[2];
+    pid_t pid;
+
+    /* Caller must leave args[0] NULL */
+    if (!args || args[0])
+        return -EINVAL;
+
+    args[0] = "asmtool";  /* FIXME: Do something pathlike */
+
+    *output = (char *)malloc(sizeof(char) * put_size);
+    if (!*output)
+        return -ENOMEM;
+    *outlen = put_size;
+
+    *errput = (char *)malloc(sizeof(char) * put_size);
+    if (!*errput)
+    {
+        free(*output);
+        return -ENOMEM;
+    }
+    *errlen = put_size;
+
+    rc = pipe(out_fd);
+    if (rc)
+    {
+        free(*output); free(*errput);
+        return -errno;
+    }
+
+    rc = pipe(err_pipe);
+    if (rc)
+    {
+        free(*output); free(*errput);
+        close(out_pipe[0]); close(out_pipe[1]);
+        return -errno;
+    }
+
+    pid = fork();
+    if (pid < 0)
+    {
+        rc = -errno;
+        free(*output); free(*errput);
+        close(out_pipe[0]); close(out_pipe[1]);
+        close(err_pipe[0]); close(err_pipe[1]);
+        return rc;
+    }
+
+    /* These calls close the pipes */
+    if (pid)
+        rc = collect_asmtool(pid, out_pipe, err_pipe,
+                             *output, *outlen,
+                             *errput, *errlen);
+    else
+        rc = exec_asmtool(args, out_pipe, err_pipe);
+
+    return rc;
+}  /* run_asmtool() */
+
+
+static int clean_disks(const char *manager)
+{
+    int rc;
+    char *disk_path;
+    DIR *dir;
+    struct dirent *d_ent;
+
+    disk_path = asm_disk_path(manager, "");
+    if (!disk_path)
+        return -ENOMEM;
+
+    dir = opendir(disk_path);
+    rc = -errno;
+    free(disk_path);
+    if (!dir)
+        goto out;
+
+    while ((d_ent = readdir(dir)) != NULL)
+    {
+        if (!strcmp(d_ent->d_name, ".") || !strcmp(d_ent->d_name, ".."))
+            continue;
+
+        disk_path = asm_disk_path(manager, d_ent->d_name);
+        fprintf(stdout, "Existing disk: %s\n", disk_path);
+        free(disk_path);
+    }
+
+    rc = 0;
+out:
+    return rc;
+}  /* clean_disks() */
 
 
 static int is_manager(const char *filename)
@@ -424,6 +610,12 @@ int main(int argc, char *argv[])
                 strerror(-rc));
         goto out;
     }
+
+    rc = clean_disks(manager);
+    if (rc)
+        goto out;
+
+    rc = scan_devices(&order_list, &exclude_list);
 
     {
         struct list_head *pos_l, *pos_d;

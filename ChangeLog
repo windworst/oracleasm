@@ -1,4 +1,12 @@
 
+2003-12-16	Joel Becker <joel.becker@oracle.com>
+
+	* include/{osm,asm}lib.h: Move osmlib.h -> asmlib.h
+	* tools/asmscan.c: Finds disks.
+	* tools/asmtool.c: Error return.
+	* include/linux/asmmanager.h: Allow asm_disk_path() to handle
+		the raw disk directory.
+
 2003-12-11	Joel Becker <joel.becker@oracle.com>
 
 	* configure.in: Add userspace spec on redhat.

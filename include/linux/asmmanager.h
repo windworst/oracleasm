@@ -38,7 +38,7 @@ static inline char *asm_disk_path(const char *manager, const char *disk)
 	size_t len;
 	char *asm_disk;
 
-	if (!manager || !*manager || !disk || !*disk)
+	if (!manager || !*manager || !disk)
 		return NULL;
 
 	len = strlen(manager) + strlen("/") +
