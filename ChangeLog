@@ -1,6 +1,12 @@
 
 2003-12-23	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: Bump to 0.10.1.
+	* vendor/redhat/Makefile: Add oracleasm-userspace.spec.in to
+		DIST_FILES.
+
+2003-12-23	Joel Becker <joel.becker@oracle.com>
+
 	* Tagging 0.10.0.
 
 2003-12-23	Joel Becker <joel.becker@oracle.com>
