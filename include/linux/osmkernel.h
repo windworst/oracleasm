@@ -106,6 +106,7 @@ struct _osm_ioc32 {
 	__u32		abn_offset_osm_ioc;
 	__u32		abn_osm_ioc;
 	__u32		abn_mask_osm_ioc;
+	__u32		reserved2_osm_ioc;
 	__u64		tag_osm_ioc;
 	__u64		reserved_osm_ioc;
 	__u32		buffer_osm_ioc;
@@ -137,6 +138,7 @@ struct _osm_ioc64 {
 	__u32		abn_offset_osm_ioc;
 	__u32		abn_osm_ioc;
 	__u32		abn_mask_osm_ioc;
+	__u32		reserved2_osm_ioc;
 	__u64		tag_osm_ioc;
 	__u64		reserved_osm_ioc;
 	__u64		buffer_osm_ioc;

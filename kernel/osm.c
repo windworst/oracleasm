@@ -1759,6 +1759,7 @@ static inline int osm_maybe_wait_io_native(struct osmfs_file_info *ofi,
 	u32 i;
 	osm_ioc *iocp;
 
+	LOG_ENTRY();
 	for (i = 0; i < io->oi_waitlen; i++) {
 		if (get_user(iocp,
 			     ((osm_ioc **)((unsigned long)io->oi_waitreqs)) + i))
@@ -1769,6 +1770,7 @@ static inline int osm_maybe_wait_io_native(struct osmfs_file_info *ofi,
 			break;
 	}
 
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_maybe_wait_io_native() */
 
@@ -1820,15 +1822,27 @@ static inline void osm_promote_64(osm_ioc64 *ioc)
 {
 	osm_ioc32 *ioc_32 = (osm_ioc32 *)ioc;
 
+        LOG_ENTRY();
+
 	/*
 	 * Promote the 32bit pointers at the end of the osm_ioc32
 	 * into the osm_ioc64.
 	 *
 	 * Promotion must be done from the tail backwards.
 	 */
+	LOG("Promoting (0x%X, 0x%X, 0x%X) to ",
+	    ioc_32->link_osm_ioc,
+	    ioc_32->check_osm_ioc,
+	    ioc_32->buffer_osm_ioc);
 	ioc->link_osm_ioc = (u64)ioc_32->link_osm_ioc;
 	ioc->check_osm_ioc = (u64)ioc_32->check_osm_ioc;
 	ioc->buffer_osm_ioc = (u64)ioc_32->buffer_osm_ioc;
+	LOG("(0x%lX, 0x%lX, 0x%lX)\n",
+	    ioc->link_osm_ioc,
+	    ioc->check_osm_ioc,
+	    ioc->buffer_osm_ioc);
+
+        LOG_EXIT();
 }  /* osm_promote_64() */
 
 
@@ -1842,6 +1856,7 @@ static inline int osm_submit_io_thunk(struct osmfs_file_info *ofi,
 	osm_ioc32 *iocp;
 	osm_ioc tmp;
 
+	LOG_ENTRY();
 	for (i = 0; i < io->oi_reqlen; i++) {
 		ret = -EFAULT;
 		/*
@@ -1864,6 +1879,7 @@ static inline int osm_submit_io_thunk(struct osmfs_file_info *ofi,
 			break;
 	}
 
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_submit_io_thunk() */
 
@@ -1878,6 +1894,7 @@ static inline int osm_maybe_wait_io_thunk(struct osmfs_file_info *ofi,
 	u32 iocp_32;
 	osm_ioc *iocp;
 
+	LOG_ENTRY();
 	for (i = 0; i < io->oi_waitlen; i++) {
 		/*
 		 * io->oi_waitreqs is an osm_ioc32**, but the pointers
@@ -1895,6 +1912,7 @@ static inline int osm_maybe_wait_io_thunk(struct osmfs_file_info *ofi,
 			break;
 	}
 
+	LOG_EXIT_RET(ret);
 	return ret;
 }  /* osm_maybe_wait_io_thunk() */
 
@@ -1910,6 +1928,7 @@ static inline int osm_complete_ios_thunk(struct osmfs_file_info *ofi,
 	u32 iocp_32;
 	osm_ioc *iocp;
 
+	LOG_ENTRY();
 	for (i = 0; i < io->oi_complen; i++) {
 		ret = osm_complete_io(ofi, oi, &iocp);
 		if (ret)
@@ -1937,6 +1956,7 @@ static inline int osm_complete_ios_thunk(struct osmfs_file_info *ofi,
 		i--; /* Reset this completion */
 	}
 
+	LOG_EXIT_RET(ret ? ret : i);
 	return (ret ? ret : i);
 }  /* osm_complete_ios_thunk() */
 
@@ -2403,6 +2423,7 @@ static DECLARE_FSTYPE(osmfs_fs_type, "osmfs", osmfs_read_super, FS_LITTER);
 
 static int __init init_osmfs_fs(void)
 {
+	LOG("sizeof osm_ioc32: %lu\n", sizeof(osm_ioc32));
 	osm_request_cachep =
 		kmem_cache_create("osm_request",
 				  sizeof(struct osm_request),

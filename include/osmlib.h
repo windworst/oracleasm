@@ -1113,6 +1113,8 @@ struct osm_ioc {                                        /* I/O control block */
    * significant byte first. This is not in the interface since the library
    * should already know the byte order. */
   
+  ub4    reserved2_osm_ioc;          /* align next ub8 */
+  
   ub8    tag_osm_ioc;                /* expected tag if this is a disk write */
   /* If the OSM_TAGVALID flag was set for this disk and this is a write
    * command with OSM_TAGCHK set, then the tag for the write is in this

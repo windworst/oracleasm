@@ -1,4 +1,10 @@
 
+2003-08-20	Joel Becker <joel.becker@oracle.com>
+
+	* include/linux/osmkernel.h: Add pad for 32->64.
+	* include/osmlib.h: Add pad for 32->64.
+	* kernel/osm.c: Debug logging for 32->64.
+
 2003-08-19	Joel Becker <joel.becker@oracle.com>
 
 	* test/sizes.c: Simple structure size examiner.
