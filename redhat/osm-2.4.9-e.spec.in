@@ -22,10 +22,10 @@
 Summary: The Oracle Storage Manager.
 Name: osm-%{base}
 Version: @DIST_VERSION@
-Release: 1
+Release: @RPM_VERSION@
 Copyright: GPL
 Group: System Environment/Kernel
-Source: osm-@DIST_VERSION@.tar.gz
+Source: osmlib-@DIST_VERSION@.tar.gz
 URL: http://oss.oracle.com/
 Distribution: Oracle
 Vendor: Oracle Corporation
@@ -37,7 +37,7 @@ Requires: osm-support >= 0.6.1
 BuildRequires: kernel-source >= %{kver}
 
 
-BuildRoot: %{_tmppath}/osm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+BuildRoot: %{_tmppath}/osmlib-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
 
 
 %description
@@ -118,6 +118,9 @@ Group: System Environment/Kernel
 AutoReqProv: no
 Requires: glibc >= 2.2.4
 
+%description -n osm-lib
+The Oracle userspace library to access the Oracle Storage Manager
+
 %package -n osm-support
 Summary: Tools for managing the Oracle Storage Manager
 Group: System Environment/Kernel
@@ -130,7 +133,7 @@ Tools to manage the Oracle Storage Manager
 
 
 %prep
-%setup -n osm-%{version}
+%setup -n osmlib-%{version}
 
 
 %build
@@ -164,7 +167,7 @@ else
     KPATH="/usr/src/linux-${KVER}"
 fi
     
-%configure --sbindir=/sbin --with-kernel="${KPATH}"
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
 cd kernel
 
 %if %{buildup}
@@ -193,6 +196,8 @@ make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{kver}-debug-ABI/osm" in
 
 cd ../tools
 make
+cd ../libosm
+make
 
 %if %{buildsummit}
 cd ..
@@ -220,7 +225,7 @@ fi
 
 KPATH="/usr/src/linux-${KVER}"
     
-%configure --sbindir=/sbin --with-kernel="${KPATH}"
+%configure --sbindir=/usr/sbin --with-kernel="${KPATH}"
 cd osm
 
 make clean
@@ -311,7 +316,7 @@ chkconfig osm on
 
 %files -n osm-support
 %defattr(-,root,root)
-/usr/bin/osmtool
+/usr/sbin/osmtool
 /etc/init.d/osm
 
 

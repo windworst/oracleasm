@@ -2,7 +2,7 @@ TOPDIR = ..
 
 include $(TOPDIR)/Preamble.make
 
-BIN_PROGRAMS = osmtool
+SBIN_PROGRAMS = osmtool
 
 VERSION_FLAGS = -DVERSION="\"${VERSION}\""
 CPPFLAGS = -DLINUX ${VERSION_FLAGS} $(DEFS)

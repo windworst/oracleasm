@@ -47,7 +47,7 @@ osm.o: $(HEADERS)
 
 INSTALL_RULES = install-osm
 
-install-ocfs: osm.o
+install-osm: osm.o
 	$(TOPDIR)/mkinstalldirs $(DESTDIR)$(MODULEDIR)
 	$(INSTALL_DATA) osm.o $(DESTDIR)$(MODULEDIR)/osm.o
 
