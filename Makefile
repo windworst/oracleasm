@@ -117,7 +117,7 @@ clean:
 		$(OSMPROFILE_OBJS) $(OSMTOOL_OBJS) \
 		libosm/libosm.so libosm/libosm.a kernel/osm.o \
 		test/osmtest-bin test/osmtest-multi-bin \
-		test/osmprofile tools/osmtool \
+		test/osmprofile-bin tools/osmtool \
 		libosm-virtual-stamp
 
 $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
