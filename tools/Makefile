@@ -11,6 +11,7 @@ CFLAGS += -Wall $(USERM64)
 INCLUDES = -I. -I$(TOPDIR)/include
 
 SOURCES = asmtool.c
+LOCAL_HEADERS = list.h
 HEADERS =					\
 	$(TOPDIR)/include/oratypes.h		\
 	$(TOPDIR)/include/osmlib.h		\
@@ -18,9 +19,9 @@ HEADERS =					\
 
 OBJECTS = $(subst .c,.o,$(SOURCES))
 
-DIST_FILES = $(SOURCES)
+DIST_FILES = $(SOURCES) $(LOCAL_HEADERS)
 
-asmtool.o: $(HEADERS)
+asmtool.o: $(HEADERS) $(LOCAL_HEADERS)
 
 asmtool: $(OBJECTS)
 	$(LINK)
