@@ -27,15 +27,13 @@
  */
 #define OSMLIB_NAME "OSM Library - Generic Linux"
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
-#define OSMLIB_MINOR 3
+#define OSMLIB_MINOR 4
 #define OSMLIB_MICRO 0
 
 /*
- * Max I/O is 100k.  Why 100?  Because the MegaRAID card supports only
- * 26 scatter/gather segments.  26 * 4k page == 104k.  Since the I/O
- * might not be exactly 4k aligned, we have to allow for a slider.  So
- * 100k provides 25 pages, 26 if not 4k aligned.  This fits the
- * MegaRAID sg list.  The intention is for per-device discovery of this
+ * Max I/O is 64K.  Why 64?  Because the MegaRAID card supports only
+ * 26 scatter/gather segments.  26 * 4k page == 104k.  The power of 2
+ * below that is 64K.  The intention is for per-device discovery of this
  * value in the future.  FIXME.
  */
 #define OSM_MAX_IOSIZE          (1024 * 64)

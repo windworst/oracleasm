@@ -186,34 +186,6 @@ struct osm_request {
 
 
 #ifdef RED_HAT_LINUX_KERNEL
-/* Hacks until they EXPORT_SYMBOL() */
-#include <linux/kernel_stat.h>
-void submit_bh_rsector(int rw, struct buffer_head * bh)
-{
-	int count = bh->b_size >> 9;
-
-	if (!test_bit(BH_Lock, &bh->b_state))
-		BUG();
-
-	set_bit(BH_Req, &bh->b_state);
-
-	/*
-	 * First step, 'identity mapping' - RAID or LVM might
-	 * further remap this.
-	 */
-	bh->b_rdev = bh->b_dev;
-
-	generic_make_request(rw, bh);
-
-	switch (rw) {
-		case WRITE:
-			kstat.pgpgout += count;
-			break;
-		default:
-			kstat.pgpgin += count;
-			break;
-	}
-}
 #else
 #include <linux/kernel_stat.h>
 void submit_bh_blknr(int rw, struct buffer_head * bh)
@@ -1155,6 +1127,13 @@ static int osm_build_io(int rw, struct osm_request *r,
 	kdev_t		dev = r->r_disk->d_dev;
 	unsigned	sector_size = get_hardsect_size(dev);
 	int		i;
+#ifndef RED_HAT_LINUX_KERNEL
+ #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+	unsigned int    atomic_seq;
+ #else
+  #error invalid SuSE? kernel
+ #endif
+#endif
 
 	if (!vec->nr)
 		BUG();
@@ -1187,6 +1166,14 @@ static int osm_build_io(int rw, struct osm_request *r,
 		return -EINVAL;
 	}
 
+#ifndef RED_HAT_LINUX_KERNEL
+ #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+	atomic_seq = blk_get_atomic_seq();
+ #else
+  #error Invalid SuSE? kernel
+ #endif
+#endif
+	
 	r->r_bh_count = 0;
 
 	/* This is massaged from fs/buffer.c.  Blame Ben. */
@@ -1222,6 +1209,14 @@ static int osm_build_io(int rw, struct osm_request *r,
 		tmp->b_next = tmp->b_reqnext = NULL;
 		atomic_set(&tmp->b_count, 1);
 
+#ifndef RED_HAT_LINUX_KERNEL
+ #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+		bh_elv_seq(tmp) = atomic_seq;
+ #else
+  #error Invalid SuSE? kernel
+ #endif
+#endif
+
 		if (rw == WRITE) {
 			set_bit(BH_Uptodate, &tmp->b_state);
 			clear_bit(BH_Dirty, &tmp->b_state);
@@ -1250,8 +1245,18 @@ static int osm_build_io(int rw, struct osm_request *r,
 		/* Keep a list of original buffers */
 		tmp->b_next = r->r_buffers;
 #else
+
                 if (r->r_bh)
+                {
                     r->r_bhtail->b_next = tmp;
+#ifdef RED_HAT_LINUX_KERNEL
+ #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)
+                    r->r_bhtail->b_reqnext = tmp;
+ #else
+  #error invalid Red Hat Linux kernel
+ #endif
+#endif
+                }
                 else
                     r->r_bh = tmp;
 
@@ -1401,23 +1406,24 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	r->r_elapsed = jiffies;  /* Set start time */
 
         bh = r->r_bh;
-        while (bh)
-        {
 #ifdef RED_HAT_LINUX_KERNEL
  #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)
-            submit_bh_rsector(rw, bh);
+        submit_bh_linked(rw, bh);
  #else
   #error Invalid Red Hat Linux kernel
  #endif
 #else
  #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19) /* Pray it's UL */
+        while (bh)
+        {
             submit_bh_blknr(rw, bh);
+            bh = bh->b_next;
+        }
+	blk_refile_atomic_queue(bh_elv_seq(r->r_bh));
  #else
   #error Invalid SuSE? kernel
  #endif
 #endif
-            bh = bh->b_next;
-        }
 
 	r->r_status |= OSM_SUBMITTED;
 
