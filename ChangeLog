@@ -1,6 +1,10 @@
 
 2003-12-17	Joel Becker <joel.becker@oracle.com>
 
+	* libasm/asmlib.c: OSM -> ASM rename.
+
+2003-12-17	Joel Becker <joel.becker@oracle.com>
+
 	* lib{osm,asm}: Move libosm to libasm.
 	* Makefile: Move libosm to libasm.
 	* libasm/Makefile: Move libosm to libasm.
