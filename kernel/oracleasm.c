@@ -163,13 +163,6 @@ struct asmfs_sb_info {
 	long free_inodes;
 
 	unsigned long next_iid;
-
-	/* Remaining extras */
-	long max_dentries;
-	long free_dentries;
-	long max_file_pages;
-	long max_pages;
-	long free_pages;
 };
 
 #define ASMFS_SB(sb) ((struct asmfs_sb_info *)((sb)->u.generic_sbp))
@@ -1592,9 +1585,11 @@ static int asm_maybe_wait_io(struct asmfs_file_info *afi,
 	}
 
 	/* Somebody got here first */
+	ret = 0;
 	if (r->r_status & ASM_FREE)
-		if (list_empty(&afi->f_complete))
-			BUG();
+		goto out;
+	if (list_empty(&afi->f_complete))
+		BUG();
 #ifdef DEBUG
 	{
 		/* Check that the request is on afi->f_complete */
@@ -1624,6 +1619,7 @@ static int asm_maybe_wait_io(struct asmfs_file_info *afi,
 	dprintk("ASM: Freeing request 0x%p\n", r);
 	asm_request_free(r);
 
+out:
 	LOG_EXIT_RET(ret);
 	return ret;
 }  /* asm_maybe_wait_io() */
