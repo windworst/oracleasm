@@ -40,6 +40,8 @@ Tools to manage the Oracle Automatic Storage Management library driver
 
 
 %build
+# UL/SLES SP3 - this no longer quite works.
+# workaround: ln -s linux-include/smp linux-2.4
 KPATH=/usr/src/linux-2.4
 if [ ! -d "${KPATH}" ]
 then

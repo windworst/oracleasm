@@ -1,4 +1,13 @@
 
+2004-01-29	Joel Becker <joel.becker@oracle.com>
+
+	* configure.in: Not supporting <SP3.
+	* vendor/unitedlinux/Makefile: Not supporting <SP3.
+	* vendor/common/oracleasm-support.spec.in: Comment about UL
+		kernel paths.
+	* vendor/{redhat,unitedlinux}/oracleasm-*.spec.in: Bump
+		required support_ver to 1.0.0.
+
 2004-01-28	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/unitedlinux/oracleasm-2.4.19*: Not supporting <SP3.
