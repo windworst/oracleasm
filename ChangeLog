@@ -1,5 +1,9 @@
 
-2003-05-24	Joel Becker <joel.becker@oracle.com>
+2003-05-27	Joel Becker <joel.becker@oracle.com>
+
+	* Makefile.orig: Moved Makefile out of the way.
+
+2003-05-27	Joel Becker <joel.becker@oracle.com>
 
 	* config.guess: Start of conversion to makebo.
 	* config.sub: Start of conversion to makebo.
