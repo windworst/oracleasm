@@ -125,6 +125,8 @@ if test "x$rhkernel" = "xyes"; then
 fi
 AC_SUBST(KVER)
 
+AC_CHECK_SIZEOF(unsigned long)
+
 AC_MSG_CHECKING([for kernel module symbol versions])
 AC_EGREP_CPP(kernel_has_modversions,
 [#include <linux/autoconf.h>

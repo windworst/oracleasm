@@ -5,7 +5,7 @@ include $(TOPDIR)/Preamble.make
 LIBRARIES = libosm.so
 
 VERSION_FLAGS = -DVERSION="\"${VERSION}\""
-CPPFLAGS = -DLINUX ${VERSION_FLAGS}
+CPPFLAGS = -DLINUX ${VERSION_FLAGS} $(DEFS)
 CFLAGS = -Wall -g -O2
 
 INCLUDES = -I. -I$(TOPDIR)/include

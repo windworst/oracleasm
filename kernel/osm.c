@@ -1931,12 +1931,21 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			return osm_disk_close(ofi, oi, kdv);
 			break;
 
-		case OSMIOC_IODISK:
+		case OSMIOC_IODISK32:
 			if (copy_from_user(&ioc, (struct osmio *)arg,
 					   sizeof(ioc)))
 				return -EFAULT;
 			return osm_do_io(ofi, oi, &ioc);
 			break;
+
+#if BITS_PER_LONG == 64
+		case OSMIOC_IODISK64:
+			if (copy_from_user(&ioc, (struct osmio *)arg,
+					   sizeof(ioc)))
+				return -EFAULT;
+			return osm_do_io(ofi, oi, &ioc);
+			break;
+#endif
 
 		case OSMIOC_DUMP:
 			/* Dump data */

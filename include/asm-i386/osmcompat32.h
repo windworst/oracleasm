@@ -23,9 +23,26 @@
 #define _OSMCOMPAT32_H
 
 /*
+ * This is ugly.  SIZEOF_UNSIGNED_LONG comes from autoconf.
+ * Do you have a better way?
+ */
+#ifndef BITS_PER_LONG
+# if SIZEOF_UNSIGNED_LONG == 4
+#  define BITS_PER_LONG 32
+# else
+#  if SIZEOF_UNSIGNED_LONG == 8
+#   define BITS_PER_LONG 64
+#  else
+#   error Unknown size of unsigned long (SIZEOF_UNSIGNED_LONG)
+#  endif  /* SIZEOF_UNSIGNED_LONG == 8 */
+# endif  /* SIZEOF_UNSIGNED_LONG == 4 */
+#endif  /* BITS_PER_LONG */
+
+/*
  * Handle the ID sizes
  */
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
 
 #endif  /* _OSMCOMPAT32_H */
+

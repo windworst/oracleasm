@@ -73,7 +73,27 @@ struct osm_get_iid
 #define OSMIOC_QUERYDISK        _IOWR(OSM_IOCTL_BASE, 2, struct osm_disk_query)
 #define OSMIOC_OPENDISK		_IOWR(OSM_IOCTL_BASE, 3, struct osm_disk_query)
 #define OSMIOC_CLOSEDISK	_IOW(OSM_IOCTL_BASE, 4, struct osm_disk_query)
-#define OSMIOC_IODISK           _IOWR(OSM_IOCTL_BASE, 5, struct osmio)
+
+
+/*
+ * We have separate ioctls so we *know* when the pointers are 32bit
+ * or 64bit.
+ * 
+ * All userspace callers should use OSMIOC_IODISK.
+ */
+#define OSMIOC_IODISK32         _IOWR(OSM_IOCTL_BASE, 5, struct osmio)
+
+#if BITS_PER_LONG == 32
+# define OSMIOC_IODISK OSMIOC_IODISK32
+#else
+# if BITS_PER_LONG == 64
+#  define OSMIOC_IODISK64         _IOWR(OSM_IOCTL_BASE, 6, struct osmio)
+#  define OSMIOC_IODISK OSMIOC_IODISK64
+# else
+#  error Invalid number of bits (BITS_PER_LONG)
+# endif  /* BITS_PER_LONG == 64 */
+#endif  /* BITS_PER_LONG == 32 */
+
 
 /* ioctl for testing */
 #define OSMIOC_DUMP             _IO(OSM_IOCTL_BASE, 16)
