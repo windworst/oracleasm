@@ -9,26 +9,12 @@ follow.
 
 [ Locating the ASMLib Packages ]
 
-The ASMLib software is on the Oracle RDBMS CDs.  Mount CD <insert CD
-number here> as /mnt/cdrom.  If your CD-ROM drive is /dev/hdc, you can
-mount it with the command:
+The ASMLib software is available from the Oracle Technology Network.
+Go to http://otn.oracle.com/tech/linux/asmlib/ and follow the link for
+your platform.
 
-	mount -t iso9660 /dev/hdc /mnt/cdrom
-
-If you do not have the directory /mnt/cdrom, create it first.
-
-Once you have mounted the CD, change into the ASM software directory.
-This is <insert path on CD here>.  You can use the command:
-
-	cd <insert path on CD here>
-
-You now must choose the path for your appropriate Linux distribution and
-hardware architecture.  Change into the correct directory:
-
-	cd <insert dist+arch path here>
-
-You will see 4-6 packages in this directory.  The 'oracleasm-lib'
-package provides the actual ASM library.  The 'oracleasm-support'
+You will see 4-6 packages for your Linux platform.  The oracleasmlib
+package provides the actual ASM library.  The oracleasm-support
 package provides the utilities used to get the ASM driver up and
 running.  Both of these packages need to be installed.
 
@@ -38,13 +24,14 @@ install the appropriate package for the kernel you are running.  For
 example, if you were running Red Hat Advanced Server 2.1, and the kernel
 you were using was the 2.4.9-e.27enterprise kernel, you would choose the
 oracleasm-2.4.9-e-enterprise package.  So, to installing these packages
-on Red Hat Advanced Server 2.1 on an Intel x86 machine, you would use
+on Red Hat Advanced Server 2.1 on an Intel x86 machine, you might use
 the command:
 
-	rpm -Uvh oracleasm-support-1.0.0-1.i686.rpm oracleasm-lib-1.0.0-1.i686.rpm oracleasm-2.4.9-e-enterprise-1.0.0-1.i686.rpm
+	rpm -Uvh oracleasm-support-1.0.0-1.i386.rpm oracleasm-lib-1.0.0-1.i386.rpm oracleasm-2.4.9-e-enterprise-1.0.0-1.i686.rpm
 
 If you were on a different machine, the package names would be slightly
-different, replacing 'i686' with the appropriate architecture.
+different, replacing 'i686' with the appropriate architecture.  Use the
+package names relevant for your distribution.
 
 Once the command completes, ASMLib is now installed on the system.
 
@@ -137,4 +124,21 @@ about it.  Run the 'createdisk' command on one node, and then run
 
 	[root@ca-test1 /]# /etc/init.d/oracleasm scandisks
 	Scanning system for ASM disks                              [  OK  ]
+
+
+[ Discovery Strings for Linux ASMLib ]
+
+ASMLib uses discovery strings to determine what disks ASM is asking for.
+The generic Linux ASMLib uses glob strings.  The string must be prefixed
+with "ORCL:".  Disks are specified by name.  A disk created with the
+name "vol1" can be discovered in ASM via the discovery string
+"ORCL:vol1".  Similarly, all disks that start with the string "vol" can
+be queried with the discovery string "ORCL:vol*".
+
+Disks cannot be discovered with path names in the discovery string.  If
+the prefix is missing, the generic Linux ASMLib will ignore the
+discovery string completely, expecting that it is intended for a
+different ASMLib.  The only exception is the empty string (""), which is
+considered a full wildcard.  This is precisely equivalent to the
+discovery string "ORCL:*".
 
