@@ -28,7 +28,7 @@
 #define OSMLIB_NAME "OSM Library - Generic Linux"
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
 #define OSMLIB_MINOR 6
-#define OSMLIB_MICRO 0
+#define OSMLIB_MICRO 1
 
 /*
  * Disk label.  This is a 32 byte quantity at offset 32 (0x20) on the 

@@ -55,7 +55,10 @@ static void print_usage(int rc)
 {
     FILE *output = rc ? stderr : stdout;
 
-    fprintf(output, "Usage: osmtool <disk1> ...\n");
+    fprintf(output,
+            "Usage: osmtool {-m|-u|-c} <disk1> ...\n"
+            "       osmtool -h\n"
+            "       osmtool -V\n");
     exit(rc);
 }  /* print_usage() */
 

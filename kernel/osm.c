@@ -1896,6 +1896,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (ret)
 				return ret;
 
+			/* Userspace checks a 0UL return */
 			handle = osm_disk_open(ofi, oi, kdv);
 			dprintk("OSM: Opened handle 0x%.8lX\n", handle);
 			return put_user(handle, (unsigned long *)arg);

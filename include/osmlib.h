@@ -1,4 +1,4 @@
-/* Copyright (c) 2001, 2002, Oracle Corporation.  All rights reserved.  */
+/* Copyright (c) 2001, 2003, Oracle Corporation.  All rights reserved.  */
 
 /*
  * The document contains proprietary information about Oracle Corporation.
@@ -150,6 +150,7 @@
      set of disks.
 
   MODIFIED
+     wbridge    01/30/03 - 30 char limit on failure group name and disk label
      wbridge    12/05/02 - remove atomic key change on I/O
      pbagal     11/22/02 - Introduce maxio size for read & write
      wbridge    09/11/02 - tweek comments
@@ -238,9 +239,11 @@ typedef sword osm_erc;                                      /* an error code */
  * same disk group.
  */
 typedef struct osm_name osm_name;                /* disk name and attributes */
+
+/* Size limits on strings. Limit value includes terminating null */
 #define OSM_MAXPATH   256     /* maximum size of a null terminated path name */
-#define OSM_MAXLABEL  32               /* maximum characters in a disk label */
-#define OSM_MAXFGROUP 32       /* maximum characters in a failure group name */
+#define OSM_MAXLABEL  31               /* maximum characters in a disk label */
+#define OSM_MAXFGROUP 31       /* maximum characters in a failure group name */
 #define OSM_MAXUDID   64           /* maximum characters in a unique disk ID */
 
 struct osm_name

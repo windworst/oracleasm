@@ -65,7 +65,8 @@ OSM_SOURCES =			\
 	$(OSMLIB_SRCS)		\
 	$(OSMTEST_SRCS)		\
 	$(OSMTEST_MULTI_SRCS)	\
-	$(KERNEL_SRCS)
+	$(KERNEL_SRCS)		\
+	$(OSMTOOL_SRCS)
 
 TEST_WRAPPERS =			\
 	test/osmtest-multi	\
@@ -92,12 +93,14 @@ dist:
 	@mkdir $(DISTNAME)/libosm
 	@mkdir $(DISTNAME)/test
 	@mkdir $(DISTNAME)/kernel
+	@mkdir $(DISTNAME)/tools
 	@cp $(DIST_FILES) $(DISTNAME)
 	@cp $(COMMON_HEADERS) $(DISTNAME)/include
 	@cp $(ARCH_X86_HEADERS) $(DISTNAME)/include/arch-i386
 	@cp $(OSMLIB_SRCS) $(DISTNAME)/libosm
 	@cp $(OSMTEST_SRCS) $(OSMTEST_MULTI_SRCS) $(OSMPROFILE_SRCS) $(TEST_WRAPPERS) $(DISTNAME)/test
 	@cp $(KERNEL_SRCS) $(DISTNAME)/kernel
+	@cp $(OSMTOOL_SRCS) $(DISTNAME)/tools
 	tar -czvf $(DISTNAME).tar.gz $(DISTNAME)
 	@rm -rf $(DISTNAME)
 
