@@ -1,6 +1,10 @@
 
 2003-06-04	Joel Becker <joel.becker@oracle.com>
 
+	* Configure: Removed old useless Configure.
+
+2003-06-04	Joel Becker <joel.becker@oracle.com>
+
 	* Config.make.in: Added DEFS autoconf variable.
 	* configure.in: Added call to AC_CHECK_SIZEOF.
 	* include/asm-i386/osmcompat32.h: Added BITS_PER_LONG detection.
