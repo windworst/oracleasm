@@ -164,75 +164,81 @@ then
 fi
 MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
 OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/oracleasm"
+MODNAME="oracleasm"
 DEVASM="/dev/oracleasm"
 
-#test -r "$OBJPATH/oracleasm.o" || exit 0
+test -r "${OBJPATH}/${MODNAME}.o" || exit 0
+
+
+if_fail()
+{
+    RC="$1"
+    if [ "$RC" = "0" ]
+    then
+        success
+        echo
+        return
+    elif [ "$RC" = "2" ]
+    then
+        return
+    fi
+    failure $"$2;"
+    echo
+    exit 1
+}
+
+
+link()
+{
+    module_link "${MODNAME}.o" "${OBJPATH}" "${MODPATH}"
+    if_fail "$?" "Unable to link the ASMlib driver module"
+}
+
+
+configure()
+{
+    configure_ask
+    write_sysconfig
+    if_fail $? "Unable to write the driver configuration"
+}
+
+
+start()
+{
+    link
+
+    dev_create "${DEVASM}"
+    if_fail "$?" "Unable to create ${DEVASM}"
+
+    if [ "$ORACLEASM_ENABLED" != "true" ]
+    then
+        exit 0
+    fi
+
+    load_module "${MODNAME}"
+    if_fail "$?" "Unable to load the ASMlib driver module"
+
+    mount_device
+    if_fail "$?" "Unable to mount the ASMlib driver filesystem"
+}
+
+stop()
+{
+    unmount_device
+    if_fail "$?" "Unable to unmount the ASMlib driver filesystem"
+
+    unload_module oracleasm
+    if_fail "$?" "Unable to unload the ASM library driver"
+}
 
 
 case "$1" in
     start)
-        module_link oracleasm.o "${OBJPATH}" "${MODPATH}"
-        RC=$?
-        if [ "$RC" = "0" ]
-        then
-            success
-            echo
-        elif [ "$RC" = "1" ]
-        then
-            failure $"Unable to link the ASMlib driver module;"
-            echo
-            exit 1
-        fi
-
-        dev_create "$DEVASM"
-        RC=$?
-        if [ "$RC" = "0" ]
-        then
-            success
-            echo
-        elif [ "$RC" = "1" ]
-        then
-            failure $"Unable to create ${DEVASM};"
-            echo
-            exit 1
-        fi
-
-        if [ "$ORACLEASM_ENABLED" != "true" ]
-        then
-            exit 0
-        fi
-
-        load_module oracleasm
-        RC=$?
-        if [ "$RC" = "0" ]
-        then
-            success
-            echo
-        elif [ "$RC" = "1" ]
-        then
-            failure $"Unable to load the ASM library driver;"
-            echo
-            exit 1
-        fi
-
-        RETVAL=0
+        start
 	;;
 	
     link)
-        module_link oracleasm.o "${OBJPATH}" "${MODPATH}"
-        RC=$?
-        if [ "$RC" = "0" ]
-        then
-            success
-            echo
-        elif [ "$RC" = "1" ]
-        then
-            failure $"Unable to link the ASMlib driver module;"
-            echo
-            exit 1
-        fi
-
-        RETVAL=0
+        link
         ;;
 
     status)
@@ -259,30 +265,34 @@ case "$1" in
         fi
         ;;
 
-    stop)
-        unload_module oracleasm
-        RC=$?
-        if [ "$RC" = "0" ]
-        then
-            success
-            echo
-        elif [ "$RC" = "1" ]
-        then
-            failure $"Unable to load the ASM library driver;"
-            echo
-            exit 1
-        fi
+    configure)
+        configure
+        ;;
 
-        RETVAL=0
+    enable)
+        ORACLEASM_ENABLED=true
+        write_sysconfig
+        if_fail $? "Unable to write the driver configuration"
+        ;;
+
+    disable)
+        ORACLEASM_ENABLED=false
+        write_sysconfig
+        if_fail $? "Unable to write the driver configuration"
+        ;;
+
+    stop)
+        stop
         ;;
 
     restart)
-        RETVAL=0
+        stop
+        start
 	;;
 
     *)
 	echo "Usage: $0 {start|stop|restart|link|status}"
-        RETVAL=1
+        exit 1
 esac
 
-exit $RETVAL
+exit 0

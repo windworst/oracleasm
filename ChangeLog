@@ -1,4 +1,13 @@
 
+2003-11-16	Joel Becker <joel.becker@oracle.com>
+
+	* configure.in: Clean up force32 echo.
+	* include/linux/asmcompat32.h: sys_ioctl() prototype.
+	* kernel/oracleasm.c: sys_ioctl() prototype.
+	* vendor/common/oracleasm.sysconfig: Default sysconfig.
+	* vendor/common/oracleasm.init.functions: Configure functions.
+	* vendor/redhat/oracleasm.init: Working vendorized script.
+
 2003-11-13	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/common/oracleasm.init.functions.

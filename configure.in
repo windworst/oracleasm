@@ -63,7 +63,6 @@ x86_64)
     ;;
 ppc64|powerpc64|ppc64iseries|ppc64pseries)
     M64="-m64"
-    echo "Force32 -> \"$force32\""
     case "$force32" in
     yes|true|on)
         ;;
