@@ -240,7 +240,11 @@ make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{base}-summit-ABI/oracle
 %install
 
 mkdir -p $RPM_BUILD_ROOT/etc/init.d
-cp -f redhat/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
+cp -f vendor/redhat/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
+mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
+cp -f vendor/common/oracleasm.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/oracleasm
+mkdir -p $RPM_BUILD_ROOT/usr/lib/oracleasm
+cp -f vendor/common/oracleasm.init.functions $RPM_BUILD_ROOT/usr/lib/oracleasm/oracleasm.init.functions
 
 if [ "%{_lib}" = "lib64" ]
 then
@@ -320,6 +324,8 @@ chkconfig oracleasm on
 %defattr(-,root,root)
 /usr/sbin/asmtool
 /etc/init.d/oracleasm
+/etc/sysconfig/oracleasm
+/usr/lib/oracleasm/oracleasm.init.functions
 
 
 %changelog

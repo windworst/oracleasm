@@ -19,7 +19,7 @@ export LC_ALL=C
 . /etc/init.d/functions
 
 # Source common functions
-. /build/jlbec/osm/src-local/vendor/common/oracleasm.init.functions
+. /usr/lib/oracleasm/oracleasm.init.functions
 
 # Source configuration
 [ -f /etc/sysconfig/oracleasm ] && . /etc/sysconfig/oracleasm
