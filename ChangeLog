@@ -1,5 +1,15 @@
 
-2003-12-23	Joel Becker <joel.becker@oracle.com>
+2004-01-05	Joel Becker <joel.becker@oracle.com>
+
+	* include/asmerror.h: Dual GPL/BSD license.
+	* include/linux/asmdisk.h: Dual GPL/BSD license.
+	* include/linux/asmabi.h: Dual GPL/BSD license.
+	* include/linux/asmmanager.h: Dual GPL/BSD license.
+	* include/linux/asmcompat32.h: Dual GPL/BSD license.
+	* COPYING.GPL: Moved COPYING to COPYING.GPL.
+	* COPYING.LGPL: Added.
+
+2004-01-05	Joel Becker <joel.becker@oracle.com>
 
 	* *.[ch]: GPL and LGPL copyright headers.
 	* tools/asmscan.c: Some execution cleanups.
