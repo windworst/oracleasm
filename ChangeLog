@@ -1,6 +1,10 @@
 
 2003-12-23	Joel Becker <joel.becker@oracle.com>
 
+	* Tagging 0.10.0.
+
+2003-12-23	Joel Becker <joel.becker@oracle.com>
+
 	* Makefile: Add documents subdir.
 	* documents/Makefile: Added.
 	* documents/asm-install.txt: Fix a couple names.
