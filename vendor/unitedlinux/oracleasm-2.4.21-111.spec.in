@@ -37,6 +37,9 @@
 %define sver		111
 %define kver		%{base}-%{sver}
 
+# The minimum -support package required for the kernel bits.
+%define support_ver	0.9.1
+
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
 Version: @DIST_VERSION@
@@ -51,7 +54,7 @@ Packager: Joel Becker <joel.becker@oracle.com>
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: k_deflt = %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
 
@@ -69,7 +72,7 @@ Group: System Environment/Kernel
 AutoReqProv: no
 Provides: oracleasm = %{version}
 Requires: k_deflt = %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
 %description deflt
@@ -85,7 +88,7 @@ Group: System Environment/Kernel
 AutoReqProv: no
 Provides: oracleasm = %{version}
 Requires: k_smp = %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
 %description smp
@@ -101,7 +104,7 @@ Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: k_psmp = %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
 %description psmp
@@ -117,7 +120,7 @@ Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: k_numa = %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
 %description numa
@@ -133,7 +136,7 @@ Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: k_itanium2 = %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
 %description itanium2
@@ -149,7 +152,7 @@ Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: k_itanium2-smp = %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source = %{kver}
 
 %description itanium2-smp

@@ -26,6 +26,9 @@
 %define abi 2.4.21-EL
 %define kver %{base}-4.EL
 
+# The minimum -support package required for the kernel bits.
+%define support_ver     0.9.1
+
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{abi}
 Version: @DIST_VERSION@
@@ -40,7 +43,7 @@ Packager: Joel Becker <joel.becker@oracle.com>
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel >= %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source >= %{kver}
 
 
@@ -57,7 +60,7 @@ Summary: The Oracle Automatic Storage Management library driver for SMP systems.
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 Requires: kernel-smp >= %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
@@ -74,7 +77,7 @@ Summary: The Oracle Automatic Storage Management library driver for hugemem syst
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 Requires: kernel-hugemem >= %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
@@ -92,7 +95,7 @@ Summary: The Oracle Automatic Storage Management library driver for debugging sy
 Group: System Environment/Kernel
 Provides: oracleasm = %{version}
 Requires: kernel-debug >= %{kver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 

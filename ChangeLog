@@ -1,4 +1,8 @@
 
+2003-12-04	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/{redhat,unitedlinux}/*.spec.in: %{support_ver}
+
 2003-12-03	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/common/oracleasm.init.functions: Add scan_disks().

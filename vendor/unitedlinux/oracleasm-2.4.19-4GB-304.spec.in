@@ -13,6 +13,9 @@
 %define kver 2.4.19-4GB
 %define sver 304
 
+# The minimum -support package required for the kernel bits.
+%define support_ver     0.9.1
+
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}-%{sver}
 Version: @DIST_VERSION@
@@ -27,7 +30,7 @@ Packager: Joel Becker <joel.becker@oracle.com>
 Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: k_deflt = 2.4.19-%{sver}
-Requires: oracleasm-support >= 0.9.0
+Requires: oracleasm-support >= %{support_ver}
 # BuildRequires: kernel-source >= %{kver}  -- silly UL nodeps
 
 
