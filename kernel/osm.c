@@ -829,6 +829,53 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 }  /* osm_disk_close() */
 
 
+/* Timeout stuff ripped from aio.c - thanks Ben */
+struct timeout {
+	struct timer_list	timer;
+	int			timed_out;
+	wait_queue_head_t	wait;
+};
+
+static void timeout_func(unsigned long data)
+{
+	struct timeout *to = (struct timeout *)data;
+
+	to->timed_out = 1;
+	wake_up(&to->wait);
+}
+
+static inline void init_timeout(struct timeout *to)
+{
+	init_timer(&to->timer);
+	to->timer.data = (unsigned long)to;
+	to->timer.function = timeout_func;
+	to->timed_out = 0;
+	init_waitqueue_head(&to->wait);
+}
+
+static inline void set_timeout(struct timeout *to, const struct timespec *ts)
+{
+	unsigned long how_long;
+
+	if (!ts->tv_sec && !ts->tv_nsec) {
+		to->timed_out = 1;
+		return;
+	}
+
+	how_long = ts->tv_sec * HZ;
+#define HZ_NS (1000000000 / HZ)
+	how_long += (ts->tv_nsec + HZ_NS - 1) / HZ_NS;
+	
+	to->timer.expires = jiffies + how_long;
+	add_timer(&to->timer);
+}
+
+static inline void clear_timeout(struct timeout *to)
+{
+	del_timer_sync(&to->timer);
+}
+
+
 static int osm_update_user_ioc(struct osm_request *r)
 {
 	osm_ioc *ioc;
@@ -875,7 +922,20 @@ static int osm_update_user_ioc(struct osm_request *r)
 
 static struct osm_request *osm_request_alloc()
 {
-	return kmem_cache_alloc(osm_request_cachep, GFP_KERNEL);
+	struct osm_request *r;
+
+	r = kmem_cache_alloc(osm_request_cachep, GFP_KERNEL);
+	
+	if (r) {
+		r->r_status = 0;
+		r->r_error = 0;
+		r->r_bh = NULL;
+		r->r_bhtail = NULL;
+		r->r_cb.vec = NULL;
+		INIT_LIST_HEAD(&r->r_queue);
+	}
+
+	return r;
 }  /* osm_request_alloc() */
 
 
@@ -1211,14 +1271,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	if (!r)
 		return -ENOMEM;
 
-	r->r_status = 0;
 	r->r_file = ofi;
 	r->r_ioc = ioc;
-	r->r_error = 0;
-	r->r_bh = NULL;
-	r->r_bhtail = NULL;
-	r->r_cb.vec = NULL;
-	INIT_LIST_HEAD(&r->r_queue);
 
 	spin_lock(&ofi->f_lock);
 	list_add(&r->r_list, &ofi->f_ios);
@@ -1455,9 +1509,24 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	__u32 i;
 	__u32 status = 0;
 	osm_ioc *iocp;
+	struct timeout to;
 
 	printk("OSM: Entering osm_do_io()\n");
 	osmdump_file(ofi);
+
+	init_timeout(&to);
+
+	if (ioc->timeout) {
+		struct timespec ts;
+
+		ret = -EFAULT;
+		if (copy_from_user(&ts, ioc->timeout, sizeof(ts)))
+			goto out;
+
+		set_timeout(&to, &ts);
+		if (to.timed_out)
+			ioc->timeout = 0;
+	}
 
 	ret = 0;
 	if (ioc->requests) {
@@ -1466,7 +1535,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 				return -EFAULT;
 			ret = osm_submit_io(ofi, oi, iocp);
 			if (ret)
-				goto out;
+				goto out_to;
 		}
 	}
 
@@ -1477,7 +1546,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 
 			ret = osm_maybe_wait_io(ofi, oi, iocp);
 			if (ret)
-				goto out;
+				goto out_to;
 		}
 		status |= OSM_IO_WAITED;
 	}
@@ -1486,7 +1555,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 		for (i = 0; i < ioc->complen; i++) {
 			ret = osm_complete_io(ofi, oi, &iocp);
 			if (ret)
-				goto out;
+				goto out_to;
 			if (iocp) {
 				ret = put_user(iocp,
 					       ioc->completions + i);
@@ -1511,6 +1580,10 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 		if (i >= ioc->complen)
 			status |= OSM_IO_FULL;
 	}
+
+out_to:
+	if (ioc->timeout)
+		clear_timeout(&to);
 
 out:
 	if (ret == -EINTR) {

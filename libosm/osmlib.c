@@ -368,6 +368,7 @@ osm_erc osm_io(osm_ctx ctx,
     osm_erc err;
     osm_ctx_private *priv = (osm_ctx_private *)ctx;
     struct osmio io;
+    struct timespec ts;
     int rc;
 
     if (!priv || *statusp)
@@ -381,8 +382,19 @@ osm_erc osm_io(osm_ctx ctx,
     io.completions = completions;
     io.complen = complen;
     io.intr = intr;
-    io.timeout.tv_sec = timeout / 1000000;
-    io.timeout.tv_nsec = (timeout % 1000000) * 1000;
+    if (timeout == OSM_WAIT)
+        io.timeout = NULL;
+    else
+    {
+        if (timeout == OSM_NOWAIT)
+            ts.tv_sec = ts.tv_nsec = 0;
+        else
+        {
+            ts.tv_sec = timeout / 1000000;
+            ts.tv_nsec = (timeout % 1000000) * 1000;
+        }
+        io.timeout = &ts;
+    }
     io.statusp = statusp;
 
     rc = ioctl(priv->fd, OSMIOC_IODISK, &io);
