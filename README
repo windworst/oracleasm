@@ -1,0 +1,29 @@
+
+First things first.
+
+!!!! DO NOT RUN THE TESTS WITHOUT CHECKING YOUR DISKS !!!!
+
+	The osmtest and osmtest-multi checks write to the last 10MB or
+so of /dev/sda.  If the end of /dev/sda is of value to you, you must
+change both osmtest.c and osmtest-multi.c to call osm_discover() on a
+different disk.  Do not destroy your data.
+
+
+Second things later.
+
+	Building OSMlib requires a quick run of the Configure script
+in the toplevel directory.  It will ask the location to the includes for
+your kernel.  This code currently only supports the kernels from Red Hat
+Advanced Server 2.1 (2.4.9-e.3+).  So, your path is likely to look like
+/usr/src/linux-2.4.9-e.3/include or so.  You then can run a make.
+	Testing OSMlib is pretty easy.  First, install and mount the
+filesystem:
+
+	# mkdir /dev/osm
+	# insmod kernel/osm.o
+	# mount -t osmfs osmfs /dev/osm
+
+	Once you have osm mounted, you can then either use 10i or the
+test programs to try things out.  Have fun.  Report bugs.
+
+Joel Becker <joel.becker@oracle.com>

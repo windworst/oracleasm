@@ -54,7 +54,8 @@ distclean: clean
 clean:
 	rm -f $(OSMLIB_OBJS) $(OSMTEST_OBJS) \
 		libosm/libosm.so libosm/libosm.a kernel/osm.o \
-		test/osmtest-bin libosm-virtual-stamp
+		test/osmtest-bin test/osmtest-multi-bin \
+		libosm-virtual-stamp
 
 $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
 $(OSMLIB_OBJS): %.o: %.c
