@@ -10,7 +10,7 @@
 
 /*
   NAME
-    asmerror.h - Oracle Advanced Storage Management library internal error header
+    asmerror.h - Oracle Automatic Storage Management library internal error header
     
   DESCRIPTION
   
