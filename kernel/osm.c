@@ -586,9 +586,12 @@ static int osmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int d
 	struct inode * inode;
 	int error = -ENOSPC;
 
+#if 0  /* ramfs cruft */
 	if (! osmfs_alloc_dentry(sb))
 		return error;
+#endif
 
+	printk("OSM: Alloc'd dentry\n");
 	inode = osmfs_get_inode(dir->i_sb, mode, dev);
 
 	if (inode) {
@@ -874,6 +877,7 @@ static int osm_update_user_ioc(struct osm_request *r)
 	if (put_user(r->r_status, &(ioc->status_osm_ioc)))
 		return -EFAULT;
 	if (r->r_status & OSM_ERROR) {
+		printk("OSM: Putting r_error (0x%08X)\n", r->r_error);
 		if (put_user(r->r_error, &(ioc->error_osm_ioc)))
 			return -EFAULT;
 	}
@@ -888,9 +892,8 @@ static int osm_update_user_ioc(struct osm_request *r)
 	if (r->r_status & OSM_FREE) {
 		if (put_user(0UL, &(ioc->request_key_osm_ioc)))
 			return -EFAULT;
-	} else if ((r->r_status &
-		    (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR)) ==
-		   OSM_SUBMITTED) {
+	} else if (r->r_status &
+		   (OSM_SUBMITTED | OSM_ERROR)) {
 		printk("OSM: Putting key 0x%p\n", r);
 		/* Only on first submit */
 		if (put_user(r, &(ioc->request_key_osm_ioc)))
@@ -933,9 +936,11 @@ static void osm_finish_io(struct osm_request *r)
 	spin_lock(&ofi->f_lock);
 	list_del(&r->r_list);
 	list_add(&r->r_list, &ofi->f_complete);
-	r->r_status |= (OSM_COMPLETED | OSM_FREE);
 	if (r->r_error != 0)
 		r->r_status |= OSM_ERROR;
+	else
+		r->r_status |= OSM_COMPLETED;
+
 	spin_unlock(&ofi->f_lock);
 }  /* osm_finish_io() */
 
@@ -974,10 +979,19 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 
 	switch (err) {
 		default:
-			BUG();
+			printk("OSM: Invalid error of %d!\n", err);
+			r->r_error = OSM_ERR_INVAL;
 			break;
 
 		case 0:
+			break;
+
+		case -EFAULT:
+			r->r_error = OSM_ERR_FAULT;
+			break;
+
+		case -EIO:
+			r->r_error = OSM_ERR_IO;
 			break;
 
 		case -ENODEV:
@@ -1010,9 +1024,14 @@ static int osm_submit_request(int rw, struct osm_request *r,
 		return -ENODEV;
 	}
 
+	printk("OSM: Queue:0x%p, Lock:0x%p\n", q, q->queue_lock);
+	printk("OSM: get_request\n");
 	req = get_request_wait(q, rw);
 
+	printk("OSM: take lock\n");
 	IO_REQUEST_LOCK(q);
+
+	q->plug_device_fn(q, req->bh->b_rdev); /* is atomic */
 
 	req->cmd = rw;
 	req->errors = 0;
@@ -1122,8 +1141,11 @@ static int osm_build_io(int rw, struct osm_request *r,
 			tmp->b_this_page = tmp;
 
 			init_buffer(tmp, osm_end_buffer_io, NULL);
-			tmp->b_dev = dev;
-			tmp->b_blocknr = blknr;
+
+			/* This is why it has to be a real disk */
+			tmp->b_dev = tmp->b_rdev = dev;
+			tmp->b_blocknr = tmp->b_rsector = blknr;
+
 			blknr += (iosize / sector_size);
 			tmp->b_state = (1 << BH_Mapped) | (1 << BH_Lock)
 					| (1 << BH_Req);
@@ -1180,7 +1202,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 			 osm_ioc *ioc)
 {
 	int rw;
-	long ret;
+	int ret;
 	struct osm_request *r;
 	struct osm_disk_info *d;
 	osm_ioc tmp;
@@ -1189,10 +1211,9 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	if (copy_from_user(&tmp, ioc, sizeof(tmp)))
 		return -EFAULT;
 
-	ret = -ENOMEM;
 	r = osm_request_alloc();
 	if (!r)
-		goto out;
+		return -ENOMEM;
 
 	r->r_status = 0;
 	r->r_file = ofi;
@@ -1201,13 +1222,22 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	r->r_bh = NULL;
 	r->r_bhtail = NULL;
 	r->r_cb.vec = NULL;
-	
+	INIT_LIST_HEAD(&r->r_queue);
+
+	spin_lock(&ofi->f_lock);
+	list_add(&r->r_list, &ofi->f_ios);
+	spin_unlock(&ofi->f_lock);
+
 	ret = -ENODEV;
 	d = osm_find_disk(oi, REAL_HANDLE(tmp.disk_osm_ioc));
 	if (!d)
 		goto out_error;
 
 	r->r_disk = d;
+
+	lock_oi(oi);
+	list_add(&r->r_queue, &d->d_ios);
+	unlock_oi(oi);
 
 	count = tmp.rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
@@ -1253,16 +1283,9 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	ret = osm_build_io(rw, r,
 			   tmp.first_osm_ioc, tmp.rcount_osm_ioc);
+	printk("Return from buildio is %d\n", ret);
 	if (ret)
 		goto out_error;
-
-	lock_oi(oi);
-	list_add(&r->r_queue, &d->d_ios);
-	unlock_oi(oi);
-
-	spin_lock(&ofi->f_lock);
-	list_add(&r->r_list, &ofi->f_ios);
-	spin_unlock(&ofi->f_lock);
 
 	ret = osm_submit_request(rw, r,
 				 tmp.first_osm_ioc, tmp.rcount_osm_ioc);
@@ -1271,14 +1294,14 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	r->r_status |= OSM_SUBMITTED;
 
+out:
 	ret = osm_update_user_ioc(r);
-	goto out;
+
+	return ret;
 
 out_error:
 	osm_end_kvec_io(r, r->r_cb.vec, ret);
-
-out:
-	return ret;
+	goto out;
 }  /* osm_submit_io() */
 
 
@@ -1341,6 +1364,8 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	r->r_file = NULL;
 	spin_unlock(&ofi->f_lock);
 
+	r->r_status |= OSM_FREE;
+
 	ret = osm_update_user_ioc(r);
 
 	printk("OSM: Freeing request 0x%p\n", r);
@@ -1371,6 +1396,8 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 	list_del_init(&r->r_list);
 	r->r_file = NULL;
 	spin_unlock(&ofi->f_lock);
+
+	r->r_status |= OSM_FREE;
 
 	*ioc = r->r_ioc;
 	
@@ -1405,7 +1432,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 		     struct osmfs_inode_info *oi,
 		     struct osmio *ioc)
 {
-	long ret = 0;
+	int ret = 0;
 	__u32 i;
 	__u32 status = 0;
 	osm_ioc *iocp;
@@ -1463,6 +1490,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 				if (ioc->waitreqs)
 					break;
 				/* FIXME: Wait on some I/Os */
+				schedule();
 			}
 		}
 		if (i >= ioc->complen)

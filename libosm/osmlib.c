@@ -99,11 +99,13 @@ osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp)
     if (*ctxp)
         goto out;
 
+    fprintf(stderr, "open\n");
     err = OSM_ERR_PERM;
     fd = open("/dev/osm", O_RDONLY);
     if (fd < 0)
         goto out;
 
+    fprintf(stderr, "ioctl\n");
     rc = ioctl(fd, OSMIOC_CHECKIID, &real_iid);
     close(fd);
     if (rc)
@@ -126,6 +128,7 @@ osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp)
 
     sprintf(osm_file, "/dev/osm/%.8lX%.8lX", 0L, real_iid);
 
+    fprintf(stderr, "open %s\n", osm_file);
     err = OSM_ERR_PERM;
     priv->fd = open(osm_file, O_RDWR | O_CREAT, 0700);
     free(osm_file);
@@ -390,6 +393,7 @@ const oratext *osm_errstr_pos[] =
     "No error",                         /* OSM_ERR_NONE */
     "Operation not permitted",          /* OSM_ERR_PERM */
     "Out of memory",                    /* OSM_ERR_NOMEM */
+    "I/O Error",                        /* OSM_ERR_IO */
 };
 
 const oratext *osm_errstr_neg[] = 
@@ -398,6 +402,7 @@ const oratext *osm_errstr_neg[] =
     "Invalid argument",                 /* OSM_ERR_INVAL */
     "Invalid IID",                      /* OSM_ERR_BADIID */
     "No such device",                   /* OSM_ERR_NODEV */
+    "Invalid address",                  /* OSM_ERR_FAULT */
 };
 
 
@@ -413,13 +418,28 @@ osm_erc osm_error(osm_ctx ctx, osm_erc errcode,
     if (errcode >= OSM_ERR_NONE)
         snprintf(errbuf, eblen, "%s", osm_errstr_pos[errcode]);
     else
-        snprintf(errbuf, eblen, "%s", osm_errstr_neg[errcode]);
+        snprintf(errbuf, eblen, "%s", osm_errstr_neg[-errcode]);
 
     err = OSM_ERR_NONE;
 
 out:
     return err;
 }  /* osm_error() */
+
+
+osm_erc osm_ioerror(osm_ctx ctx, osm_ioc *ioc,
+                    oratext *errbuf, uword eblen)
+{
+    osm_erc errcode;
+
+    if (!ioc)
+        return OSM_ERR_INVAL;
+
+    errcode = ioc->error_osm_ioc;
+    fprintf(stdout, "Error code of %d\n", errcode);
+
+    return osm_error(ctx, errcode, errbuf, eblen);
+}  /* osm_ioerror() */
 
 
 /* Stub implementation, no real cancel */
