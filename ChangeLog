@@ -1,5 +1,9 @@
 
-2004-01-21	Joel Becker <joel.becker@oracle.com>
+2004-01-28	Joel Becker <joel.becker@oracle.com>
+
+	* configure.in: Make 1.0.0.
+
+2004-01-28	Joel Becker <joel.becker@oracle.com>
 
 	* vendor/unitedlinux/oracleasm.init.in: NOOP the 'link' method.
 	* kernel/oracleasm.c: Add BH_Atomic.  Thanks for telling me,
