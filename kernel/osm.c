@@ -191,11 +191,12 @@ struct osm_request {
  * in somewhat bad cases we don't get many more entries per list.
  *
  * All that means that we're going to use a simple hash based on that
- * 1024 bucket table.  The hash?  kdev_t & 0x37777 (last 14 bits).
- * Come up with a better one.  Come up with a better search.  This isn't
- * set in stone, it's just a start.
+ * 1024 bucket table.  The hash?  kdev_t >> 4 & 0x3FF (last 14 bits,
+ * dropping four).  This is intended to see SCSI disks, ignoring
+ * partition minors.  Come up with a better one.  Come up with a better
+ * search.  This isn't set in stone, it's just a start.
  */
-#define OSM_HASH_DISK(dev) ((dev) & 0x37777)
+#define OSM_HASH_DISK(dev) (((dev)>>4) & 0x3FF)
 
 
 static inline struct osm_disk_info *osm_find_disk(struct osmfs_inode_info *oi, kdev_t dev)
@@ -807,6 +808,8 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 	/* Last close */
 	if (list_empty(&d->d_open))
 	{
+		printk("Last close of disk 0x%.8lX (0x%p, pid=%d)\n",
+		       (unsigned long)d->d_dev, d, tsk->pid);
 		list_del(&d->d_hash);
 
 		spin_unlock_irq(&oi->i_lock);
@@ -821,7 +824,16 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 				break;
 			spin_unlock_irq(&oi->i_lock);
 
-			schedule();
+			/*
+			 * Timeout of one second.  This is slightly
+			 * subtle.  In this wait, and *only* this wait,
+			 * we are waiting on I/Os that might have been
+			 * initiated by another process.  In that case,
+			 * the other process's ofi will be signaled,
+			 * not ours, so the wake_up() never happens
+			 * here and we need the timeout.
+			 */
+			schedule_timeout(HZ);
 		} while (1);
 		set_task_state(tsk, TASK_RUNNING);
 		remove_wait_queue(&ofi->f_wait, &wait);
@@ -1765,6 +1777,7 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	}
 	spin_unlock_irq(&ofi->f_lock);
 
+	printk("Done with ofi 0x%p\n", ofi);
 	kfree(ofi);
 
 	return 0;
