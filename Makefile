@@ -12,7 +12,7 @@ include $(TOPDIR)/Preamble.make
 #
 # Add any directories to recurse into via the SUBDIRS variable.
 # 
-SUBDIRS = libosm kernel tools tests
+SUBDIRS = libosm kernel tools test
 
 #
 # Extra (non-source) files to distribute

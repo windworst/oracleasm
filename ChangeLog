@@ -1,6 +1,14 @@
 
 2003-05-27	Joel Becker <joel.becker@oracle.com>
 
+	* Config.make.in: Added GCCINC back.
+	* Makefile: fixed 'test' subdir.
+	* configure.in: Added GCCINC back.
+	* kernel/Makefile: Added.
+	* kernel/osm.c: Fixed a prototype.
+
+2003-05-27	Joel Becker <joel.becker@oracle.com>
+
 	* Preamble.make: Added.
 	* Postamble.make: Added.
 	* Makefile: Added.

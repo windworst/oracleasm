@@ -1010,7 +1010,7 @@ static int osm_update_user_ioc(struct osm_request *r)
 }  /* osm_update_user_ioc() */
 
 
-static struct osm_request *osm_request_alloc()
+static struct osm_request *osm_request_alloc(void)
 {
 	struct osm_request *r;
 

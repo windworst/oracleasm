@@ -149,5 +149,17 @@ AC_MSG_RESULT($moddir)
 MODULEDIR=$moddir
 AC_SUBST(MODULEDIR)
 
+AC_MSG_CHECKING(for gcc include path)
+gccdir="`$CC -print-search-dirs | sed -n 's/^install: \(.*\)/\1/p'`include"
+if test -z "$gccdir"; then
+  AC_MSG_RESULT(not found)
+  AC_MSG_ERROR(Could not determine gcc include path)
+else
+  AC_MSG_RESULT($gccdir)
+fi
+
+GCCINC=$gccdir
+AC_SUBST(GCCINC)
+
 AC_OUTPUT([Config.make
 ])
