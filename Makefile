@@ -36,7 +36,10 @@ KERNEL_DEFS = -D__KERNEL__ -DMODULE -DLINUX -DRED_HAT_LINUX_KERNEL=1
 KERNEL_CPPFLAGS = $(KERNEL_INCLUDES) $(KERNEL_DEFS)
 
 # FIXME: Needs selection
+BLK_SRCS = 			\
+	kernel/blk-rhas21.c
 BLK_FILE = kernel/blk-rhas21.c
+
 
 all:				\
 	kernel/osm.o		\

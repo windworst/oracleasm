@@ -777,6 +777,8 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 	struct osm_disk_info *d;
 	struct list_head *p;
 	struct osm_disk_head *h;
+	struct task_struct *tsk = current;
+	DECLARE_WAITQUEUE(wait, tsk);
 
 	if (!ofi || !oi)
 		BUG();
@@ -804,8 +806,30 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 
 	/* Last close */
 	if (list_empty(&d->d_open))
+	{
 		list_del(&d->d_hash);
+
+		spin_unlock_irq(&oi->i_lock);
+
+		/* No need for a fast path */
+		add_wait_queue(&ofi->f_wait, &wait);
+		do {
+			set_task_state(tsk, TASK_UNINTERRUPTIBLE);
+
+			spin_lock_irq(&oi->i_lock);
+			if (list_empty(&d->d_ios))
+				break;
+			spin_unlock_irq(&oi->i_lock);
+
+			schedule();
+		} while (1);
+		set_task_state(tsk, TASK_RUNNING);
+		remove_wait_queue(&ofi->f_wait, &wait);
+	}
+
 	spin_unlock_irq(&oi->i_lock);
+
+	kfree(h);
 
 	/* Drop the ref from osm_find_disk() */
 	osm_put_disk(d);
@@ -1274,9 +1298,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	if (!d)
 		goto out_error;
 
-	r->r_disk = d;
-
 	spin_lock_irq(&oi->i_lock);
+	r->r_disk = d;
 	list_add(&r->r_queue, &d->d_ios);
 	spin_unlock_irq(&oi->i_lock);
 
@@ -1443,6 +1466,9 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 		set_task_state(tsk, TASK_RUNNING);
 		remove_wait_queue(&ofi->f_wait, &wait);
 		remove_wait_queue(&to->wait, &to_wait);
+		
+		if (ret)
+			return ret;
 	}
 
 	/* Somebody got here first */
@@ -1641,14 +1667,6 @@ out_to:
 		clear_timeout(&to);
 
 out:
-	if (ret == -EINTR) {
-		ret = 0;
-		status |= OSM_IO_POSTED;
-	} else if (ret == -ETIMEDOUT) {
-		ret = 0;
-		status |= OSM_IO_TIMEOUT;
-	}
-
 	if (put_user(status, ioc->statusp))
 		return -EFAULT;
 	return ret;
@@ -1694,6 +1712,8 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	struct osm_disk_head *h;
 	struct osm_disk_info *d;
 	struct osm_request *r;
+	struct task_struct *tsk = current;
+	DECLARE_WAITQUEUE(wait, tsk);
 
 	oi = OSMFS_INODE(inode);
 	ofi = OSMFS_FILE(file);
@@ -1709,7 +1729,6 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	list_for_each_safe(p, q, &ofi->f_disks) {
 		h = list_entry(p, struct osm_disk_head, h_flist);
 		d = h->h_disk;
-		/* FIXME: Should wait on outstanding I/O */
 		osm_disk_close(ofi, oi, d->d_dev);
 	}
 
@@ -1719,14 +1738,20 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	list_del(&ofi->f_ctx);
 	spin_unlock_irq(&oi->i_lock);
 
-	spin_lock_irq(&ofi->f_lock);
-	while (!list_empty(&ofi->f_ios)) {
-		printk("OSM: There are still I/Os on ofi 0x%p\n", ofi);
-		spin_unlock_irq(&ofi->f_lock);
-		/* FIXME: Needs a better wait */
-		schedule();
+	/* No need for a fastpath */
+	add_wait_queue(&ofi->f_wait, &wait);
+	do {
+		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
+
 		spin_lock_irq(&ofi->f_lock);
-	}
+		if (list_empty(&ofi->f_ios))
+		    break;
+		spin_unlock_irq(&ofi->f_lock);
+		printk("There are still I/Os hanging off of ofi 0x%p\n",
+		       ofi);
+		schedule();
+	} while (1);
+	remove_wait_queue(&ofi->f_wait, &wait);
 	
 	/* I don't *think* we need the lock here anymore, but... */
 

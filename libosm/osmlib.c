@@ -99,13 +99,11 @@ osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp)
     if (*ctxp)
         goto out;
 
-    fprintf(stderr, "open\n");
     err = OSM_ERR_PERM;
     fd = open("/dev/osm", O_RDONLY);
     if (fd < 0)
         goto out;
 
-    fprintf(stderr, "ioctl\n");
     rc = ioctl(fd, OSMIOC_CHECKIID, &real_iid);
     close(fd);
     if (rc)
@@ -128,7 +126,6 @@ osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp)
 
     sprintf(osm_file, "/dev/osm/%.8lX%.8lX", 0L, real_iid);
 
-    fprintf(stderr, "open %s\n", osm_file);
     err = OSM_ERR_PERM;
     priv->fd = open(osm_file, O_RDWR | O_CREAT, 0700);
     free(osm_file);
@@ -426,6 +423,16 @@ osm_erc osm_io(osm_ctx ctx,
     
             case EINVAL:
                 err = OSM_ERR_INVAL;
+                break;
+                
+            case EINTR:
+                err = OSM_ERR_NONE;
+                *statusp |= OSM_IO_POSTED;
+                break;
+
+            case ETIMEDOUT:
+                err = OSM_ERR_NONE;
+                *statusp |= OSM_IO_TIMEOUT;
                 break;
 	}
     }
