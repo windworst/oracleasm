@@ -954,6 +954,7 @@ static struct osm_request *osm_request_alloc()
 		r->r_status = 0;
 		r->r_error = 0;
 		r->r_bh = NULL;
+		r->r_elapsed = 0;
 		r->r_bhtail = NULL;
 		r->r_cb.vec = NULL;
 		INIT_LIST_HEAD(&r->r_queue);
@@ -976,7 +977,7 @@ static void osm_finish_io(struct osm_request *r)
 	struct osm_disk_info *d = r->r_disk;
 	struct osmfs_file_info *ofi = r->r_file;
 	struct osmfs_inode_info *oi;
-	unsigned long flags;
+	unsigned long flags, now;
 
 	if (!ofi)
 		BUG();
@@ -995,12 +996,20 @@ static void osm_finish_io(struct osm_request *r)
 	spin_lock_irqsave(&ofi->f_lock, flags);
 	list_del(&r->r_list);
 	list_add(&r->r_list, &ofi->f_complete);
-	if (r->r_error != 0)
+	if (r->r_error)
 		r->r_status |= OSM_ERROR;
 	else
 		r->r_status |= OSM_COMPLETED;
 
 	spin_unlock_irqrestore(&ofi->f_lock, flags);
+
+	now = jiffies;
+	if (now > r->r_elapsed)
+		r->r_elapsed = now - r->r_elapsed;
+	else
+		r->r_elapsed = ~0UL - r->r_elapsed + now;
+
+	r->r_elapsed = (r->r_elapsed * 1000000) / HZ;
 
 	wake_up(&ofi->f_wait);
 }  /* osm_finish_io() */
@@ -1317,11 +1326,11 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	count = tmp.rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
-	printk("first, 0x%08lX.%08lX; masked 0x%08lX\n",
+	printk("OSM: first, 0x%08lX.%08lX; masked 0x%08lX\n",
 	       HIGH_UB4(tmp.first_osm_ioc), LOW_UB4(tmp.first_osm_ioc),
 	       (unsigned long)tmp.first_osm_ioc);
 	/* linux only supports unsigned long size sector numbers */
-	printk("status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
+	printk("OSM: status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
 	       tmp.status_osm_ioc, tmp.buffer_osm_ioc, count);
 	/* Note that priority is ignored for now */
 	ret = -EINVAL;
@@ -1354,7 +1363,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	}
 
 
-	printk("Passed checks\n");
+	printk("OSM: Passed checks\n");
 
 	switch (tmp.operation_osm_ioc) {
 		default:
@@ -1402,6 +1411,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	printk("OSM: Return from buildio is %d\n", ret);
 	if (ret)
 		goto out_error;
+
+	r->r_elapsed = jiffies;  /* Set start time */
 
 	ret = osm_submit_request(q, rw, r,
 				 tmp.first_osm_ioc, tmp.rcount_osm_ioc);
@@ -1777,7 +1788,7 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	}
 	spin_unlock_irq(&ofi->f_lock);
 
-	printk("Done with ofi 0x%p\n", ofi);
+	printk("OSM: Done with ofi 0x%p\n", ofi);
 	kfree(ofi);
 
 	return 0;
