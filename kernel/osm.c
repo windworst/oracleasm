@@ -168,6 +168,7 @@ struct osm_request {
 	struct buffer_head *r_bh;		/* Assocated buffers */
 	struct buffer_head *r_bhtail;		/* tail of buffers */
 	unsigned long r_bh_count;		/* Number of buffers */
+	unsigned long r_seg_count;		/* sg segments */
 	atomic_t r_io_count;			/* Atomic count */
 };
 
@@ -1011,24 +1012,19 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 }  /* osm_end_kvec_io() */
 
 
-static int osm_submit_request(int rw, struct osm_request *r,
+static int osm_submit_request(request_queue_t *q, int rw,
+			      struct osm_request *r,
 			      unsigned long first, unsigned long nr)
 {
-	request_queue_t *q;
 	struct request *req;
-
-	q = blk_get_queue(r->r_bh->b_rdev);
-	if (!q) {
-		printk(KERN_ERR
-		       "OSM: osm_submit_request: Attempt to access nonexistent block device [0x%02X, 0x%02X]\n", MAJOR(r->r_bh->b_rdev), MINOR(r->r_bh->b_rdev));
-		return -ENODEV;
-	}
 
 	printk("OSM: Queue:0x%p, Lock:0x%p\n", q, q->queue_lock);
 	printk("OSM: get_request\n");
 	req = get_request_wait(q, rw);
 
 	printk("OSM: take lock\n");
+	printk("OSM: r_bh_count = %ld\n", r->r_bh_count);
+
 	IO_REQUEST_LOCK(q);
 
 	q->plug_device_fn(q, req->bh->b_rdev); /* is atomic */
@@ -1037,8 +1033,10 @@ static int osm_submit_request(int rw, struct osm_request *r,
 	req->errors = 0;
 	req->hard_sector = req->sector = first;
 	req->hard_nr_sectors = req->nr_sectors = nr;
-	req->current_nr_sectors = req->hard_cur_sectors = nr;
-	req->nr_segments = req->nr_hw_segments = r->r_bh_count;
+	req->current_nr_sectors = req->hard_cur_sectors =
+		r->r_bh->b_size >> 9;
+	req->nr_segments = r->r_seg_count;
+       	req->nr_hw_segments = 1;
 	req->buffer = r->r_bh->b_data;
 	req->waiting = NULL;
 	req->bh = r->r_bh;
@@ -1070,7 +1068,8 @@ static void osm_end_buffer_io(struct buffer_head *bh, int uptodate)
 }  /* osm_end_buffer_io() */
 
 
-static int osm_build_io(int rw, struct osm_request *r,
+static int osm_build_io(request_queue_t *q, int rw,
+			struct osm_request *r,
 			unsigned long blknr, unsigned long nr)
 {
 	struct kvec	*vec = r->r_cb.vec;
@@ -1112,7 +1111,7 @@ static int osm_build_io(int rw, struct osm_request *r,
 		return -EINVAL;
 	}
 
-	r->r_bh_count = 0;
+	r->r_bh_count = r->r_seg_count = 0;
 
 	/* This is massaged from fs/buffer.c.  Blame Ben. */
 	/* This is ugly.  FIXME. */
@@ -1124,6 +1123,8 @@ static int osm_build_io(int rw, struct osm_request *r,
 	       
 		if (length < PAGE_SIZE)
 			iosize = sector_size;
+
+		iosize = length;
 
 		if (!page)
 			BUG();
@@ -1157,11 +1158,20 @@ static int osm_build_io(int rw, struct osm_request *r,
 			}
 
 			tmp->b_reqnext = NULL;
+
+			tmp = blk_queue_bounce(q, rw, tmp);
+
 			if (r->r_bh) {
+				if (!BH_CONTIG(r->r_bhtail, tmp) ||
+				    !BH_PHYS_4G(r->r_bhtail, tmp)) {
+					r->r_seg_count++;
+				}
+
 				r->r_bhtail->b_reqnext = tmp;
 				r->r_bhtail = tmp;
 			} else {
 				r->r_bh = r->r_bhtail = tmp;
+				r->r_seg_count = 1;
 			}
 			r->r_bh_count++;
 
@@ -1207,6 +1217,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	struct osm_disk_info *d;
 	osm_ioc tmp;
 	size_t count;
+	request_queue_t *q;
 
 	if (copy_from_user(&tmp, ioc, sizeof(tmp)))
 		return -EFAULT;
@@ -1281,13 +1292,21 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 		goto out_error;
 	}
 
-	ret = osm_build_io(rw, r,
+	ret = -ENODEV;
+	q = blk_get_queue(r->r_disk->d_dev);
+	if (!q) {
+		printk(KERN_ERR
+		       "OSM: osm_submit_request: Attempt to access nonexistent block device [0x%02X, 0x%02X]\n", MAJOR(r->r_bh->b_rdev), MINOR(r->r_bh->b_rdev));
+		goto out_error;
+	}
+
+	ret = osm_build_io(q, rw, r,
 			   tmp.first_osm_ioc, tmp.rcount_osm_ioc);
 	printk("Return from buildio is %d\n", ret);
 	if (ret)
 		goto out_error;
 
-	ret = osm_submit_request(rw, r,
+	ret = osm_submit_request(q, rw, r,
 				 tmp.first_osm_ioc, tmp.rcount_osm_ioc);
 	if (ret) 
 		goto out_error;
