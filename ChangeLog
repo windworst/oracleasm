@@ -1,6 +1,12 @@
 
 2003-11-17	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: Add vendor/unitedlinux/oracleasm.init
+		substitution.
+	* vendor/unitedlinux/oracleasm.init{,.in}: Move to .in.
+
+2003-11-17	Joel Becker <joel.becker@oracle.com>
+
 	* vendor/redhat/oracleasm.init.in: Fix 'status'.
 	* vendor/unitedlinux/oracleasm.init: Make work with common bits.
 
