@@ -132,6 +132,7 @@ osm_erc osm_init(osm_iid iid, ub4 app, osm_ctx *ctxp)
     if (priv->fd < 0)
         goto out_free_ctx;
 
+    priv->iid = iid;
     priv->app = app;
     priv->discover_cache = NULL;
 

@@ -42,8 +42,8 @@
 #define OSM_IOCTL_BASE          0xFD
 
 /* ioctls on /dev/osm */
-#define OSMIOC_GETIID           _IOR(OSM_IOCTL_BASE, 0, long)
-#define OSMIOC_CHECKIID         _IOWR(OSM_IOCTL_BASE, 1, long)
+#define OSMIOC_GETIID           _IOR(OSM_IOCTL_BASE, 0, unsigned long)
+#define OSMIOC_CHECKIID         _IOWR(OSM_IOCTL_BASE, 1, unsigned long)
 
 /* ioctls on /dev/osm/<iid> */
 #define OSMIOC_ISDISK           _IOW(OSM_IOCTL_BASE, 2, int)

@@ -83,13 +83,26 @@ struct osmfs_sb_info {
 #define OSMFS_SB(sb) ((struct osmfs_sb_info *)((sb)->u.generic_sbp))
 
 
+struct osmfs_file_info {
+	spinlock_t f_lock;		/* Lock on the structure */
+	struct list_head f_ctx;		/* Hook into the i_threads list */
+	struct list_head f_ios;		/* Outstanding I/Os for this thread */
+	struct list_head f_complete;	/* Completed I/Os for this thread */
+};
+
+#define OSMFS_FILE(_f) ((struct osmfs_file_info *)((_f)->private_data))
+
+
 #define OSM_HASH_BUCKETS 1024
 /*
  * osmfs inode data in memory
+ *
+ * Note that 'thread' here can mean 'process' too :-)
  */
 struct osmfs_inode_info {
-	spinlock_t i_lock;
-	struct list_head disk_hash[OSM_HASH_BUCKETS];
+	spinlock_t i_lock;		/* lock on the osmfs_inode_info structure */
+	struct list_head disk_hash[OSM_HASH_BUCKETS]; /* Hash of disk handles */
+	struct list_head i_threads;	/* list of context structures for each calling thread */
 };
 
 #define OSMFS_INODE(_i) ((struct osmfs_inode_info *)((_i->u.generic_ip)))
@@ -181,9 +194,7 @@ static inline struct osm_disk_info *osm_add_disk(struct osmfs_inode_info *oi, kd
 	}
 out:
 	if (!d) {
-		printk("Adding device 0x%.8lX\n", (unsigned long)dev);
 		n->dev = dev;
-		printk("Became device 0x%.8lX\n", (unsigned long)n->dev);
 		atomic_set(&n->d_count, 1);
 
 		list_add(&n->d_hash, l);
@@ -361,6 +372,7 @@ struct inode *osmfs_get_inode(struct super_block *sb, int mode, int dev)
 		for (i = 0; i < OSM_HASH_BUCKETS; i++)
 			INIT_LIST_HEAD(&(oi->disk_hash[i]));
 
+		INIT_LIST_HEAD(&oi->i_threads);
 		spin_lock_init(&oi->i_lock);
 		OSMFS_INODE(inode) = oi;
 		if (!oi)
@@ -646,6 +658,59 @@ static int osm_disk_close(struct osmfs_inode_info *oi, kdev_t dev)
 }  /* osm_close_disk() */
 
 
+static int osmfs_file_open(struct inode * inode, struct file * file)
+{
+	struct osmfs_inode_info * oi;
+	struct osmfs_file_info * ofi;
+
+	if (OSMFS_FILE(file))
+		BUG();
+
+	ofi = (struct osmfs_file_info *)kmalloc(sizeof(*ofi),
+						GFP_KERNEL);
+	if (!ofi)
+		return -ENOMEM;
+	spin_lock_init(&ofi->f_lock);
+	INIT_LIST_HEAD(&ofi->f_ctx);
+	INIT_LIST_HEAD(&ofi->f_ios);
+	INIT_LIST_HEAD(&ofi->f_complete);
+
+	oi = OSMFS_INODE(inode);
+	spin_lock(&oi->i_lock);
+	list_add(&ofi->f_ctx, &oi->i_threads);
+	spin_unlock(&oi->i_lock);
+
+	OSMFS_FILE(file) = ofi;
+
+	return 0;
+}  /* osmfs_file_open() */
+
+
+static int osmfs_file_release(struct inode * inode, struct file * file)
+{
+	struct osmfs_inode_info *oi;
+	struct osmfs_file_info *ofi;
+
+	ofi = OSMFS_FILE(file);
+	OSMFS_FILE(file) = NULL;
+
+	if (!ofi)
+		BUG();
+
+	/* FIXME: Clean up things that hang off of ofi */
+
+	oi = OSMFS_INODE(inode);
+	spin_lock(&oi->i_lock);
+	list_del(&ofi->f_ctx);
+	spin_unlock(&oi->i_lock);
+
+
+	kfree(ofi);
+
+	return 0;
+}  /* osmfs_file_release() */
+
+
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
 	kdev_t kdv;
@@ -664,6 +729,10 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 				return -EFAULT;
 			kdv = to_kdev_t(dev);
 			printk("Checking disk %d,%d\n", MAJOR(kdv), MINOR(kdv));
+			/* Right now we trust only SCSI ->request_fn */
+			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
+				return -EINVAL;
+
 			g = get_gendisk(kdv);
 			if (!g)
 				return -ENXIO;
@@ -713,7 +782,7 @@ static int osmfs_dir_ioctl(struct inode * inode, struct file * file, unsigned in
 			new_iid = osb->next_iid;
 			osb->next_iid++;
 			unlock_osb(osb);
-			return put_user(new_iid, (long *)arg);
+			return put_user(new_iid, (unsigned long *)arg);
 			break;
 
                 case OSMIOC_CHECKIID:
@@ -740,37 +809,30 @@ static struct address_space_operations osmfs_aops = {
 };
 
 static struct file_operations osmfs_file_operations = {
-	/*llseek:		generic_file_llseek,*/
-	ioctl:		osmfs_file_ioctl,
-	/*mmap:		generic_file_mmap,*/
-	/*fsync:	osmfs_sync_file,*/
+	.open		= osmfs_file_open,
+	.release	= osmfs_file_release,
+	.ioctl		= osmfs_file_ioctl,
 };
 
 static struct file_operations osmfs_dir_operations = {
-	read:		generic_read_dir,
-	readdir:	dcache_readdir,
-	fsync:		osmfs_sync_file,
-	ioctl:		osmfs_dir_ioctl,
+	.read		= generic_read_dir,
+	.readdir	= dcache_readdir,
+	.fsync		= osmfs_sync_file,
+	.ioctl		= osmfs_dir_ioctl,
 };
 
 static struct inode_operations osmfs_dir_inode_operations = {
-	create:		osmfs_create,
-	lookup:		osmfs_lookup,
-	/*link:		osmfs_link,*/
-	unlink:		osmfs_unlink,
-	/*symlink:	osmfs_symlink,*/
-	/*mkdir:		osmfs_mkdir,*/
-	/*rmdir:		osmfs_rmdir,*/
-	/*mknod:		osmfs_mknod,*/
-	/*rename:		osmfs_rename,*/
+	.create		= osmfs_create,
+	.lookup		= osmfs_lookup,
+	.unlink		= osmfs_unlink,
 };
 
 static struct super_operations osmfs_ops = {
-	statfs:		osmfs_statfs,
-	put_inode:	force_delete,
-	delete_inode:	osmfs_delete_inode,
-	put_super:      osmfs_put_super,
-	remount_fs:     osmfs_remount,
+	.statfs		= osmfs_statfs,
+	.put_inode	= force_delete,
+	.delete_inode	= osmfs_delete_inode,
+	.put_super	= osmfs_put_super,
+	.remount_fs     = osmfs_remount,
 };
 
 /*
