@@ -90,7 +90,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-default = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 
 BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
@@ -108,7 +108,7 @@ AutoReqProv: no
 Provides: oracleasm = %{version}
 Requires: kernel-default = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description default
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -124,7 +124,7 @@ AutoReqProv: no
 Provides: oracleasm = %{version}
 Requires: kernel-smp = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description smp
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -140,7 +140,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-bigsmp = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description bigsmp
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -156,7 +156,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-64k-pagesize = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description 64k-pagesize
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -172,7 +172,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-sn2 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description sn2
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -188,7 +188,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-iseries64 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description iseries64
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -204,7 +204,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-pmac64 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description pmac64
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -220,7 +220,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-pseries64 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description pseries64
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -236,7 +236,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-s390 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description s390
 Kernel driver for the Oracle Automatic Storage Management library.
@@ -252,7 +252,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-s390x = %{kver}
 Requires: oracleasm-support >= %{support_ver}
-BuildRequires: kernel-source = %{kver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description s390x
 Kernel driver for the Oracle Automatic Storage Management library.
