@@ -82,11 +82,16 @@ static void print_version();
 static ASMScanPattern *as_pattern_new(struct list_head *pattern_list,
                                       const char *text);
 static void as_pattern_free(ASMScanPattern *pattern);
-static int as_pattern_match(ASMScanPattern *pattern, const char *text);
+static int as_pattern_match(ASMScanPattern *pattern,
+                            const char *dev_name);
 static void as_clean_pattern_list(struct list_head *pattern_list);
 static ASMScanDevice *as_device_new(struct list_head *device_list,
                                     const char *dev_name);
 static void as_device_free(ASMScanDevice *device);
+static int as_exclude_device(struct list_head *exclude_list,
+                             const char *dev_name);
+static int as_order_device(struct list_head *order_list,
+                           const char *dev_name);
 static int is_manager(const char *filename);
 static int parse_options(int argc, char *argv[], char **manager,
                          struct list_head *order_list,
@@ -171,14 +176,15 @@ static void as_pattern_free(ASMScanPattern *pattern)
 }  /* as_pattern_free() */
 
 
-static int as_pattern_match(ASMScanPattern *pattern, const char *text)
+static int as_pattern_match(ASMScanPattern *pattern,
+                            const char *dev_name)
 {
-    if (!pattern || !pattern->sp_pattern || !text)
+    if (!pattern || !pattern->sp_pattern || !dev_name)
         return -EINVAL;
     
-    if (strnlen(text, pattern->sp_len + 1) < pattern->sp_len)
+    if (strnlen(dev_name, pattern->sp_len + 1) < pattern->sp_len)
         return 0;
-    if (strncmp(text, pattern->sp_pattern, pattern->sp_len))
+    if (strncmp(dev_name, pattern->sp_pattern, pattern->sp_len))
         return 0;
 
     return 1;
@@ -237,6 +243,53 @@ static void as_device_free(ASMScanDevice *device)
     }
 }  /* as_device_free() */
 
+
+static int as_exclude_device(struct list_head *exclude_list,
+                             const char *dev_name)
+{
+    struct list_head *pos;
+    ASMScanPattern *pattern;
+
+    list_for_each(pos, exclude_list) {
+        pattern = list_entry(pos, ASMScanPattern, sp_list);
+        if (as_pattern_match(pattern, dev_name))
+        {
+            if (!as_device_new(&pattern->sp_matches, dev_name))
+            {
+                fprintf(stderr,
+                        "asmscan: Error processing device \"%s\"\n",
+                        dev_name);
+            }
+            return 1;
+        }
+    }
+
+    return 0;
+}  /* as_exclude_device() */
+
+
+static int as_order_device(struct list_head *order_list,
+                           const char *dev_name)
+{
+    struct list_head *pos;
+    ASMScanPattern *pattern;
+
+    list_for_each(pos, order_list) {
+        pattern = list_entry(pos, ASMScanPattern, sp_list);
+        if (as_pattern_match(pattern, dev_name))
+        {
+            if (!as_device_new(&pattern->sp_matches, dev_name))
+            {
+                fprintf(stderr,
+                        "asmscan: Error processing device \"%s\"\n",
+                        dev_name);
+            }
+            return 1;
+        }
+    }
+
+    return 0;
+}  /* as_exclude_device() */
 
 
 static int is_manager(const char *filename)
@@ -373,23 +426,31 @@ int main(int argc, char *argv[])
     }
 
     {
-        struct list_head *pos;
-        ASMScanPattern *p;
+        struct list_head *pos_l, *pos_d;
+        ASMScanPattern *pattern;
+        ASMScanDevice *device;
 
-        fprintf(stdout, "Order matches:\n");
-        list_for_each(pos, &order_list) {
-            p = list_entry(pos, ASMScanPattern, sp_list);
-            fprintf(stdout, "    \"%s\"\n",
-                    p->sp_pattern);
+        list_for_each(pos_l, &exclude_list) {
+            pattern = list_entry(pos_l, ASMScanPattern, sp_list);
+            fprintf(stdout, "Excluded by \"%s\":\n", 
+                    pattern->sp_pattern);
+            list_for_each(pos_d, &pattern->sp_matches) {
+                device = list_entry(pos_d, ASMScanDevice, sd_list);
+                fprintf(stdout, "\t%s (%s)\n",
+                        device->sd_name, device->sd_path);
+            }
         }
-        fprintf(stdout, "Exclude matches:\n");
-        list_for_each(pos, &exclude_list) {
-            p = list_entry(pos, ASMScanPattern, sp_list);
-            fprintf(stdout, "    \"%s\"\n",
-                    p->sp_pattern);
+        list_for_each(pos_l, &order_list) {
+            pattern = list_entry(pos_l, ASMScanPattern, sp_list);
+            fprintf(stdout, "Ordered by \"%s\":\n", 
+                    pattern->sp_pattern);
+            list_for_each(pos_d, &pattern->sp_matches) {
+                device = list_entry(pos_d, ASMScanDevice, sd_list);
+                fprintf(stdout, "\t%s (%s)\n",
+                        device->sd_name, device->sd_path);
+            }
         }
     }
-
 out:
     as_clean_pattern_list(&order_list);
     as_clean_pattern_list(&exclude_list);
