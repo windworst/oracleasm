@@ -1,4 +1,6 @@
-/*
+/* -*- mode: c; c-basic-offset: 8; -*-
+ * vim: noexpandtab sw=8 ts=8 sts=0:
+ *
  * NAME
  *	oracleasm.c - ASM library kernel driver.
  *
@@ -1080,6 +1082,7 @@ static void asm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 
 		case -ENOMEM:
 			r->r_error = ASM_ERR_NOMEM;
+			r->r_status |= ASM_LOCAL_ERROR;
 			break;
 
 		case -EINVAL:
@@ -1278,8 +1281,15 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 		return -EINVAL;
 
 	r = asm_request_alloc();
-	if (!r)
-		return -ENOMEM;
+	if (!r) {
+		if (put_user(ASM_FREE | ASM_ERROR | ASM_LOCAL_ERROR |
+			     ASM_BUSY, &(user_iocp->status_asm_ioc)))
+			return -EFAULT;
+		if (put_user(ASM_ERR_NOMEM, &(user_iocp->error_asm_ioc)))
+			return -EFAULT;
+		return 0;
+	}
+
 	LOG("ASM: New request at 0x%p alloc()ed for user ioc at 0x%p\n", r, user_iocp);
 
 	r->r_file = afi;
@@ -1383,7 +1393,7 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 
 	r->r_elapsed = jiffies;  /* Set start time */
 
-        if (!r->r_cb.vec) {
+	if (!r->r_cb.vec) {
 		printk("No vec!\n");
 		BUG();
 	}
@@ -2195,7 +2205,7 @@ static int asmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 		case ASMIOC_DUMP:
 			LOG("ASM: Operation is ASMIOC_DUMP\n");
 			/* Dump data */
-                        /* Currently unimplemented */
+			/* Currently unimplemented */
 			break;
 	}
 

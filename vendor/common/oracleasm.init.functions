@@ -440,7 +440,15 @@ EOF
 #
 upper_disk()
 {
-    echo "$1" | tr '[a-z]' '[A-Z]'
+    case "$1" in
+    */*)
+        # Don't upper pathnames
+        echo "$1"
+        ;;
+    *)
+        echo "$1" | tr '[a-z]' '[A-Z]'
+        ;;
+    esac
 }
 
 
