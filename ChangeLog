@@ -1,6 +1,15 @@
 
 2003-05-27	Joel Becker <joel.becker@oracle.com>
 
+	* Makefile: Added include subdir.
+	* Preamble.make: Added ALL_RULES.
+	* Postamble.make: Added ALL_RULES and fixed CLEAN_FILES.
+	* include/Makefile: Added.
+	* include/asm-i386/Makefile: Added.
+	* include/linux/Makefile: Added.
+
+2003-05-27	Joel Becker <joel.becker@oracle.com>
+
 	* Config.make.in: Added GCCINC back.
 	* Makefile: fixed 'test' subdir.
 	* configure.in: Added GCCINC back.

@@ -54,7 +54,7 @@ $(SUBDIRS):
 	$(MAKE) -C $@
 
 .PHONY: all-rules
-all-rules: subdirs $(LIBRARIES) $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(NOINST_PROGRAMS) $(MODULES) $(MANS)
+all-rules: subdirs $(LIBRARIES) $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(NOINST_PROGRAMS) $(MODULES) $(MANS) $(ALL_RULES)
 
 
 INSTALL_SUBDIRS = $(addsuffix -install,$(SUBDIRS))
@@ -121,7 +121,7 @@ $(CLEAN_SUBDIRS):
 	$(MAKE) -C $(subst -clean,,$@) clean
 
 clean: clean-subdirs $(CLEAN_RULES)
-	rm -f *.o *.p core $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(LIBRARIES) stamp-md5
+	rm -f *.o *.p core $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(LIBRARIES) $(CLEAN_FILES) stamp-md5
 
 
 DIST_SUBDIRS = $(addsuffix -dist,$(SUBDIRS))
