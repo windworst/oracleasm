@@ -1,6 +1,13 @@
 
 2003-12-17	Joel Becker <joel.becker@oracle.com>
 
+	* tools/Makefile: OSM -> ASM.
+	* tools/asmscan.c: osmlib.h -> asmlib.h.
+	* tools/asmtool.c: osmlib.h -> asmlib.h.
+	* test/Makefile: OSM -> ASM.
+
+2003-12-17	Joel Becker <joel.becker@oracle.com>
+
 	* libasm/asmlib.c: OSM -> ASM rename.
 
 2003-12-17	Joel Becker <joel.becker@oracle.com>

@@ -16,7 +16,7 @@ ASMSCAN_SOURCES = asmscan.c
 LOCAL_HEADERS = list.h
 HEADERS =					\
 	$(TOPDIR)/include/oratypes.h		\
-	$(TOPDIR)/include/osmlib.h		\
+	$(TOPDIR)/include/asmlib.h		\
 	$(TOPDIR)/include/linux/asmdisk.h
 
 ASMTOOL_OBJECTS = $(subst .c,.o,$(ASMTOOL_SOURCES))
