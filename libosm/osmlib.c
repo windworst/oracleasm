@@ -9,11 +9,11 @@
 
 /*
   NAME
-    osmlib.c - Oracle Storage Manager library code
+    asmlib.c - Oracle Automatic Storage Management library code
     
   DESCRIPTION
   
-  This is the main source file for the Linux implementation of osmlib
+  This is the main source file for the Linux implementation of asmlib
  */
 
 #define _LARGEFILE64_SOURCE

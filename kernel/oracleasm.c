@@ -9,6 +9,7 @@
  * file is released under the GNU General Public License.
  */
 
+/* Simple VFS hooks based on: */
 /*
  * Resizable simple ram filesystem for Linux.
  *
