@@ -84,7 +84,7 @@ all:				\
 	tools/osmtool		\
 	test/osmtest-bin	\
 	test/osmtest-multi-bin	\
-	test/osmprofile-bin
+	#test/osmprofile-bin
 
 dist:
 	@mkdir $(DISTNAME)
