@@ -101,6 +101,41 @@ static inline char *asm_disk_path(const char *manager, const char *disk)
 }
 
 
+static inline char *asm_disk_name(const char *manager,
+				  const char *disk_path)
+{
+	size_t len;
+	char *asm_disk_base, *disk;
+
+	if (!manager || !*manager || !disk_path)
+		return NULL;
+
+	asm_disk_base = asm_disk_path(manager, "");
+	if (!asm_disk_base)
+		return NULL;
+
+	if (strncmp(disk_path, asm_disk_base,
+		    strlen(asm_disk_base)))
+	{
+		free(asm_disk_base);
+		return NULL;
+	}
+	disk_path = disk_path + strlen(asm_disk_base);
+	free(asm_disk_base);
+
+	for (; (*disk_path != '\0') && (*disk_path == '/'); disk_path++)
+		;
+
+	len = strlen(disk_path);
+	disk = (char *)malloc(sizeof(char) * (len + 1));
+	if (!disk)
+		return NULL;
+	strncpy(disk, disk_path, len + 1);
+
+	return disk;
+}
+
+
 static inline char *asm_manage_path(const char *manager)
 {
 	size_t len;
