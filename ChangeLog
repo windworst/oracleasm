@@ -1,6 +1,10 @@
 
 2003-06-04	Joel Becker <joel.becker@oracle.com>
 
+	* Makefile.orgi: Same as Configure.
+
+2003-06-04	Joel Becker <joel.becker@oracle.com>
+
 	* Configure: Removed old useless Configure.
 
 2003-06-04	Joel Becker <joel.becker@oracle.com>
