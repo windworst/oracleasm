@@ -1,5 +1,5 @@
 #
-# Spec file for osm
+# Spec file for oracleasm
 #
 
 # Macros
@@ -21,104 +21,105 @@
 %define abi 2.4.21-EL
 %define kver %{base}-4.EL
 
-Summary: The Oracle Storage Manager.
-Name: osm-%{abi}
+Summary: The Oracle Automatic Storage Management library driver.
+Name: oracleasm-%{abi}
 Version: @DIST_VERSION@
 Release: @RPM_VERSION@
 Copyright: GPL
 Group: System Environment/Kernel
-Source: osmlib-@DIST_VERSION@.tar.gz
+Source: asmlib-@DIST_VERSION@.tar.gz
 URL: http://oss.oracle.com/
 Distribution: Oracle
 Vendor: Oracle Corporation
 Packager: Joel Becker <joel.becker@oracle.com>
-Provides: osm = %{version}
+Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel >= %{kver}
-Requires: osm-support >= 0.6.1
+Requires: oracleasm-support >= 0.6.1
 BuildRequires: kernel-source >= %{kver}
 
 
-BuildRoot: %{_tmppath}/osmlib-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+BuildRoot: %{_tmppath}/asmlib-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
 
 
 %description
-OSM is the Oracle Storage Manager.  This package is compiled for
-uniprocessor kernels.
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for uniprocessor kernels.
 
 %if %{buildsmp}
 %package smp
-Summary: The Oracle Storage Manager for SMP systems.
+Summary: The Oracle Automatic Storage Management library driver for SMP systems.
 Group: System Environment/Kernel
-Provides: osm = %{version}
+Provides: oracleasm = %{version}
 Requires: kernel-smp >= %{kver}
-Requires: osm-support >= 0.6.1
+Requires: oracleasm-support >= 0.6.1
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
 
 %description smp
-OSM is the Oracle Storage Manager.  This package is compiled for
-symmetric multiprocessor kernels.
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for symmetric multiprocessor kernels.
 %endif
 
 
 %if %{buildhugemem}
 %package hugemem
-Summary: The Oracle Storage Manager for hugemem systems.
+Summary: The Oracle Automatic Storage Management library driver for hugemem systems.
 Group: System Environment/Kernel
-Provides: osm = %{version}
+Provides: oracleasm = %{version}
 Requires: kernel-hugemem >= %{kver}
-Requires: osm-support >= 0.6.1
+Requires: oracleasm-support >= 0.6.1
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
 
 %description hugemem
-OSM is the Oracle Storage Manager.  This package is compiled for
-symmetric processor kernels on machines with more than 4GB of RAM.
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for symmetric multiprocessor kernels on
+machines with more than 16GB of RAM.
 %endif
 
 
 %if %{builddebug}
 %package debug
-Summary: The Oracle Storage Manager for debugging systems.
+Summary: The Oracle Automatic Storage Management library driver for debugging systems.
 Group: System Environment/Kernel
-Provides: osm = %{version}
+Provides: oracleasm = %{version}
 Requires: kernel-debug >= %{kver}
-Requires: osm-support >= 0.6.1
+Requires: oracleasm-support >= 0.6.1
 BuildRequires: kernel-source >= %{kver}
 AutoReqProv: no
 
 
 %description debug
-OSM is the Oracle Storage Manager.  This package is compiled for
-debugging kernels.
+Kenrel driver for the Oracle Automatic Storage Management library.
+This package is compiled for debugging kernels.
 %endif
 
 
-%package -n osm-lib
-Summary: Userspace library for the Oracle Storage Manager
+%package -n oracleasm-lib
+Summary: Userspace library for Oracle Automatic Storage Management
 Group: System Environment/Kernel
 AutoReqProv: no
 Requires: glibc >= 2.2.4
 
-%description -n osm-lib
-The Oracle userspace library to access the Oracle Storage Manager
+%description -n oracleasm-lib
+The Oracle userspace library for Oracle Automatic Storage Management
 
-%package -n osm-support
-Summary: Tools for managing the Oracle Storage Manager
+%package -n oracleasm-support
+Summary: Tools for managing the Oracle Automatic Storage Management library
 Group: System Environment/Kernel
 AutoReqProv: no
 Requires: glibc >= 2.2.4
 
 
-%description -n osm-support
-Tools to manage the Oracle Storage Manager
+%description -n oracleasm-support
+Tools to manage the Oracle Automatic Storage Management library
 
 
 %prep
-%setup -n osmlib-%{version}
+%setup -n asmlib-%{version}
 
 
 %build
@@ -157,25 +158,25 @@ cd kernel
 
 %if %{buildup}
 make KVER=up
-make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-ABI/osm" install 
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-ABI/oracleasm" install 
 %endif
 
 %if %{buildsmp}
 make clean
 make KVER=smp
-make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-smp-ABI/osm" install 
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-smp-ABI/oracleasm" install 
 %endif
 
 %if %{buildhugemem}
 make clean
 make KVER=hugemem
-make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-hugemem-ABI/osm" install 
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-hugemem-ABI/oracleasm" install 
 %endif
 
 %if %{builddebug}
 make clean
 make KVER=debug
-make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-debug-ABI/osm" install 
+make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{abi}-debug-ABI/oracleasm" install 
 %endif
 
 
@@ -189,7 +190,7 @@ make
 %install
 
 mkdir -p $RPM_BUILD_ROOT/etc/init.d
-cp -f redhat/osm.init $RPM_BUILD_ROOT/etc/init.d/osm
+cp -f redhat/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
 
 if [ "%{_lib}" = "lib64" ]
 then
@@ -211,59 +212,62 @@ make DESTDIR="$RPM_BUILD_ROOT" install
 rm -rf "$RPM_BUILD_ROOT"
 
 
-%post -n osm-support
-chkconfig osm on
-/etc/init.d/osm link
+%post -n oracleasm-support
+chkconfig oracleasm on
+/etc/init.d/oracleasm link
 
 
 %if %{buildup}
 %post
-/etc/init.d/osm link
+/etc/init.d/oracleasm link
 
 %files
 %defattr(-,root,root)
-/lib/modules/%{abi}-ABI/osm
+/lib/modules/%{abi}-ABI/oracleasm
 %endif
 
 %if %{buildsmp}
 %post smp
-/etc/init.d/osm link
+/etc/init.d/oracleasm link
 
 %files smp
 %defattr(-,root,root)
-/lib/modules/%{abi}-smp-ABI/osm
+/lib/modules/%{abi}-smp-ABI/oracleasm
 %endif
 
 %if %{buildhugemem}
 %post hugemem
-/etc/init.d/osm link
+/etc/init.d/oracleasm link
 
 %files hugemem
 %defattr(-,root,root)
-/lib/modules/%{abi}-hugemem-ABI/osm
+/lib/modules/%{abi}-hugemem-ABI/oracleasm
 %endif
 
 %if %{builddebug}
 %post debug
-/etc/init.d/osm link
+/etc/init.d/oracleasm link
 
 %files debug
 %defattr(-,root,root)
-/lib/modules/%{abi}-debug-ABI/osm
+/lib/modules/%{abi}-debug-ABI/oracleasm
 %endif
 
-%files -n osm-lib
+%files -n oracleasm-lib
 %defattr(-,root,root)
 /opt/extapi
 
-%files -n osm-support
+%files -n oracleasm-support
 %defattr(-,root,root)
-/usr/sbin/osmtool
-/etc/init.d/osm
+/usr/sbin/asmtool
+/etc/init.d/oracleasm
 
 
 
 %changelog
+* Wed Nov 12 2003 Joel Becker <joel.becker@oracle.com>
+- Start the ASM rename.
+
 * Thu Oct 30 2003 Joel Becker <joel.becker@oracle.com>
 - Created EL3 version
 

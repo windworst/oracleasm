@@ -1,8 +1,8 @@
 #! /bin/sh
-# init fragment for osm
+# init fragment for oracleasm
 #
 # chkconfig: 2345 26 20
-# description: OSM ABI link fixup.
+# description: ASM ABI link fixup.
 
 #
 # Note that the start priority is 26.  This is the same as raw devices.
@@ -133,14 +133,14 @@ if test -n "$ETMP"
 then
     EMINOR="${ETMP%%.*}"
     check_ver $EMINOR
-    ETMP="${ETMP#${EMINOR}.}"
+    ETMP="${ETMP#${EMINOR}}"
     ETMP="${ETMP#.}"
 fi
 if test -n "$ETMP"
 then
     EMICRO="${ETMP%%.*}"
     check_ver $EMICRO
-    ETMP="${ETMP#${EMICRO}.}"
+    ETMP="${ETMP#${EMICRO}}"
     ETMP="${ETMP#.}"
 fi
 if test -n "$ETMP"
@@ -156,32 +156,32 @@ if test "$ETYPE" != ""
 then
     ETYPE="${ETYPE}-"
 fi
-MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
-OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/osm"
-DEVOSM=/dev/oracleasm
+MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/oracleasm"
+OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/oracleasm"
+DEVASM="/dev/oracleasm"
 
 test -r "$OBJPATH/oracleasm.o" || exit 0
 
 
 dev_create()
 {
-    if [ -e "$DEVOSM" ]
+    if [ -e "$DEVASM" ]
     then
-        if [ -d "$DEVOSM" ]
+        if [ -d "$DEVASM" ]
         then
             return
         fi
-        echo -n "Checking for $DEVOSM "
-        failure $"File $DEVOSM is not a directory;"
+        echo -n "Checking for $DEVASM "
+        failure $"File $DEVASM is not a directory;"
         echo
         exit 1
     fi
 
-    echo -n "Creating $DEVOSM mount point "
-    mkdir "$DEVOSM" 2>/dev/null
+    echo -n "Creating $DEVASM mount point "
+    mkdir "$DEVASM" 2>/dev/null
     if [ $? != 0 ]
     then
-        failure $"Unable to create directory %DEVOSM;"
+        failure $"Unable to create directory %DEVASM;"
         echo
         exit 1
     fi
@@ -195,7 +195,7 @@ module_link()
     # Assume any symlink is OK - caveat emptor for non-RPM users
     test -L "${MODPATH}/oracleasm.o" && return
 
-    echo -n "Linking OSM module into the module path "
+    echo -n "Linking ASM module into the module path "
 
     # Same deal for modules that are physically there
     if test -f "${MODPATH}/oracleasm.o" ; then
@@ -204,7 +204,7 @@ module_link()
             ABIVER="`modinfo "${OBJPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
 
             echo
-            echo "Leaving existing osm module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
+            echo "Leaving existing ASM module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
             success
             echo
             return
@@ -214,7 +214,7 @@ module_link()
             echo "Warning: Moving ancient oracleasm.o out of the way"
             mv -f "${MODPATH}/oracleasm.o" "${MODPATH}/oracleasm.o.preABI" >/dev/null 2>&1
             if test "$?" != 0 ; then
-                failure $"Unable to move ancient osm module out of the way"
+                failure $"Unable to move ancient ASM module out of the way"
                 echo
                 exit 1
             fi
@@ -251,36 +251,36 @@ module_link()
 case "$1" in
     start)
         module_link
-        create_device
+        dev_create
         # Should it load and mount?
         RETVAL=0
 	;;
 	
     link)
 	module_link
-        create_device
+        dev_create
         RETVAL=0
         ;;
 
     status)
-        echo -n $"Checking if OSM is loaded: "
-	if grep '^osm ' /proc/modules >/dev/null 2>&1
+        echo -n $"Checking if ASM is loaded: "
+	if grep '^oracleasm ' /proc/modules >/dev/null 2>&1
         then
-            success $"OSM is already loaded; status"
+            success $"ASM is already loaded; status"
             echo
-            echo -n $"Checking if $DEVOSM is mounted: "
-            if grep '^none $DEVOSM oracleasmfs' /proc/mounts >/dev/null 2>&1
+            echo -n $"Checking if $DEVASM is mounted: "
+            if grep '^none $DEVASM oracleasmfs' /proc/mounts >/dev/null 2>&1
             then
-                success $"$DEVOSM is already mounted; status"
+                success $"$DEVASM is already mounted; status"
                 echo
                 exit 0
             else
-                failure $"$DEVOSM is not mounted; status"
+                failure $"$DEVASM is not mounted; status"
                 echo
                 exit 1
             fi
         else
-            failure $"OSM is not loaded; status"
+            failure $"ASM is not loaded; status"
             echo
             exit 1
         fi

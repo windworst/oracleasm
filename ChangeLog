@@ -1,6 +1,15 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* Makefile: Change RPM specfile names.
+	* configure.in: Change specfile names.
+	* redhat/Makefile: Reference new specfile names.
+	* redhat/{osm,oracleasm}-2.4.{9-e,21-EL}.spec.in: Rename.  Fix
+		all package names.
+	* redhat/{osm,oracleasm}.init: Rename.  Fix module names.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* include/linux/{osm,asm}abi.h: Rename osmdisk.h to asmabi.h.
 	* include/linux/Makefile: Reference asmabi.h.
 	* kernel/oracleasm.c: Reference asmabi.h.

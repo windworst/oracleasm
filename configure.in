@@ -1,6 +1,6 @@
 AC_INIT(Makefile)
 
-PACKAGE=osmlib
+PACKAGE=asmlib
 
 AC_SUBST(PACKAGE)
 
@@ -227,6 +227,6 @@ GCCINC=$gccdir
 AC_SUBST(GCCINC)
 
 AC_OUTPUT([Config.make
-redhat/osm-2.4.9-e.spec
-redhat/osm-2.4.21-EL.spec
+redhat/oracleasm-2.4.9-e.spec
+redhat/oracleasm-2.4.21-EL.spec
 ])
