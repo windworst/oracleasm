@@ -1,4 +1,11 @@
 
+2003-05-29	Joel Becker <joel.becker@oracle.com>
+
+	* include/linux/osmabi.h: Add gi_version.
+	* kernel/osm.c: Handle gi_version.
+	* libosm/osmlib.c: Handle gi_version.
+	* test/Makefile: Link libosm in, duh.
+
 2003-05-27	Joel Becker <joel.becker@oracle.com>
 
 	* Makefile: Added include subdir.

@@ -51,8 +51,10 @@ struct osm_disk_query
     __u32 dq_maxio;
 };
 
+#define OSM_ABI_VERSION	1UL
 struct osm_get_iid
 {
+    __u32 gi_version;
     __u64 gi_iid;
 };
 

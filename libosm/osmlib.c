@@ -106,6 +106,7 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
     if (fd < 0)
         goto out;
 
+    new_iid.gi_version = OSM_ABI_VERSION;
     rc = ioctl(fd, OSMIOC_GETIID, &new_iid);
     close(fd);
     if (rc)
@@ -128,7 +129,7 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
 {
     osm_erc err;
     osm_ctx_private *priv;
-    struct osm_get_iid real_iid = {iid};
+    struct osm_get_iid real_iid = {OSM_ABI_VERSION, iid};
     int fd, rc;
     char *osm_file;
 

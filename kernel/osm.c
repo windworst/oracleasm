@@ -1956,6 +1956,12 @@ static int osmfs_dir_ioctl(struct inode * inode, struct file * file, unsigned in
 			break;
 
 		case OSMIOC_GETIID:
+                        if (copy_from_user(&new_iid,
+                                           (struct osm_get_iid *)arg,
+                                           sizeof(new_iid)))
+                            return -EFAULT;
+                        if (new_iid.gi_version != OSM_ABI_VERSION)
+                            return -EINVAL;
 			lock_osb(osb);
 			new_iid.gi_iid = (u64)osb->next_iid;
 			osb->next_iid++;
@@ -1970,6 +1976,8 @@ static int osmfs_dir_ioctl(struct inode * inode, struct file * file, unsigned in
                                            (struct osm_get_iid *)arg,
                                            sizeof(new_iid)))
                             return -EFAULT;
+                        if (new_iid.gi_version != OSM_ABI_VERSION)
+                            return -EINVAL;
                         lock_osb(osb);
                         if (new_iid.gi_iid >= (u64)osb->next_iid)
                             new_iid.gi_iid = 0;
