@@ -51,25 +51,14 @@ rhel3_srpm: dist support_srpm $(TOPDIR)/vendor/redhat/oracleasm-2.4.21-EL.spec
 rhel3_rpm: rhel3_srpm support_rpm
 	$(RPMBUILD) --rebuild --target $(MODULEARCH) "oracleasm-2.4.21-EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
 
-ul10_%_smp_srpm: dist support_srpm
-	rpm -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-64GB-SMP-$(patsubst ul10_%_smp_srpm,%,$@).spec
 
-ul10_%_smp_rpm: ul10_%_smp_srpm support_rpm
-	$(RPMBUILD) --rebuild --target $(MODULEARCH) "oracleasm-2.4.19-64GB-SMP-$(patsubst ul10_%_smp_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+$(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21-%.spec: $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21.spec-generic
+	SPECVER="$@"; \
+		SPECVER="$${SPECVER#*oracleasm-2.4.21-}"; \
+		SPECVER="$${SPECVER%.spec}"; \
+		sed -e 's/^%define sver.*%{generic}$$/%define sver		'$${SPECVER}'/' < $< > $@
 
-ul10_%_psmp_srpm: dist support_srpm
-	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-4GB-SMP-$(patsubst ul10_%_psmp_srpm,%,$@).spec
-
-ul10_%_psmp_rpm: ul10_%_psmp_srpm support_rpm
-	$(RPMBUILD) --rebuild --target $(MODULEARCH) "oracleasm-2.4.19-4GB-SMP-$(patsubst ul10_%_psmp_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
-
-ul10_%_deflt_srpm: dist support_srpm
-	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.19-4GB-$(patsubst ul10_%_deflt_srpm,%,$@).spec
-
-ul10_%_deflt_rpm: ul10_%_deflt_srpm support_rpm
-	$(RPMBUILD) --rebuild --target $(MODULEARCH) "oracleasm-2.4.19-4GB-$(patsubst ul10_%_deflt_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
-
-ul10sp3_%_srpm: dist support_srpm
+ul10sp3_%_srpm: dist support_srpm $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21-%.spec
 	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/unitedlinux/oracleasm-2.4.21-$(patsubst ul10sp3_%_srpm,%,$@).spec
 
 ul10sp3_%_rpm: ul10sp3_%_srpm support_rpm

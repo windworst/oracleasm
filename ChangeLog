@@ -1,5 +1,14 @@
 
-2004-03-02	Joel Becker <joel.becker@oracle.com>
+2004-03-26	Joel Becker <joel.becker@oracle.com>
+
+	* vendor/unitedlinux/Makefile: Remove the version-specific
+		specfiles.
+	* vendor/unitedlinux/oracleasm-2.4.21-%.spec.in: Removed
+	* vendor/unitedlinux/oracleasm-2.4.21.spec-generic.in: Added
+	* configure.in: Bump to 1.0.2, change specfile outputs.
+	* Makefile: Remove ul10 stuff, add new dynamic specfile bits.
+
+2004-03-24	Joel Becker <joel.becker@oracle.com>
 
 	* *: Tag 1.0.1.
 

@@ -17,9 +17,9 @@ AC_SUBST(PACKAGE)
 #
 MAJOR_VERSION=1
 MINOR_VERSION=0
-MICRO_VERSION=1
-INTERFACE_AGE=1
-BINARY_AGE=1
+MICRO_VERSION=2
+INTERFACE_AGE=2
+BINARY_AGE=2
 VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${MICRO_VERSION}"
 AC_SUBST(MAJOR_VERSION)
 AC_SUBST(MINOR_VERSION)
@@ -265,7 +265,5 @@ vendor/redhat/oracleasm.init
 vendor/redhat/oracleasm-2.4.9-e.spec
 vendor/redhat/oracleasm-2.4.21-EL.spec
 vendor/unitedlinux/oracleasm.init
-vendor/unitedlinux/oracleasm-2.4.21-107.spec
-vendor/unitedlinux/oracleasm-2.4.21-111.spec
-vendor/unitedlinux/oracleasm-2.4.21-138.spec
+vendor/unitedlinux/oracleasm-2.4.21.spec-generic
 ])
