@@ -589,6 +589,27 @@ is_ide_disk()
 }
 
 
+scan_ex_disks()
+{
+    ls "${ORACLE_ASMMANAGER}/disks" |
+        while read DISKNAME
+        do
+            OUTPUT="`asmtool -I -l "${ORACLE_ASMMANAGER}" -n "${DISKNAME}" 2>/dev/null`"
+            case "$OUTPUT" in
+            *unmarked\ device*)
+                remove_disk "${DISKNAME}" >/dev/null
+                if [ $? = 1 ]
+                then
+                    return 1
+                fi
+                ;;
+            *)
+                continue
+                ;;
+            esac
+        done
+}
+
 #
 # scan_disks()
 # Scan disks to find any ASM disks and perhaps fix their ownership.
@@ -604,6 +625,12 @@ scan_disks()
 
     echo -n "Scanning system for ASM disks "
     RC=0
+
+    scan_ex_disks
+    if [ $? != 0 ]
+    then
+        return $?
+    fi
 
     awk '/^major/{next}/^ *$/{next}{print $4}' /proc/partitions |
         while read DEVNAME
@@ -621,23 +648,6 @@ scan_disks()
                     return 1
                 fi
                 perm_disk "${ORACLE_ASMMANAGER}/disks/${LABEL}" >/dev/null
-                if [ $? = 1 ]
-                then
-                    return 1
-                fi
-                ;;
-            *)
-                continue
-                ;;
-            esac
-        done
-    ls "${ORACLE_ASMMANAGER}/disks" |
-        while read DISKNAME
-        do
-            OUTPUT="`asmtool -I -l "${ORACLE_ASMMANAGER}" -n "${DISKNAME}" 2>/dev/null`"
-            case "$OUTPUT" in
-            *unmarked\ device*)
-                remove_disk "${DISKNAME}" >/dev/null
                 if [ $? = 1 ]
                 then
                     return 1
