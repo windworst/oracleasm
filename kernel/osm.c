@@ -969,17 +969,23 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 	if (!r)
 		return -EINVAL;
 
+	spin_lock(&ofi->f_lock);
 	/* Is it valid? */
 	if (!r->r_file || (r->r_file != ofi) ||
-	    (r->r_list.next == &r->r_list))
+	    (r->r_list.next == &r->r_list)) {
+		spin_unlock(&ofi->f_lock);
 		return -EINVAL;
-
-	printk("OSM: osm_request is valid...we think\n");
-	if (!(r->r_status & (OSM_COMPLETED | OSM_BUSY | OSM_ERROR))) {
-		/* FIXME: Wait */
 	}
 
-	spin_lock(&ofi->f_lock);
+	printk("OSM: osm_request is valid...we think\n");
+	while (!(r->r_status & (OSM_COMPLETED |
+				OSM_BUSY | OSM_ERROR))) {
+		spin_unlock(&ofi->f_lock);
+		/* FIXME: Wait correctly and deal with timeout */
+		schedule();
+		spin_lock(&ofi->f_lock);
+	}
+
 
 	if (list_empty(&ofi->f_complete))
 		BUG();
