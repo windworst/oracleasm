@@ -2419,7 +2419,7 @@ static struct super_block *osmfs_read_super(struct super_block * sb, void * data
 	}
 	sb->s_root = root;
 
-	printk(KERN_DEBUG "OSM: osmfs mounted with options: %s\n", 
+	printk(KERN_DEBUG "OSM: oracleasmfs mounted with options: %s\n", 
 	       data ? (char *)data : "<defaults>" );
 	printk(KERN_DEBUG "OSM:	uid=%d gid=%d mode=0%o maxinstances=%ld\n",
 	       params.uid, params.gid, params.mode,
@@ -2440,7 +2440,7 @@ static void __init init_osmfs_dir_operations(void) {
 };
 
 
-static DECLARE_FSTYPE(osmfs_fs_type, "osmfs", osmfs_read_super, FS_LITTER);
+static DECLARE_FSTYPE(osmfs_fs_type, "oracleasmfs", osmfs_read_super, FS_LITTER);
 
 static int __init init_osmfs_fs(void)
 {

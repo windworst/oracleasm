@@ -143,7 +143,7 @@ then
     ETMP="${ETMP#${EMICRO}.}"
     ETMP="${ETMP#.}"
 fi
-if test -z "$ETMP"
+if test -n "$ETMP"
 then
     echo -n "Checking for Red Hat enterprise kernel: "
     failure $"Kernel ${KVER} is not a Red Hat enterprise release;"
@@ -158,22 +158,50 @@ then
 fi
 MODPATH="/lib/modules/${KVER}/kernel/drivers/addon/osm"
 OBJPATH="/lib/modules/${BASE_STR}-${ETYPE}ABI/osm"
+DEVOSM=/dev/oracleasm
 
-test -r "$OBJPATH/osm.o" || exit 0
+test -r "$OBJPATH/oracleasm.o" || exit 0
+
+
+dev_create()
+{
+    if [ -e "$DEVOSM" ]
+    then
+        if [ -d "$DEVOSM" ]
+        then
+            return
+        fi
+        echo -n "Checking for $DEVOSM "
+        failure $"File $DEVOSM is not a directory;"
+        echo
+        exit 1
+    fi
+
+    echo -n "Creating $DEVOSM mount point "
+    mkdir "$DEVOSM" 2>/dev/null
+    if [ $? != 0 ]
+    then
+        failure $"Unable to create directory %DEVOSM;"
+        echo
+        exit 1
+    fi
+    success
+    echo
+}
 
 
 module_link()
 {
     # Assume any symlink is OK - caveat emptor for non-RPM users
-    test -L "${MODPATH}/osm.o" && return
+    test -L "${MODPATH}/oracleasm.o" && return
 
     echo -n "Linking OSM module into the module path "
 
     # Same deal for modules that are physically there
-    if test -f "${MODPATH}/osm.o" ; then
-        EXISTVER="`modinfo "${MODPATH}/osm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
+    if test -f "${MODPATH}/oracleasm.o" ; then
+        EXISTVER="`modinfo "${MODPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
         if test -n "${EXISTVER}" ; then
-            ABIVER="`modinfo "${OBJPATH}/osm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
+            ABIVER="`modinfo "${OBJPATH}/oracleasm.o" | awk '/description.*version/{sub(/^.*\(version /, ""); sub(/\)"$/, ""); print;}'`"
 
             echo
             echo "Leaving existing osm module in place (ABI module version $ABIVER, existing module version $EXISTVER)"
@@ -183,8 +211,8 @@ module_link()
         else
             # The existing module is too old - pre-ABI packaging
             echo
-            echo "Warning: Moving ancient osm.o out of the way"
-            mv -f "${MODPATH}/osm.o" "${MODPATH}/osm.o.preABI" >/dev/null 2>&1
+            echo "Warning: Moving ancient oracleasm.o out of the way"
+            mv -f "${MODPATH}/oracleasm.o" "${MODPATH}/oracleasm.o.preABI" >/dev/null 2>&1
             if test "$?" != 0 ; then
                 failure $"Unable to move ancient osm module out of the way"
                 echo
@@ -208,9 +236,9 @@ module_link()
         fi
     fi
 
-    ln -s "${OBJPATH}/osm.o" "${MODPATH}/osm.o" >/dev/null 2>&1
+    ln -s "${OBJPATH}/oracleasm.o" "${MODPATH}/oracleasm.o" >/dev/null 2>&1
     if test $? != 0; then
-        failure $"Unable to create symbolic link \"${MODPATH}/osm.o\""
+        failure $"Unable to create symbolic link \"${MODPATH}/oracleasm.o\""
         echo
         exit 1
     fi
@@ -223,12 +251,14 @@ module_link()
 case "$1" in
     start)
         module_link
+        create_device
         # Should it load and mount?
         RETVAL=0
 	;;
 	
     link)
 	module_link
+        create_device
         RETVAL=0
         ;;
 
@@ -238,14 +268,14 @@ case "$1" in
         then
             success $"OSM is already loaded; status"
             echo
-            echo -n $"Checking if /dev/osm is mounted: "
-            if grep '^none /dev/osm osmfs' /proc/mounts >/dev/null 2>&1
+            echo -n $"Checking if $DEVOSM is mounted: "
+            if grep '^none $DEVOSM oracleasmfs' /proc/mounts >/dev/null 2>&1
             then
-                success $"/dev/osm is already mounted; status"
+                success $"$DEVOSM is already mounted; status"
                 echo
                 exit 0
             else
-                failure $"/dev/osm is not mounted; status"
+                failure $"$DEVOSM is not mounted; status"
                 echo
                 exit 1
             fi

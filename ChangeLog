@@ -1,5 +1,13 @@
 
-2003-08-25	Joel Becker <joel.becker@oracle.com>
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
+	* kernel/Makefile: Move osm.c oracleasm.c.
+	* kernel/osm.c: Moved to oracleasm.c.
+	* kernel/oracleasm.c: Moved from osm.c.
+	* libosm/osmlib.c: Change /dev/osm to /dev/oracleasm.
+	* redhat/osm.init: Change /dev/osm to /dev/oracleasm.
+
+2003-11-10	Joel Becker <joel.becker@oracle.com>
 
 	* configure.in: Start the TOOLS/MODULEARCH stuff.
 	* Config.make.in: Add TOOLS/MODULEARCH stuff.
@@ -9,7 +17,7 @@
 	* test/osmtest-multi: Fix the -bin junk.
 	* kernel/osm.c: Remove the SCSI-only limitation.
 	
-2003-08-25	Joel Becker <joel.becker@oracle.com>
+2003-10-30	Joel Becker <joel.becker@oracle.com>
 
 	* Makefile: Add rhel3 targets.
 	* configure.in: Add rhel3 specfile.
@@ -17,7 +25,7 @@
 	* redhat/Makefile: Add rhel3 specfile.
 	* redhat/osm-2.4.21-EL.spec.in: Added.
 
-2003-08-25	Joel Becker <joel.becker@oracle.com>
+2003-10-30	Joel Becker <joel.becker@oracle.com>
 
 	* kernel/Makefile: Support 'hugemem'.
 	* kernel/osm.c: Lots of logging.  UNITED_LINUX->UNITEDLINUX.

@@ -40,9 +40,9 @@ CPPFLAGS = -nostdinc $(MODVERSIONS)
 CFLAGS = -O2 -g -fomit-frame-pointer $(WARNINGS) $(MCMODEL)
 LDADD = -nostdlib
 
-MODULES = osm.o
+MODULES = oracleasm.o
 
-SOURCES = osm.c
+SOURCES = oracleasm.c
 OBJECTS = $(subst .c,.o,$(SOURCES))
 
 HEADERS =					\
@@ -54,11 +54,11 @@ HEADERS =					\
 
 osm.o: $(HEADERS)
 
-INSTALL_RULES = install-osm
+INSTALL_RULES = install-asm
 
-install-osm: osm.o
+install-asm: oracleasm.o
 	$(TOPDIR)/mkinstalldirs $(DESTDIR)$(MODULEDIR)
-	$(INSTALL_DATA) osm.o $(DESTDIR)$(MODULEDIR)/osm.o
+	$(INSTALL_DATA) oracleasm.o $(DESTDIR)$(MODULEDIR)/oracleasm.o
 
 DIST_FILES = $(SOURCES)
 

@@ -44,7 +44,8 @@
 /*
  * Defines
  */
-#define OSMLIB_NAME "OSM Library - Generic Linux"
+#define OSMLIB_NAME     "OSM Library - Generic Linux"
+#define DEVASM          "/dev/oracleasm"
 
 
 
@@ -99,11 +100,11 @@ uword osm_version(ub4 *version, osm_iid *iid, oratext *name,
 
     /*
      * The initial assumption is that root has properly loaded the
-     * osm module and mounted /dev/osm.  We might have osmlib do this
-     * trick later.
+     * osm module and mounted /dev/oracleasm.  We might have osmlib do
+     * this trick later.
      */
     ret = OSM_INIT_INSTALL;
-    fd = open("/dev/osm", O_RDONLY);
+    fd = open(DEVASM, O_RDONLY);
     if (fd < 0)
         goto out;
 
@@ -139,7 +140,7 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
         goto out;
 
     err = OSM_ERR_PERM;
-    fd = open("/dev/osm", O_RDONLY);
+    fd = open(DEVASM, O_RDONLY);
     if (fd < 0)
         goto out;
 
@@ -161,11 +162,12 @@ osm_erc osm_init(osm_iid iid, osm_ctx *ctxp)
         goto out;
 
     /* 16 chars for 64 bits + 1 for \0 */
-    osm_file = (char *)malloc(sizeof(char) * (strlen("/dev/osm") + 17));
+    osm_file = (char *)malloc(sizeof(char) * (strlen(DEVASM) + 17));
     if (!osm_file)
         goto out_free_ctx;
 
-    sprintf(osm_file, "/dev/osm/%.8lX%.8lX", HIGH_UB4(real_iid.gi_iid),
+    sprintf(osm_file, "%s/%.8lX%.8lX", DEVASM,
+            HIGH_UB4(real_iid.gi_iid),
             LOW_UB4(real_iid.gi_iid));
 
     err = OSM_ERR_PERM;
