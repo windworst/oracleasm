@@ -23,6 +23,12 @@ OSMTEST_INCLUDES = $(OSMLIB_INCLUDES)
 OSMTEST_CPPFLAGS = -DLINUX $(OSMTEST_INCLUDES)
 OSMTEST_LDFLAGS = libosm/libosm.a # -L libosm -losm
 
+OSMTEST_MULTI_SRCS = test/osmtest-multi.c
+OSMTEST_MULTI_OBJS = test/osmtest-multi.o
+OSMTEST_MULTI_INCLUDES = $(OSMLIB_INCLUDES)
+OSMTEST_MULTI_CPPFLAGS = -DLINUX $(OSMTEST_INCLUDES)
+OSMTEST_MULTI_LDFLAGS = libosm/libosm.a # -L libosm -losm
+
 CPPFLAGS = -g -O2 -Wall
 
 KERNEL_INCLUDES = -I $(KERNEL_INCLUDE_PATH) $(OSMLIB_INCLUDES)
@@ -32,7 +38,11 @@ KERNEL_CPPFLAGS = $(KERNEL_INCLUDES) $(KERNEL_DEFS)
 # FIXME: Needs selection
 BLK_FILE = kernel/blk-rhas21.c
 
-all: kernel/osm.o libosm/libosm.so test/osmtest-bin
+all:				\
+	kernel/osm.o		\
+	libosm/libosm.so	\
+	test/osmtest-bin	\
+	test/osmtest-multi-bin
 
 distclean: clean
 	rm -f .config
@@ -65,3 +75,9 @@ test/osmtest.o: test/osmtest.c
 
 test/osmtest-bin: libosm-virtual-stamp test/osmtest.o
 	$(CC) -o $@ $(OSMTEST_OBJS) $(OSMTEST_LDFLAGS)
+
+test/osmtest-multi.o: test/osmtest-multi.c
+	$(CC) $(CPPFLAGS) $(OSMTEST_MULTI_CPPFLAGS) -c -o $@ $<
+
+test/osmtest-multi-bin: libosm-virtual-stamp test/osmtest-multi.o
+	$(CC) -o $@ $(OSMTEST_MULTI_OBJS) $(OSMTEST_MULTI_LDFLAGS)

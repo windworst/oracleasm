@@ -1051,7 +1051,7 @@ static int osm_submit_request(request_queue_t *q, int rw,
 
 	IO_REQUEST_LOCK(q);
 
-	q->plug_device_fn(q, req->bh->b_rdev); /* is atomic */
+	q->plug_device_fn(q, r->r_bh->b_rdev); /* is atomic */
 
 	req->cmd = rw;
 	req->errors = 0;
