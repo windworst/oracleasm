@@ -1,6 +1,10 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* kernel/oracleasm.c: Fix SuSE builds.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: ppc64 -m64 stuff.
 	* include/linux/asmcompat32.h: Lots of CONFIG_COMPAT hacks.
 	* kernel/Makefile: Fix CFLAGS.

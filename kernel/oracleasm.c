@@ -256,7 +256,7 @@ void submit_bh_blknr(int rw, struct buffer_head * bh)
 	}
 	conditional_schedule();
 }
-# else
+# elif LINUX_VERSION_CODE < KERNEL_VERSION(2,4,21)
 #  error Invalid United Linux kernel
 # endif  /* LINUX_VERSION_CODE */
 #endif  /* CONFIG_UNITEDLINUX_KERNEL */
@@ -1215,7 +1215,7 @@ static int asm_build_io(int rw, struct asm_request *r,
 	unsigned	sector_size = get_hardsect_size(dev);
 	int		i;
 #ifdef CONFIG_UNITEDLINUX_KERNEL
-# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 	unsigned int    atomic_seq;
 # else
 #  error Invalid United Linux kernel
@@ -1255,7 +1255,7 @@ static int asm_build_io(int rw, struct asm_request *r,
 	}
 
 #ifdef CONFIG_UNITEDLINUX_KERNEL
-# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 	atomic_seq = blk_get_atomic_seq();
 # else
 #  error Invalid United Linux kernel
@@ -1298,7 +1298,7 @@ static int asm_build_io(int rw, struct asm_request *r,
 		atomic_set(&tmp->b_count, 1);
 
 #ifdef CONFIG_UNITEDLINUX_KERNEL
-# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 		bh_elv_seq(tmp) = atomic_seq;
 # else
 #  error Invalid United Linux kernel
@@ -1508,7 +1508,7 @@ static int asm_submit_io(struct asmfs_file_info *afi,
 # endif  /* LINUX_VERSION_CODE */
 #else
 # ifdef CONFIG_UNITEDLINUX_KERNEL
-#  if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+#  if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,21))
 	while (bh)
 	{
 	    submit_bh_blknr(rw, bh);
@@ -2460,6 +2460,15 @@ static int compat_ioctls [] = {
 	ASMIOC_IODISK64
 };
 
+/*
+ * This is because 2.4 sys32_ioctl() will *OOPS* if you have a NULL
+ * handler for register_ioctl32_conversion().
+ */
+static int sys_ioctl_wrapper(unsigned int fd, unsigned int cmd,
+                             unsigned long arg, struct file *filp) {
+    return sys_ioctl(fd, cmd, arg);
+}
+
 static int __init init_asmfs_ioctl32(void) {
 	int ret, i;
 	int num = sizeof(compat_ioctls) / sizeof(*compat_ioctls);
@@ -2470,7 +2479,7 @@ static int __init init_asmfs_ioctl32(void) {
 #endif
 	for (i = 0; i < num; i++) {
 		ret = register_ioctl32_conversion(compat_ioctls[i],
-						  NULL);
+						  sys_ioctl_wrapper);
 		if (ret)
 			break;
 	}
