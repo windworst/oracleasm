@@ -1,4 +1,19 @@
 
+2003-06-23	Joel Becker <joel.becker@oracle.com>
+
+	* configure.in: Added Red Hat AS2.1 specfile to AC_OUTPUT.
+	* include/Makefile: Remove references to asm* directories.
+	* include/asm-i386/*: Removed
+	* include/linux/osmcompat32.h: Moved here.
+	* include/linux/osmabi.h: 64bit pointers in struct osmio.
+	* include/linux/osmkernel.h: osm_ioc64 and osm_ioc32.
+	* include/osmlib.h: Test-based osm_ioc rearrangement.  Waiting
+		on official layout.
+	* kernel/Makefile: new osmcompat32.h location.
+	* libosm/Makefile: new osmcompat32.h location.
+	* libosm/osmlib.c: Casting for 64bit struct osmio.
+	* kernel/osm.c: Full 64<->32 compatibility work.
+
 2003-06-20	Joel Becker <joel.becker@oracle.com>
 
 	* redhat/osm.init: Link OSM ABI on boot.

@@ -34,8 +34,8 @@
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
 
+#include "linux/osmcompat32.h"
 #include "linux/osmkernel.h"
-#include "asm/osmcompat32.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
 #include "osmerror.h"
@@ -58,6 +58,26 @@
  * value in the future.  FIXME.
  */
 #define OSM_MAX_IOSIZE          (1024 * 64)
+
+/*
+ * Compat32
+ */
+#define OSM_BPL_32		32
+#if BITS_PER_LONG == 32
+# define osm_submit_io_32	osm_submit_io_native
+# define osm_maybe_wait_io_32	osm_maybe_wait_io_native
+# define osm_complete_ios_32	osm_complete_ios_native
+#else
+# if BITS_PER_LONG == 64
+#  define OSM_BPL_64		64
+#  define osm_submit_io_32	osm_submit_io_thunk
+#  define osm_submit_io_64	osm_submit_io_native
+#  define osm_maybe_wait_io_32	osm_maybe_wait_io_thunk
+#  define osm_maybe_wait_io_64	osm_maybe_wait_io_native
+#  define osm_complete_ios_32	osm_complete_ios_thunk
+#  define osm_complete_ios_32	osm_complete_ios_native
+# endif  /* BITS_PER_LONG == 64 */
+#endif  /* BITS_PER_LONG == 32 */
 
 /* Turn debugging on */
 #undef DEBUG 
@@ -181,7 +201,7 @@ struct osm_request {
 	struct osmfs_file_info *r_file;
 	struct osm_disk_info *r_disk;
 	osm_ioc *r_ioc;				/* User osm_ioc */
-	__u16 r_status;				/* status_osm_ioc */
+	u16 r_status;				/* status_osm_ioc */
 	int r_error;
 	unsigned long r_elapsed;		/* Start time while in-flight, elapsted time once complete */
 	kvec_cb_t r_cb;				/* kvec info */
@@ -969,7 +989,7 @@ static inline void clear_timeout(struct timeout *to)
 static int osm_update_user_ioc(struct osm_request *r)
 {
 	osm_ioc *ioc;
-	__u16 tmp_status;
+	u16 tmp_status;
 
 	ioc = r->r_ioc;
 	dprintk("OSM: User IOC is 0x%p\n", ioc);
@@ -1328,12 +1348,11 @@ error:
 
 static int osm_submit_io(struct osmfs_file_info *ofi, 
 			 struct osmfs_inode_info *oi,
-			 osm_ioc *ioc)
+			 osm_ioc *iocp, osm_ioc *ioc)
 {
 	int ret, major, rw = READ, minorsize = 0;
 	struct osm_request *r;
 	struct osm_disk_info *d;
-	osm_ioc tmp;
 	size_t count;
         struct buffer_head *bh;
         kdev_t kdv;
@@ -1341,10 +1360,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	if (!ioc)
 		return -EINVAL;
 
-	if (copy_from_user(&tmp, ioc, sizeof(tmp)))
-		return -EFAULT;
-
-	if (tmp.status_osm_ioc)
+	if (ioc->status_osm_ioc)
 		return -EINVAL;
 
 	r = osm_request_alloc();
@@ -1352,14 +1368,14 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 		return -ENOMEM;
 
 	r->r_file = ofi;
-	r->r_ioc = ioc;
+	r->r_ioc = iocp;  /* Userspace osm_ioc */
 
 	spin_lock_irq(&ofi->f_lock);
 	list_add(&r->r_list, &ofi->f_ios);
 	spin_unlock_irq(&ofi->f_lock);
 
 	ret = -ENODEV;
-        kdv = tmp.disk_osm_ioc;
+        kdv = ioc->disk_osm_ioc;
 	d = osm_find_disk(oi, kdv);
 	if (!d)
 		goto out_error;
@@ -1367,21 +1383,21 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	atomic_inc(&d->d_ios);
 	r->r_disk = d;
 
-	count = tmp.rcount_osm_ioc * get_hardsect_size(d->d_dev);
+	count = ioc->rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
 	dprintk("OSM: first, 0x%08lX.%08lX; masked 0x%08lX\n",
-	       HIGH_UB4(tmp.first_osm_ioc), LOW_UB4(tmp.first_osm_ioc),
-	       (unsigned long)tmp.first_osm_ioc);
+	       HIGH_UB4(ioc->first_osm_ioc), LOW_UB4(ioc->first_osm_ioc),
+	       (unsigned long)ioc->first_osm_ioc);
 	/* linux only supports unsigned long size sector numbers */
 	dprintk("OSM: status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
-	       tmp.status_osm_ioc, tmp.buffer_osm_ioc, count);
+	       ioc->status_osm_ioc, ioc->buffer_osm_ioc, count);
 	/* Note that priority is ignored for now */
 	ret = -EINVAL;
-	if (!tmp.buffer_osm_ioc ||
-	    (tmp.buffer_osm_ioc != (unsigned long)tmp.buffer_osm_ioc) ||
-	    (tmp.first_osm_ioc != (unsigned long)tmp.first_osm_ioc) ||
-	    (tmp.rcount_osm_ioc != (unsigned long)tmp.rcount_osm_ioc) ||
-	    (tmp.priority_osm_ioc > 7) ||
+	if (!ioc->buffer_osm_ioc ||
+	    (ioc->buffer_osm_ioc != (unsigned long)ioc->buffer_osm_ioc) ||
+	    (ioc->first_osm_ioc != (unsigned long)ioc->first_osm_ioc) ||
+	    (ioc->rcount_osm_ioc != (unsigned long)ioc->rcount_osm_ioc) ||
+	    (ioc->priority_osm_ioc > 7) ||
 	    (count > OSM_MAX_IOSIZE) ||
 	    (count < 0))
 		goto out_error;
@@ -1392,8 +1408,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 		minorsize = blk_size[major][MINOR(d->d_dev)];
 	if (minorsize) {
 		unsigned long maxsector = (minorsize << 1) + 1;
-		unsigned long sector = (unsigned long)tmp.first_osm_ioc;
-		unsigned long blks = (unsigned long)tmp.rcount_osm_ioc;
+		unsigned long sector = (unsigned long)ioc->first_osm_ioc;
+		unsigned long blks = (unsigned long)ioc->rcount_osm_ioc;
 
 		if (maxsector < blks || maxsector - blks < sector) {
 			printk(KERN_INFO
@@ -1408,7 +1424,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	dprintk("OSM: Passed checks\n");
 
-	switch (tmp.operation_osm_ioc) {
+	switch (ioc->operation_osm_ioc) {
 		default:
 			goto out_error;
 			break;
@@ -1432,7 +1448,9 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	if (count == 0)
 		goto out_error;
 
-	r->r_cb.vec = map_user_kvec(rw, tmp.buffer_osm_ioc, count);
+	r->r_cb.vec =
+		map_user_kvec(rw, (unsigned long)ioc->buffer_osm_ioc,
+			      count);
 	r->r_cb.data = r;
 	r->r_cb.fn = osm_end_kvec_io;
 	if (IS_ERR(r->r_cb.vec)) {
@@ -1442,7 +1460,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	}
 
 	ret = osm_build_io(rw, r,
-			   tmp.first_osm_ioc, tmp.rcount_osm_ioc);
+			   ioc->first_osm_ioc, ioc->rcount_osm_ioc);
 	dprintk("OSM: Return from buildio is %d\n", ret);
 	if (ret)
 		goto out_error;
@@ -1525,7 +1543,7 @@ static int osm_maybe_wait_io(struct osmfs_file_info *ofi,
 
 			spin_lock_irq(&ofi->f_lock);
 			if (r->r_status & (OSM_COMPLETED |
-					     OSM_BUSY | OSM_ERROR))
+					   OSM_BUSY | OSM_ERROR))
 				break;
 			spin_unlock_irq(&ofi->f_lock);
 
@@ -1622,18 +1640,290 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 }  /* osm_complete_io() */
 
 
-static int osm_do_io(struct osmfs_file_info *ofi,
-		     struct osmfs_inode_info *oi,
-		     struct osmio *ioc)
+static inline int osm_wait_completion(struct osmfs_file_info *ofi,
+		   		      struct osmfs_inode_info *oi,
+			  	      struct osmio *io,
+				      struct timeout *to,
+				      u32 *status)
 {
-	int ret = 0;
-	__u32 i;
-	__u32 status = 0;
-	osm_ioc *iocp;
-	struct timeout to;
+	int ret;
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
 	DECLARE_WAITQUEUE(to_wait, tsk);
+
+	/* Early check - expensive stuff follows */
+	ret = -ETIMEDOUT;
+	if (to->timed_out)
+		goto out;
+
+	spin_lock_irq(&ofi->f_lock);
+	if (list_empty(&ofi->f_ios) &&
+	    list_empty(&ofi->f_complete))
+	{
+		/* No I/Os left */
+		spin_unlock_irq(&ofi->f_lock);
+		ret = 0;
+		*status |= OSM_IO_IDLE;
+		goto out;
+	}
+	spin_unlock_irq(&ofi->f_lock);
+
+	add_wait_queue(&ofi->f_wait, &wait);
+	add_wait_queue(&to->wait, &to_wait);
+	do {
+		ret = 0;
+		run_task_queue(&tq_disk);
+		set_task_state(tsk, TASK_INTERRUPTIBLE);
+
+		spin_lock_irq(&ofi->f_lock);
+		if (!list_empty(&ofi->f_complete)) {
+			spin_unlock_irq(&ofi->f_lock);
+			break;
+		}
+		spin_unlock_irq(&ofi->f_lock);
+
+		ret = -ETIMEDOUT;
+		if (to->timed_out)
+			break;
+		schedule();
+		if (signal_pending(tsk)) {
+			ret = -EINTR;
+			break;
+		}
+	} while (1);
+	set_task_state(tsk, TASK_RUNNING);
+	remove_wait_queue(&ofi->f_wait, &wait);
+	remove_wait_queue(&to->wait, &to_wait);
+
+out:
+	return ret;
+}  /* osm_wait_completion() */
+
+
+static inline int osm_submit_io_native(struct osmfs_file_info *ofi, 
+	       			       struct osmfs_inode_info *oi,
+       				       struct osmio *io)
+{
+	int ret = 0;
+	u32 i;
+	osm_ioc *iocp;
+	osm_ioc tmp;
+
+	for (i = 0; i < io->oi_reqlen; i++) {
+		ret = -EFAULT;
+		if (get_user(iocp,
+			     ((osm_ioc **)((unsigned long)io->oi_requests)) + i))
+			break;
+
+		if (copy_from_user(&tmp, iocp, sizeof(tmp)))
+			break;
+
+		ret = osm_submit_io(ofi, oi, iocp, &tmp);
+		if (ret)
+			break;
+	}
+
+	return ret;
+}  /* osm_submit_io_native() */
+
+
+static inline int osm_maybe_wait_io_native(struct osmfs_file_info *ofi, 
+					   struct osmfs_inode_info *oi,
+					   struct osmio *io,
+					   struct timeout *to)
+{
+	int ret = 0;
+	u32 i;
+	osm_ioc *iocp;
+
+	for (i = 0; i < io->oi_waitlen; i++) {
+		if (get_user(iocp,
+			     ((osm_ioc **)((unsigned long)io->oi_waitreqs)) + i))
+			return -EFAULT;
+
+		ret = osm_maybe_wait_io(ofi, oi, iocp, to);
+		if (ret)
+			break;
+	}
+
+	return ret;
+}  /* osm_maybe_wait_io_native() */
+
+
+static inline int osm_complete_ios_native(struct osmfs_file_info *ofi,
+					  struct osmfs_inode_info *oi,
+					  struct osmio *io,
+					  struct timeout *to,
+					  u32 *status)
+{
+	int ret = 0;
+	u32 i;
+	osm_ioc *iocp;
+
+	for (i = 0; i < io->oi_complen; i++) {
+		ret = osm_complete_io(ofi, oi, &iocp);
+		if (ret)
+			break;
+		if (iocp) {
+			ret = put_user(iocp,
+				       ((osm_ioc **)((unsigned long)io->oi_completions)) + i);
+                               if (ret)
+                                   break;
+			continue;
+		}
+
+		i--; /* Reset this completion */
+
+		/* We had waiters that are full */
+		if (*status & OSM_IO_WAITED)
+			break;
+
+		ret = osm_wait_completion(ofi, oi, io, to, status);
+		if (ret)
+			break;
+		if (*status & OSM_IO_IDLE)
+			break;
+	}
+
+	return (ret ? ret : i);
+}  /* osm_complete_ios_native() */
+
+
+#if BITS_PER_LONG == 64
+static inline void osm_promote_64(osm_ioc64 *ioc)
+{
+	osm_ioc32 *ioc_32 = (osm_ioc32 *)ioc;
+
+	/*
+	 * Promote the 32bit pointers at the end of the osm_ioc32
+	 * into the osm_ioc64.
+	 *
+	 * Promotion must be done from the tail backwards.
+	 */
+	ioc->link_osm_ioc = (u64)ioc_32->link_osm_ioc;
+	ioc->check_osm_ioc = (u64)ioc_32->check_osm_ioc;
+	ioc->buffer_osm_ioc = (u64)ioc_32->buffer_osm_ioc;
+}  /* osm_promote_64() */
+
+
+static inline int osm_submit_io_thunk(struct osmfs_file_info *ofi, 
+	       			      struct osmfs_inode_info *oi,
+	       			      struct osmio *io)
+{
+	int ret = 0;
+	u32 i;
+	u32 iocp_32;
+	osm_ioc32 *iocp;
+	osm_ioc tmp;
+
+	for (i = 0; i < io->oi_reqlen; i++) {
+		ret = -EFAULT;
+		/*
+		 * io->oi_requests is an osm_ioc32**, but the pointers
+		 * are 32bit pointers.
+		 */
+		if (get_user(iocp_32,
+			     ((u32 *)((unsigned long)io->oi_requests)) + i))
+			break;
+
+		iocp = (osm_ioc32 *)(unsigned long)iocp_32;
+
+		if (copy_from_user(&tmp, iocp, sizeof(*iocp)))
+			break;
+
+		osm_promote_64(&tmp);
+
+		ret = osm_submit_io(ofi, oi, iocp, &tmp);
+		if (ret)
+			break;
+	}
+
+	return ret;
+}  /* osm_submit_io_thunk() */
+
+
+static inline int osm_maybe_wait_io_thunk(struct osmfs_file_info *ofi, 
+					  struct osmfs_inode_info *oi,
+					  struct osmio *io,
+					  struct timeout *to)
+{
+	int ret = 0;
+	u32 i;
+	u32 iocp_32;
+	osm_ioc *iocp;
+
+	for (i = 0; i < io->oi_waitlen; i++) {
+		/*
+		 * io->oi_waitreqs is an osm_ioc32**, but the pointers
+		 * are 32bit pointers.
+		 */
+		if (get_user(iocp_32,
+			     ((u32 *)((unsigned long)io->oi_waitreqs)) + i))
+			return -EFAULT;
+
+		/* Remember, the this is pointing to 32bit userspace */
+		iocp = (osm_ioc32 *)(unsigned long)iocp_32;
+
+		ret = osm_maybe_wait_io(ofi, oi, iocp, &to);
+		if (ret)
+			break;
+	}
+
+	return ret;
+}  /* osm_maybe_wait_io_thunk() */
+
+
+static inline int osm_complete_ios_thunk(struct osmfs_file_info *ofi,
+					 struct osmfs_inode_info *oi,
+					 struct osmio *io,
+					 struct timeout *to,
+					 u32 *status)
+{
+	int ret = 0;
+	u32 i;
+	u32 iocp_32;
+	osm_ioc *iocp;
+
+	for (i = 0; i < io->oi_complen; i++) {
+		ret = osm_complete_io(ofi, oi, &iocp);
+		if (ret)
+			break;
+		if (iocp) {
+			iocp_32 = (u32)(unsigned long)iocp;
+
+			ret = put_user(iocp_32,
+				       ((u32 *)((unsigned long)io->oi_completions)) + i);
+                               if (ret)
+                                   break;
+			continue;
+		}
+
+		i--; /* Reset this completion */
+
+		/* We had waiters that are full */
+		if (*status & OSM_IO_WAITED)
+			break;
+
+		ret = osm_wait_completion(ofi, oi, io, to, status);
+		if (ret)
+			break;
+		if (*status & OSM_IO_IDLE)
+			break;
+	}
+
+	return (ret ? ret : i);
+}  /* osm_complete_ios_thunk() */
+
+#endif  /* BITS_PER_LONG == 64 */
+
+
+static int osm_do_io(struct osmfs_file_info *ofi,
+		     struct osmfs_inode_info *oi,
+		     struct osmio *io, int bpl)
+{
+	int ret = 0;
+	u32 status = 0;
+	struct timeout to;
 
 	dprintk("OSM: Entering osm_do_io()\n");
 #ifdef DEBUG_BROKEN
@@ -1642,128 +1932,88 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 
 	init_timeout(&to);
 
-	if (ioc->timeout) {
+	if (io->oi_timeout) {
 		struct timespec ts;
 
 		dprintk1("Real timeout\n");
 		ret = -EFAULT;
-		if (copy_from_user(&ts, ioc->timeout, sizeof(ts)))
+		if (copy_from_user(&ts,
+				   (struct timespec *)(unsigned long)io->oi_timeout,
+				   sizeof(ts)))
 			goto out;
 
 		set_timeout(&to, &ts);
 		if (to.timed_out) {
-			ioc->timeout = 0;
+			io->oi_timeout = (u64)0;
 			clear_timeout(&to);
 		}
 	}
 
 	ret = 0;
-	if (ioc->requests) {
-		dprintk1("Has requests; reqlen %d\n", ioc->reqlen);
-		for (i = 0; i < ioc->reqlen; i++) {
-			if (get_user(iocp, ioc->requests + i))
-				return -EFAULT;
-			ret = osm_submit_io(ofi, oi, iocp);
-			if (ret)
-				goto out_to;
-		}
+	if (io->oi_requests) {
+		dprintk1("Has requests; reqlen %d\n", io->oi_reqlen);
+		ret = -EINVAL;
+		if (bpl == OSM_BPL_32)
+			ret = osm_submit_io_32(ofi, oi, io);
+#if BITS_PER_LONG == 64
+		else if (bpl == OSM_BPL_64)
+			ret = osm_submit_io_64(ofi, oi, io);
+#endif  /* BITS_PER_LONG == 64 */
+
+		if (ret)
+			goto out_to;
 	}
 
-	if (ioc->waitreqs) {
-		dprintk1("Has waits; waitlen %d\n", ioc->waitlen);
-		for (i = 0; i < ioc->waitlen; i++) {
-			if (get_user(iocp, ioc->waitreqs + i))
-				return -EFAULT;
+	if (io->oi_waitreqs) {
+		dprintk1("Has waits; waitlen %d\n", io->oi_waitlen);
+		ret = -EINVAL;
+		if (bpl == OSM_BPL_32)
+			ret = osm_maybe_wait_io_32(ofi, oi, io, &to);
+#if BITS_PER_LONG == 64
+		else if (bpl == OSM_BPL_64)
+			ret = osm_maybe_wait_io_64(of, oi, io, &to);
+#endif  /* BITS_PER_LONG == 64 */
 
-			ret = osm_maybe_wait_io(ofi, oi, iocp, &to);
-			if (ret)
-				goto out_to;
-		}
+		if (ret)
+			goto out_to;
+
 		status |= OSM_IO_WAITED;
 	}
 
-	if (ioc->completions) {
-		dprintk1("Has completes; complen %d\n", ioc->complen);
-		for (i = 0; i < ioc->complen; i++) {
-			ret = osm_complete_io(ofi, oi, &iocp);
-			if (ret)
-				goto out_to;
-			if (iocp) {
-				ret = put_user(iocp,
-					       ioc->completions + i);
-                                if (ret)
-                                    goto out_to;
-				continue;
-			}
+	if (io->oi_completions) {
+		dprintk1("Has completes; complen %d\n", io->oi_complen);
+		ret = -EINVAL;
+		if (bpl == OSM_BPL_32)
+			ret = osm_complete_ios_32(ofi, oi, io,
+						  &to, &status);
+#if BITS_PER_LONG == 64
+		else if (bpl == OSM_BPL_64)
+			ret = osm_submit_io_64(ofi, oi, io,
+					       &to, &status);
+#endif  /* BITS_PER_LONG == 64 */
 
-			i--; /* Reset this completion */
-
-			/* We had waiters that are full */
-			if (ioc->waitreqs)
-				break;
-
-			/* Early check - expensive stuff follows */
-			ret = -ETIMEDOUT;
-			if (to.timed_out)
-				break;
-
-			spin_lock_irq(&ofi->f_lock);
-			if (list_empty(&ofi->f_ios) &&
-			    list_empty(&ofi->f_complete))
-			{
-				/* No I/Os left */
-				spin_unlock_irq(&ofi->f_lock);
-				status |= OSM_IO_IDLE;
-				break;
-			}
-			spin_unlock_irq(&ofi->f_lock);
-
-			add_wait_queue(&ofi->f_wait, &wait);
-			add_wait_queue(&to.wait, &to_wait);
-			do {
-				ret = 0;
-				run_task_queue(&tq_disk);
-				set_task_state(tsk, TASK_INTERRUPTIBLE);
-
-				spin_lock_irq(&ofi->f_lock);
-				if (!list_empty(&ofi->f_complete)) {
-					spin_unlock_irq(&ofi->f_lock);
-					break;
-				}
-				spin_unlock_irq(&ofi->f_lock);
-
-				ret = -ETIMEDOUT;
-				if (to.timed_out)
-					break;
-				schedule();
-				if (signal_pending(tsk)) {
-					ret = -EINTR;
-					break;
-				}
-			} while (1);
-			set_task_state(tsk, TASK_RUNNING);
-			remove_wait_queue(&ofi->f_wait, &wait);
-			remove_wait_queue(&to.wait, &to_wait);
-		}
-		if (i >= ioc->complen)
+		if (ret >= io->oi_complen)
 			status |= OSM_IO_FULL;
+		else if (ret < 0)
+			goto out_to;
+		else {
+			ret = 0;
 #ifdef DEBUG1
-                else {
-                        if (get_user(iocp, ioc->completions + i)) {
+                        if (get_user(iocp, io->oi_completions + i)) {
                                 ret = -EFAULT;
                         }
 			if (iocp)
 				dprintk1("Next completion pointer is not null.\n");
-                }
 #endif /* DEBUG1 */
+                }
 	}
 
 out_to:
-	if (ioc->timeout)
+	if (io->oi_timeout)
 		clear_timeout(&to);
 
 out:
-	if (put_user(status, ioc->statusp))
+	if (put_user(status, (u32 *)(unsigned long)io->oi_statusp))
 		return -EFAULT;
 	return ret;
 }  /* osm_do_io() */
@@ -1869,12 +2119,15 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 }  /* osmfs_file_release() */
 
 
+/*
+ * Yes, evil ioctl()s.  seq_file doesn't work here, IMHO.
+ */
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
 	kdev_t kdv;
 	struct osmfs_file_info *ofi = OSMFS_FILE(file);
 	struct osmfs_inode_info *oi = OSMFS_INODE(inode);
-	struct osmio ioc;
+	struct osmio io;
 	struct osm_disk_query dq;
 	int ret;
 
@@ -1932,18 +2185,18 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			break;
 
 		case OSMIOC_IODISK32:
-			if (copy_from_user(&ioc, (struct osmio *)arg,
-					   sizeof(ioc)))
+			if (copy_from_user(&io, (struct osmio *)arg,
+					   sizeof(io)))
 				return -EFAULT;
-			return osm_do_io(ofi, oi, &ioc);
+			return osm_do_io(ofi, oi, &io, OSM_BPL_32);
 			break;
 
 #if BITS_PER_LONG == 64
 		case OSMIOC_IODISK64:
-			if (copy_from_user(&ioc, (struct osmio *)arg,
-					   sizeof(ioc)))
+			if (copy_from_user(&io, (struct osmio *)arg,
+					   sizeof(io)))
 				return -EFAULT;
-			return osm_do_io(ofi, oi, &ioc);
+			return osm_do_io(ofi, oi, &io, OSM_BPL_64);
 			break;
 #endif
 

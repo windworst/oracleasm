@@ -28,21 +28,20 @@
  */
 
 /*
- * osm_ioc is defined for userspace in osmlib.h and for
- * kernelspace in linux/osmstructures.h
+ * These are __u64 to handle 32<->64 pointer stuff.
  */
 struct osmio
 {
-    __u64               handle;
-    osm_ioc             **requests;
-    __u32               reqlen;
-    osm_ioc             **waitreqs;
-    __u32               waitlen;
-    osm_ioc             **completions;
-    __u32               complen;
-    __u32               intr;
-    struct timespec     *timeout;
-    unsigned int        *statusp;
+    __u64               oi_handle;	/* osm_ctx */
+    __u64               oi_requests;	/* osm_ioc ** */
+    __u64               oi_waitreqs;	/* osm_ioc ** */
+    __u64               oi_completions;	/* osm_ioc ** */
+    __u32               oi_reqlen;
+    __u32               oi_waitlen;
+    __u32               oi_complen;
+    __u32               oi_intr;
+    __u64               oi_timeout;	/* struct timespec * */
+    __u64               oi_statusp;	/* __u32 * */
 };
 
 struct osm_disk_query

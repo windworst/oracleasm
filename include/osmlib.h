@@ -1045,14 +1045,6 @@ struct osm_ioc {                                        /* I/O control block */
          * part of normal database operation. The rewind log is read for
          * unusual recovery situations. */
 
-  osm_ioc *link_osm_ioc;     /* pointer to destination osm_ioc list for copy */
-  /* If the opcode is OSM_COPY then this field points to a list of osm_ioc's
-   * to describe the destination disks and offsets. The destinations can also
-   * have a disk key and fence key to validate. The destination control block
-   * must have an opcode of OSM_WRITE. Its link_osm_ioc field could point to
-   * another write osm_ioc. If this field is null then there are no more
-   * destinations for the data. */
-  
   osm_handle disk_osm_ioc;                                 /* disk to access */
   /* This is a handle returned by osm_open for the disk to be accessed by this
    * operation. The handle must still be valid. The handle must not be closed
@@ -1073,18 +1065,6 @@ struct osm_ioc {                                        /* I/O control block */
   /* This is the number of blocks, tags, keys, or fences to transfer.  It is an
    * error if the first plus rcount is greater than the number of blocks, keys,
    * fences, or partitions. */
-
-  void   *buffer_osm_ioc;                 /* buffer address for the transfer */
-  /* This is the address of the memory buffer for this I/O operation.  The
-   * buffer may be in either shared memory or execution thread private
-   * memory. It will be aligned to the platform specific alignment required to
-   * do DMA directly to the buffer from a storage device. If the opcode is
-   * OSM_COPY then this will be null. */
-
-  osm_check *check_osm_ioc;                 /* pointer to check data/results */
-  /* If OSM_KEYCHK is set in operation_osm_ioc then this will point to an
-   * osm_check structure that describes the check to be done, and receives the
-   * actual keys if the check fails. */
 
   ub2     xor_osm_ioc;                 /* 16 bit XOR of entire data transfer */
   /* If OSM_XOR is set in operation_osm_ioc then this contains the 16 bit wide
@@ -1145,6 +1125,27 @@ struct osm_ioc {                                        /* I/O control block */
   /* This is an 8 byte field which is never modified by Oracle.  It may be
    * used by osmlib to find its internal data structure associated with this
    * control block.  */
+
+  void   *buffer_osm_ioc;                 /* buffer address for the transfer */
+  /* This is the address of the memory buffer for this I/O operation.  The
+   * buffer may be in either shared memory or execution thread private
+   * memory. It will be aligned to the platform specific alignment required to
+   * do DMA directly to the buffer from a storage device. If the opcode is
+   * OSM_COPY then this will be null. */
+
+  osm_check *check_osm_ioc;                 /* pointer to check data/results */
+  /* If OSM_KEYCHK is set in operation_osm_ioc then this will point to an
+   * osm_check structure that describes the check to be done, and receives the
+   * actual keys if the check fails. */
+
+  osm_ioc *link_osm_ioc;     /* pointer to destination osm_ioc list for copy */
+  /* If the opcode is OSM_COPY then this field points to a list of osm_ioc's
+   * to describe the destination disks and offsets. The destinations can also
+   * have a disk key and fence key to validate. The destination control block
+   * must have an opcode of OSM_WRITE. Its link_osm_ioc field could point to
+   * another write osm_ioc. If this field is null then there are no more
+   * destinations for the data. */
+  
 };
 
 

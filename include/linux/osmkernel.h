@@ -25,6 +25,8 @@
 #ifndef _OSMKERNEL_H
 #define _OSMKERNEL_H
 
+#ifdef __KERNEL__
+
 /*
  * OSM Defines
  */
@@ -85,8 +87,8 @@ struct _osm_check
 /*
  * I/O control block
  */
-typedef struct _osm_ioc osm_ioc;
-struct _osm_ioc {
+typedef struct _osm_ioc32 osm_ioc32;
+struct _osm_ioc32 {
 	__u32		ccount_osm_ioc;
 	__s32		error_osm_ioc;
 	__s32		warn_osm_ioc;
@@ -96,12 +98,9 @@ struct _osm_ioc {
 	__u8		operation_osm_ioc;
 	__u8		priority_osm_ioc;
 	__u16		hint_osm_ioc;
-	osm_ioc	       *link_osm_ioc;
 	__u64   	disk_osm_ioc;
 	__u64		first_osm_ioc;
 	__u32		rcount_osm_ioc;
-	unsigned long	buffer_osm_ioc;
-	osm_check      *check_osm_ioc;
 	__u16		xor_osm_ioc;
 	__u16		abs_osm_ioc;
 	__u32		abn_offset_osm_ioc;
@@ -109,7 +108,47 @@ struct _osm_ioc {
 	__u32		abn_mask_osm_ioc;
 	__u64		tag_osm_ioc;
 	__u64		reserved_osm_ioc;
+	__u32		buffer_osm_ioc;
+	__u32		check_osm_ioc;
+	__u32		link_osm_ioc;
 };
+
+#if BITS_PER_LONG == 32
+# define osm_ioc osm_ioc32
+#else
+# if BITS_PER_LONG == 64
+#  define osm_ioc osm_ioc64
+typedef struct _osm_ioc64 osm_ioc64;
+struct _osm_ioc64 {
+	__u32		ccount_osm_ioc;
+	__s32		error_osm_ioc;
+	__s32		warn_osm_ioc;
+	__u32		elaptime_osm_ioc;
+	__u16		status_osm_ioc;
+	__u16		flags_osm_ioc;
+	__u8		operation_osm_ioc;
+	__u8		priority_osm_ioc;
+	__u16		hint_osm_ioc;
+	__u64   	disk_osm_ioc;
+	__u64		first_osm_ioc;
+	__u32		rcount_osm_ioc;
+	__u16		xor_osm_ioc;
+	__u16		abs_osm_ioc;
+	__u32		abn_offset_osm_ioc;
+	__u32		abn_osm_ioc;
+	__u32		abn_mask_osm_ioc;
+	__u64		tag_osm_ioc;
+	__u64		reserved_osm_ioc;
+	__u64		buffer_osm_ioc;
+	__u64		check_osm_ioc;
+	__u64		link_osm_ioc;
+};
+# else
+#  error Invalid bits per long (BITS_PER_LONG)
+# endif  /* BITS_PER_LONG == 64 */
+#endif  /* BITS_PER_LONG == 32 */
+
+#endif  /* __KERNEL__ */
 
 #endif  /* _OSMKERNEL */
 

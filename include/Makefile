@@ -12,7 +12,7 @@ include $(TOPDIR)/Preamble.make
 #
 # Add any directories to recurse into via the SUBDIRS variable.
 # 
-SUBDIRS = linux asm-i386
+SUBDIRS = linux
 
 HEADERS =		\
 	oratypes.h	\
@@ -28,15 +28,14 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
 				  -e s/s390x/s390/ )
 ARCH := $(SUBARCH)
 
-asm-link: asm
+#
+# Deprecated
+#asm-link: asm
+#
+#asm:
+#	$(LN_S) asm-$(ARCH) asm
 
-asm:
-	$(LN_S) asm-$(ARCH) asm
-
-ALL_RULES = asm-link
 	
-CLEAN_FILES = asm
-
 #
 # Include this at the very end of the Makefile
 #

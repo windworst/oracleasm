@@ -34,7 +34,7 @@
 #include "oratypes.h"
 #include "osmlib.h"
 #include "osmerror.h"
-#include "asm/osmcompat32.h"
+#include "linux/osmcompat32.h"
 #include "linux/osmabi.h"
 #include "linux/osmdisk.h"
 
@@ -416,15 +416,15 @@ osm_erc osm_io(osm_ctx ctx,
     *statusp = 0;
 
     /* io.handle = what? */
-    io.requests = requests;
-    io.reqlen = reqlen;
-    io.waitreqs = waitreqs;
-    io.waitlen = waitlen;
-    io.completions = completions;
-    io.complen = complen;
-    io.intr = intr;
+    io.oi_requests = (__u64)(unsigned long)requests;
+    io.oi_reqlen = reqlen;
+    io.oi_waitreqs = (__u64)(unsigned long)waitreqs;
+    io.oi_waitlen = waitlen;
+    io.oi_completions = (__u64)(unsigned long)completions;
+    io.oi_complen = complen;
+    io.oi_intr = intr;
     if (timeout == OSM_WAIT)
-        io.timeout = NULL;
+        io.oi_timeout = (__u64)(unsigned long)NULL;
     else
     {
         if (timeout == OSM_NOWAIT)
@@ -434,9 +434,9 @@ osm_erc osm_io(osm_ctx ctx,
             ts.tv_sec = timeout / 1000000;
             ts.tv_nsec = (timeout % 1000000) * 1000;
         }
-        io.timeout = &ts;
+        io.oi_timeout = (__u64)(unsigned long)&ts;
     }
-    io.statusp = statusp;
+    io.oi_statusp = (__u64)(unsigned long)statusp;
 
     rc = ioctl(priv->fd, OSMIOC_IODISK, &io);
 
