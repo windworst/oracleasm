@@ -414,32 +414,6 @@ static void osmfs_dealloc_inode(struct super_block *sb)
 	unlock_osb(osb);
 }
 
-/* Decrements the free dentry count and returns true, or returns false
- * if there are no free dentries */
-static int osmfs_alloc_dentry(struct super_block *sb)
-{
-	struct osmfs_sb_info *osb = OSMFS_SB(sb);
-	int ret = 1;
-
-	lock_osb(osb);
-	if (!osb->max_dentries || osb->free_dentries > 0)
-		osb->free_dentries--;
-	else
-		ret = 0;
-	unlock_osb(osb);
-	
-	return ret;
-}
-
-/* Increments the free dentry count */
-static void osmfs_dealloc_dentry(struct super_block *sb)
-{
-	struct osmfs_sb_info *osb = OSMFS_SB(sb);
-	
-	lock_osb(osb);
-	osb->free_dentries++;
-	unlock_osb(osb);
-}
 
 /* If the given page can be added to the give inode for osmfs, return
  * true and update the filesystem's free page count and the inode's
@@ -583,7 +557,6 @@ struct inode *osmfs_get_inode(struct super_block *sb, int mode, int dev)
  */
 static int osmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int dev)
 {
-	struct super_block *sb = dir->i_sb;
 	struct inode * inode;
 	int error = -ENOSPC;
 
@@ -599,8 +572,6 @@ static int osmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int d
 		d_instantiate(dentry, inode);
 		dget(dentry);		/* Extra count - pin the dentry in core */
 		error = 0;
-	} else {
-		osmfs_dealloc_dentry(sb);
 	}
 
 	return error;
@@ -650,7 +621,6 @@ static int osmfs_empty(struct dentry *dentry)
  */
 static int osmfs_unlink(struct inode * dir, struct dentry *dentry)
 {
-	struct super_block *sb = dir->i_sb;
 	int retval = -ENOTEMPTY;
 
 	if (osmfs_empty(dentry)) {
@@ -658,8 +628,6 @@ static int osmfs_unlink(struct inode * dir, struct dentry *dentry)
 
 		inode->i_nlink--;
 		dput(dentry);			/* Undo the count from "create" - this does all the work */
-
-		osmfs_dealloc_dentry(sb);
 
 		retval = 0;
 	}
@@ -923,16 +891,21 @@ static void osm_finish_io(struct osm_request *r)
 {
 	struct osm_disk_info *d = r->r_disk;
 	struct osmfs_file_info *ofi = r->r_file;
-	struct osmfs_inode_info *oi = d->d_inode;
+	struct osmfs_inode_info *oi;
 
-	if (!ofi || !d || !oi)
+	if (!ofi)
 		BUG();
 
-	lock_oi(oi);
-	list_del(&r->r_queue);
-	r->r_disk = NULL;
-	unlock_oi(oi);
-	osm_put_disk(d);
+	if (d) {
+ 		oi = d->d_inode;
+		if (!oi)
+			BUG();
+		lock_oi(oi);
+		list_del(&r->r_queue);
+		r->r_disk = NULL;
+		unlock_oi(oi);
+		osm_put_disk(d);
+	}
 
 	spin_lock(&ofi->f_lock);
 	list_del(&r->r_list);
@@ -1218,16 +1191,21 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 			 struct osmfs_inode_info *oi,
 			 osm_ioc *ioc)
 {
-	int rw;
-	int ret;
+	int rw, ret, major, minorsize = 0;
 	struct osm_request *r;
 	struct osm_disk_info *d;
 	osm_ioc tmp;
 	size_t count;
 	request_queue_t *q;
 
+	if (!ioc)
+		return -EINVAL;
+
 	if (copy_from_user(&tmp, ioc, sizeof(tmp)))
 		return -EFAULT;
+
+	if (tmp.status_osm_ioc)
+		return -EINVAL;
 
 	r = osm_request_alloc();
 	if (!r)
@@ -1263,14 +1241,38 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	       HIGH_UB4(tmp.first_osm_ioc), LOW_UB4(tmp.first_osm_ioc),
 	       (unsigned long)tmp.first_osm_ioc);
 	/* linux only supports unsigned long size sector numbers */
+	printk("status: %u, buffer_osm_ioc: 0x%08lX, count: %u\n",
+	       tmp.status_osm_ioc, tmp.buffer_osm_ioc, count);
+	/* Note that priority is ignored for now */
 	ret = -EINVAL;
-	if (tmp.status_osm_ioc ||
+	if (!tmp.buffer_osm_ioc ||
 	    (tmp.buffer_osm_ioc != (unsigned long)tmp.buffer_osm_ioc) ||
 	    (tmp.first_osm_ioc != (unsigned long)tmp.first_osm_ioc) ||
 	    (tmp.rcount_osm_ioc != (unsigned long)tmp.rcount_osm_ioc) ||
+	    (tmp.priority_osm_ioc > 7) ||
 	    (count > OSM_MAX_IOSIZE) ||
 	    (count < 0))
 		goto out_error;
+
+	/* Test device size, when known. (massaged from ll_rw_blk.c) */
+	major = MAJOR(d->d_dev);
+	if (blk_size[major])
+		minorsize = blk_size[major][MINOR(d->d_dev)];
+	if (minorsize) {
+		unsigned long maxsector = (minorsize << 1) + 1;
+		unsigned long sector = (unsigned long)tmp.first_osm_ioc;
+		unsigned long blks = (unsigned long)tmp.rcount_osm_ioc;
+
+		if (maxsector < blks || maxsector - blks < sector) {
+			printk(KERN_INFO
+			       "OSM: attempt to access beyond end of device\n");
+			printk(KERN_INFO "OSM: dev [0x%03X, 0x%03X]: want=%lu, limit=%u\n",
+			       MAJOR(d->d_dev), MINOR(d->d_dev),
+			       (sector + blks) >> 1, minorsize);
+			goto out_error;
+		}
+	}
+
 
 	printk("Passed checks\n");
 
@@ -1445,20 +1447,6 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 }  /* osm_complete_io() */
 
 
-/* HACK HACK HACK */
-/* This just completes I/Os to test the code */
-static void hack_io(struct osmfs_file_info *ofi)
-{
-	struct list_head *l, *p;
-	struct osm_request *r;
-
-	list_for_each_safe(l, p, &ofi->f_ios) {
-		r = list_entry(l, struct osm_request, r_list);
-		osm_finish_io(r);
-	}
-}  /* END hack_io() HACK */
-
-
 static int osm_do_io(struct osmfs_file_info *ofi,
 		     struct osmfs_inode_info *oi,
 		     struct osmio *ioc)
@@ -1468,22 +1456,8 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 	__u32 status = 0;
 	osm_ioc *iocp;
 
-#if 0
-	/* HACK HACK HACK */
-	/* Without actual I/O, this fakes I/O completion */
-
-	printk("Pre-hack_io()\n");
-	osmdump_file(ofi);
-	hack_io(ofi);
-	printk("Post-hack_io()\n");
-	osmdump_file(ofi);
-#else
 	printk("OSM: Entering osm_do_io()\n");
 	osmdump_file(ofi);
-#endif
-
-	/* END HACK */
-
 
 	ret = 0;
 	if (ioc->requests) {
@@ -1520,6 +1494,16 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 				i--; /* Reset this completion */
 				if (ioc->waitreqs)
 					break;
+				spin_lock(&ofi->f_lock);
+				if (list_empty(&ofi->f_ios) &&
+				    list_empty(&ofi->f_complete))
+				{
+					/* No I/Os left */
+					spin_unlock(&ofi->f_lock);
+					status |= OSM_IO_IDLE;
+					break;
+				}
+				spin_unlock(&ofi->f_lock);
 				/* FIXME: Wait on some I/Os */
 				schedule();
 			}

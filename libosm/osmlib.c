@@ -370,6 +370,9 @@ osm_erc osm_io(osm_ctx ctx,
     struct osmio io;
     int rc;
 
+    if (!priv || *statusp)
+        return OSM_ERR_INVAL;
+
     /* io.handle = what? */
     io.requests = requests;
     io.reqlen = reqlen;
@@ -378,12 +381,45 @@ osm_erc osm_io(osm_ctx ctx,
     io.completions = completions;
     io.complen = complen;
     io.intr = intr;
-    io.timeout = timeout;
+    io.timeout.tv_sec = timeout / 1000000;
+    io.timeout.tv_nsec = (timeout % 1000000) * 1000;
     io.statusp = statusp;
 
     rc = ioctl(priv->fd, OSMIOC_IODISK, &io);
 
-    err = rc ? OSM_ERR_INVAL : 0;
+    if (rc)
+    {
+        switch (errno)
+        {
+            default:
+                fprintf(stderr, "OSM: Invalid error of %d!\n", errno);
+                err = OSM_ERR_INVAL;
+                break;
+    
+            case EFAULT:
+                err = OSM_ERR_FAULT;
+                break;
+    
+            case EIO:
+                err = OSM_ERR_IO;
+                break;
+    
+            case ENODEV:
+                err = OSM_ERR_NODEV;
+                break;
+    
+            case ENOMEM:
+                err = OSM_ERR_NOMEM;
+                break;
+    
+            case EINVAL:
+                err = OSM_ERR_INVAL;
+                break;
+	}
+    }
+    else
+        err = OSM_ERR_NONE;
+
     return err;
 }  /* osm_io() */
 

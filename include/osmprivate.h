@@ -50,7 +50,7 @@ struct osmio
     osm_ioc             **completions;
     unsigned long       complen;
     __u32               intr;
-    __u32               timeout;
+    struct timespec     timeout;
     __u32               *statusp;
 };
 
