@@ -1,6 +1,11 @@
 
 2003-12-17	Joel Becker <joel.becker@oracle.com>
 
+	* test/asm{bad,profile,test,test-multi}.c: OSM -> ASM.
+	* test/sizes.c: OSM -> ASM.
+
+2003-12-17	Joel Becker <joel.becker@oracle.com>
+
 	* tools/Makefile: OSM -> ASM.
 	* tools/asmscan.c: osmlib.h -> asmlib.h.
 	* tools/asmtool.c: osmlib.h -> asmlib.h.
