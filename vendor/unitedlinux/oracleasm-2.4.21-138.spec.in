@@ -34,7 +34,7 @@
 
 # This must be changed to the minimum ABI compat kernel version expected
 %define base		2.4.21
-%define sver		111
+%define sver		138
 %define kver		%{base}-%{sver}
 
 Summary: The Oracle Automatic Storage Management library driver.
