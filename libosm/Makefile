@@ -6,7 +6,7 @@ LIBRARIES = libosm.so
 
 VERSION_FLAGS = -DVERSION="\"${VERSION}\""
 CPPFLAGS = -DLINUX ${VERSION_FLAGS} $(DEFS)
-CFLAGS = -Wall -g -O2
+CFLAGS = -Wall -g -O2 -fPIC
 
 INCLUDES = -I. -I$(TOPDIR)/include
 

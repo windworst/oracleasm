@@ -45,7 +45,7 @@ module_link()
     # Assume any symlink is OK - caveat emptor for non-RPM users
     test -L "${MODPATH}/osm.o" && return
 
-    echo -n "Linking OSM module into the module path"
+    echo -n "Linking OSM module into the module path "
 
     # Same deal for modules that are physically there
     if test -f "${MODPATH}/osm.o" ; then

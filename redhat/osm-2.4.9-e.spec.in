@@ -112,10 +112,17 @@ debugging kernels.
 %endif
 
 
+%package -n osm-lib
+Summary: Userspace library for the Oracle Storage Manager
+Group: System Environment/Kernel
+AutoReqProv: no
+Requires: glibc >= 2.2.4
+
 %package -n osm-support
 Summary: Tools for managing the Oracle Storage Manager
 Group: System Environment/Kernel
-AutoReqProv: Yes
+AutoReqProv: no
+Requires: glibc >= 2.2.4
 
 
 %description -n osm-support
@@ -228,6 +235,18 @@ make DESTDIR="$RPM_BUILD_ROOT" MODULEDIR="/lib/modules/%{base}-summit-ABI/osm" i
 mkdir -p $RPM_BUILD_ROOT/etc/init.d
 cp -f redhat/osm.init $RPM_BUILD_ROOT/etc/init.d/osm
 
+if [ "%{_lib}" = "lib64" ]
+then
+    BPL=64
+elif [ "${RPM_ARCH}" = "ia64" ]
+then
+    BPL=64
+else
+    BPL=32
+fi
+mkdir -p ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1
+cp libosm/libosm.so ${RPM_BUILD_ROOT}/opt/extapi/${BPL}/asm/orcl/1/
+
 cd tools
 make DESTDIR="$RPM_BUILD_ROOT" install
 
@@ -236,35 +255,59 @@ make DESTDIR="$RPM_BUILD_ROOT" install
 rm -rf "$RPM_BUILD_ROOT"
 
 
+%post -n osm-support
+chkconfig osm on
+/etc/init.d/osm linc
+
+
 %if %{buildup}
+%post
+/etc/init.d/osm link
+
 %files
 %defattr(-,root,root)
 /lib/modules/%{base}-ABI/osm
 %endif
 
 %if %{buildsmp}
+%post smp
+/etc/init.d/osm link
+
 %files smp
 %defattr(-,root,root)
 /lib/modules/%{base}-smp-ABI/osm
 %endif
 
 %if %{buildenterprise}
+%post enterprise
+/etc/init.d/osm link
+
 %files enterprise
 %defattr(-,root,root)
 /lib/modules/%{base}-enterprise-ABI/osm
 %endif
 
 %if %{buildsummit}
+%post summit
+/etc/init.d/osm link
+
 %files summit
 %defattr(-,root,root)
 /lib/modules/%{base}-summit-ABI/osm
 %endif
 
 %if %{builddebug}
+%post debug
+/etc/init.d/osm link
+
 %files debug
 %defattr(-,root,root)
 /lib/modules/%{base}-debug-ABI/osm
 %endif
+
+%files -n osm-lib
+%defattr(-,root,root)
+/opt/extapi
 
 %files -n osm-support
 %defattr(-,root,root)
@@ -274,6 +317,9 @@ rm -rf "$RPM_BUILD_ROOT"
 
 
 %changelog
+* Mon Jun 23 2003 Joel Becker <joel.becker@oracle.com>
+- Added osm-lib bits
+
 * Fri Jun 20 2003 Joel Becker <joel.becker@oracle.com>
 - Initial RPM
 

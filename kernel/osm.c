@@ -43,7 +43,7 @@
 
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
-#endif
+#endif  /* PAGE_CACHE_SIZE % 1024 */
 
 #define IBLOCKS_PER_PAGE  (PAGE_CACHE_SIZE / 512)
 #define K_PER_PAGE (PAGE_CACHE_SIZE / 1024)
@@ -75,7 +75,7 @@
 #  define osm_maybe_wait_io_32	osm_maybe_wait_io_thunk
 #  define osm_maybe_wait_io_64	osm_maybe_wait_io_native
 #  define osm_complete_ios_32	osm_complete_ios_thunk
-#  define osm_complete_ios_32	osm_complete_ios_native
+#  define osm_complete_ios_64	osm_complete_ios_native
 # endif  /* BITS_PER_LONG == 64 */
 #endif  /* BITS_PER_LONG == 32 */
 
@@ -215,9 +215,9 @@ struct osm_request {
 };
 
 
-#ifdef RED_HAT_LINUX_KERNEL
-#else
-#include <linux/kernel_stat.h>
+#ifdef CONFIG_UNITED_LINUX_KERNEL
+# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+#  include <linux/kernel_stat.h>
 void submit_bh_blknr(int rw, struct buffer_head * bh)
 {
 	int count = bh->b_size >> 9;
@@ -249,7 +249,10 @@ void submit_bh_blknr(int rw, struct buffer_head * bh)
 	}
 	conditional_schedule();
 }
-#endif
+# else
+#  error Invalid United Linux kernel
+# endif  /* LINUX_VERSION_CODE */
+#endif  /* CONFIG_UNITED_LINUX_KERNEL */
 
 
 /*
@@ -1189,13 +1192,13 @@ static int osm_build_io(int rw, struct osm_request *r,
 	kdev_t		dev = r->r_disk->d_dev;
 	unsigned	sector_size = get_hardsect_size(dev);
 	int		i;
-#ifndef RED_HAT_LINUX_KERNEL
- #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+#ifdef CONFIG_UNITED_LINUX_KERNEL
+# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 	unsigned int    atomic_seq;
- #else
-  #error invalid SuSE? kernel
- #endif
-#endif
+# else
+#  error Invalid United Linux kernel
+# endif  /* LINUX_VERSION_CODE */
+#endif  /* CONFIG_UNITED_LINUX_KERNEL */
 
 	if (!vec->nr)
 		BUG();
@@ -1228,13 +1231,13 @@ static int osm_build_io(int rw, struct osm_request *r,
 		return -EINVAL;
 	}
 
-#ifndef RED_HAT_LINUX_KERNEL
- #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+#ifdef CONFIG_UNITED_LINUX_KERNEL
+# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 	atomic_seq = blk_get_atomic_seq();
- #else
-  #error Invalid SuSE? kernel
- #endif
-#endif
+# else
+#  error Invalid United Linux kernel
+# endif  /* LINUX_VERSION_CODE */
+#endif  /* CONFIG_UNITED_LINUX_KERNEL */
 	
 	r->r_bh_count = 0;
 
@@ -1271,13 +1274,13 @@ static int osm_build_io(int rw, struct osm_request *r,
 		tmp->b_next = tmp->b_reqnext = NULL;
 		atomic_set(&tmp->b_count, 1);
 
-#ifndef RED_HAT_LINUX_KERNEL
- #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
+#ifdef CONFIG_UNITED_LINUX_KERNEL
+# if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
 		bh_elv_seq(tmp) = atomic_seq;
- #else
-  #error Invalid SuSE? kernel
- #endif
-#endif
+# else
+#  error Invalid United Linux kernel
+# endif  /* LINUX_VERSION_CODE */
+#endif  /* CONFIG_UNITED_LINUX_KERNEL */
 
 		if (rw == WRITE) {
 			set_bit(BH_Uptodate, &tmp->b_state);
@@ -1312,18 +1315,18 @@ static int osm_build_io(int rw, struct osm_request *r,
                 {
                     r->r_bhtail->b_next = tmp;
 #ifdef RED_HAT_LINUX_KERNEL
- #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)
+# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20))
                     r->r_bhtail->b_reqnext = tmp;
- #else
-  #error invalid Red Hat Linux kernel
- #endif
-#endif
+# else
+#  error Invalid Red Hat Linux kernel
+# endif  /* LINUX_VERSION_CODE */
+#endif  /* RED_HAT_LINUX_KERNEL */
                 }
                 else
                     r->r_bh = tmp;
 
                 r->r_bhtail = tmp;
-#endif
+#endif /* 0 */
 		r->r_bh_count++;
 	} /* End of page loop */		
 
@@ -1348,7 +1351,8 @@ error:
 
 static int osm_submit_io(struct osmfs_file_info *ofi, 
 			 struct osmfs_inode_info *oi,
-			 osm_ioc *iocp, osm_ioc *ioc)
+			 osm_ioc *user_iocp,
+                         osm_ioc *ioc)
 {
 	int ret, major, rw = READ, minorsize = 0;
 	struct osm_request *r;
@@ -1368,7 +1372,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 		return -ENOMEM;
 
 	r->r_file = ofi;
-	r->r_ioc = iocp;  /* Userspace osm_ioc */
+	r->r_ioc = user_iocp;  /* Userspace osm_ioc */
 
 	spin_lock_irq(&ofi->f_lock);
 	list_add(&r->r_list, &ofi->f_ios);
@@ -1469,23 +1473,25 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
         bh = r->r_bh;
 #ifdef RED_HAT_LINUX_KERNEL
- #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)
+# if (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)) || (LINUX_VERSION_CODE == KERNEL_VERSION(2,4,20))
         submit_bh_linked(rw, bh);
- #else
-  #error Invalid Red Hat Linux kernel
- #endif
+# else
+#  error Invalid Red Hat Linux kernel
+# endif  /* LINUX_VERSION_CODE */
 #else
- #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19) /* Pray it's UL */
+# ifdef CONFIG_UNITED_LINUX_KERNEL
+#  if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19)
         while (bh)
         {
             submit_bh_blknr(rw, bh);
             bh = bh->b_next;
         }
 	blk_refile_atomic_queue(bh_elv_seq(r->r_bh));
- #else
-  #error Invalid SuSE? kernel
- #endif
-#endif
+#  else
+#   error Invalid United Linux kernel
+#  endif  /* LINUX_VERSION_CODE */
+# endif  /* CONFIG_UNITED_LINUX_KERNEL */
+#endif  /* RED_HAT_LINUX_KERNEL */
 
 	r->r_status |= OSM_SUBMITTED;
 
@@ -1640,11 +1646,11 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 }  /* osm_complete_io() */
 
 
-static inline int osm_wait_completion(struct osmfs_file_info *ofi,
-		   		      struct osmfs_inode_info *oi,
-			  	      struct osmio *io,
-				      struct timeout *to,
-				      u32 *status)
+static int osm_wait_completion(struct osmfs_file_info *ofi,
+                               struct osmfs_inode_info *oi,
+                               struct osmio *io,
+                               struct timeout *to,
+                               u32 *status)
 {
 	int ret;
 	struct task_struct *tsk = current;
@@ -1833,7 +1839,7 @@ static inline int osm_submit_io_thunk(struct osmfs_file_info *ofi,
 
 		osm_promote_64(&tmp);
 
-		ret = osm_submit_io(ofi, oi, iocp, &tmp);
+		ret = osm_submit_io(ofi, oi, (osm_ioc *)iocp, &tmp);
 		if (ret)
 			break;
 	}
@@ -1862,9 +1868,9 @@ static inline int osm_maybe_wait_io_thunk(struct osmfs_file_info *ofi,
 			return -EFAULT;
 
 		/* Remember, the this is pointing to 32bit userspace */
-		iocp = (osm_ioc32 *)(unsigned long)iocp_32;
+		iocp = (osm_ioc *)(unsigned long)iocp_32;
 
-		ret = osm_maybe_wait_io(ofi, oi, iocp, &to);
+		ret = osm_maybe_wait_io(ofi, oi, iocp, to);
 		if (ret)
 			break;
 	}
@@ -1971,7 +1977,7 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 			ret = osm_maybe_wait_io_32(ofi, oi, io, &to);
 #if BITS_PER_LONG == 64
 		else if (bpl == OSM_BPL_64)
-			ret = osm_maybe_wait_io_64(of, oi, io, &to);
+			ret = osm_maybe_wait_io_64(ofi, oi, io, &to);
 #endif  /* BITS_PER_LONG == 64 */
 
 		if (ret)
@@ -1988,8 +1994,8 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 						  &to, &status);
 #if BITS_PER_LONG == 64
 		else if (bpl == OSM_BPL_64)
-			ret = osm_submit_io_64(ofi, oi, io,
-					       &to, &status);
+			ret = osm_complete_ios_64(ofi, oi, io,
+                                                  &to, &status);
 #endif  /* BITS_PER_LONG == 64 */
 
 		if (ret >= io->oi_complen)
@@ -2198,7 +2204,7 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 				return -EFAULT;
 			return osm_do_io(ofi, oi, &io, OSM_BPL_64);
 			break;
-#endif
+#endif  /* BITS_PER_LONG == 64 */
 
 		case OSMIOC_DUMP:
 			/* Dump data */
