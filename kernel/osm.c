@@ -38,11 +38,6 @@
 #include "osmprivate.h"
 #include "osmerror.h"
 
-#if defined(RED_HAT_LINUX_KERNEL)
-#include "blk-rhas21.c"
-#else
-#error No blk-<ver>.c file!
-#endif
 
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
@@ -186,11 +181,73 @@ struct osm_request {
 	struct buffer_head *r_bh;		/* I/O buffers */
 	struct buffer_head *r_bhtail;		/* tail of buffers */
 	unsigned long r_bh_count;		/* Number of buffers */
-	unsigned long r_seg_count;		/* sg segments */
 	atomic_t r_io_count;			/* Atomic count */
 };
 
 
+#ifdef RED_HAT_LINUX_KERNEL
+/* Hacks until they EXPORT_SYMBOL() */
+#include <linux/kernel_stat.h>
+void submit_bh_rsector(int rw, struct buffer_head * bh)
+{
+	int count = bh->b_size >> 9;
+
+	if (!test_bit(BH_Lock, &bh->b_state))
+		BUG();
+
+	set_bit(BH_Req, &bh->b_state);
+
+	/*
+	 * First step, 'identity mapping' - RAID or LVM might
+	 * further remap this.
+	 */
+	bh->b_rdev = bh->b_dev;
+
+	generic_make_request(rw, bh);
+
+	switch (rw) {
+		case WRITE:
+			kstat.pgpgout += count;
+			break;
+		default:
+			kstat.pgpgin += count;
+			break;
+	}
+}
+#else
+#include <linux/kernel_stat.h>
+void submit_bh_blknr(int rw, struct buffer_head * bh)
+{
+	int count = bh->b_size >> 9;
+
+	if (!test_bit(BH_Lock, &bh->b_state))
+		BUG();
+
+	if (buffer_delay(bh) || !buffer_mapped(bh))
+		BUG();
+
+	set_bit(BH_Req, &bh->b_state);
+
+	/*
+	 * First step, 'identity mapping' - RAID or LVM might
+	 * further remap this.
+	 */
+	bh->b_rdev = bh->b_dev;
+	bh->b_rsector = bh->b_blocknr;
+
+	generic_make_request(rw, bh);
+
+	switch (rw) {
+		case WRITE:
+			kstat.pgpgout += count;
+			break;
+		default:
+			kstat.pgpgin += count;
+			break;
+	}
+	conditional_schedule();
+}
+#endif
 
 /*
  * Hashing.  Here's the problem.  When node 2 opens a disk, we need to
@@ -470,22 +527,10 @@ void osmfs_dealloc_page(struct inode *inode, struct page *page)
 
 static int osmfs_statfs(struct super_block *sb, struct statfs *buf)
 {
-#if 0
-	struct osmfs_sb_info *osb = OSMFS_SB(sb);
-
-	lock_osb(osb);
-	buf->f_blocks = osb->max_pages;
-	buf->f_files = osb->max_inodes;
-
-	buf->f_bfree = osb->free_pages;
-	buf->f_bavail = buf->f_bfree;
-	buf->f_ffree = osb->free_inodes;
-	unlock_osb(osb);
-#endif
-
 	buf->f_type = OSMFS_MAGIC;
 	buf->f_bsize = PAGE_CACHE_SIZE;
 	buf->f_namelen = 255;
+
 	return 0;
 }
 
@@ -565,11 +610,6 @@ static int osmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, int d
 {
 	struct inode * inode;
 	int error = -ENOSPC;
-
-#if 0  /* ramfs cruft */
-	if (! osmfs_alloc_dentry(sb))
-		return error;
-#endif
 
 	dprintk("OSM: Alloc'd dentry\n");
 	inode = osmfs_get_inode(dir->i_sb, mode, dev);
@@ -1090,60 +1130,6 @@ static void osm_end_kvec_io(void *_req, struct kvec *vec, ssize_t res)
 }  /* osm_end_kvec_io() */
 
 
-static int osm_submit_request(request_queue_t *q, int rw,
-			      struct osm_request *r,
-			      unsigned long first, unsigned long nr)
-{
-	struct request *req;
-
-	if (!r->r_bh || !r->r_bhtail || ! r->r_bh_count)
-		BUG();
-
-	dprintk("OSM: Queue:0x%p, Lock:0x%p\n", q, q->queue_lock);
-	dprintk("OSM: get_request\n");
-	req = get_request_wait(q, rw);
-
-	dprintk("OSM: take lock\n");
-	dprintk("OSM: r_bh_count = %ld\n", r->r_bh_count);
-
-	IO_REQUEST_LOCK(q);
-
-	q->plug_device_fn(q, r->r_bh->b_rdev); /* is atomic */
-
-	req->cmd = rw;
-	req->errors = 0;
-	req->hard_sector = req->sector = first;
-	req->hard_nr_sectors = req->nr_sectors = nr;
-	req->current_nr_sectors = req->hard_cur_sectors =
-		r->r_bh->b_size >> 9;
-	req->nr_segments = r->r_seg_count;
-	dprintk("OSM: nr_segments = %u\n", req->nr_segments);
-       	req->nr_hw_segments = 1;
-	req->buffer = r->r_bh->b_data;
-	req->waiting = NULL;
-	req->bh = r->r_bh;
-	req->bhtail = r->r_bhtail;
-	if (req->bhtail->b_reqnext)
-		BUG();
-	req->rq_dev = r->r_bh->b_rdev;
-	req->start_time = jiffies;
-
-	blk_started_io(req->nr_sectors);
-
-	/*
-	 * account_start_io() and friends not handled, because
-	 * they suck and are static functions
-	 */
-
-	/* FIXME: Do something smarter than "add to end" */
-	add_request(q, req, q->queue_head.prev);
-
-	IO_REQUEST_UNLOCK(q);
-
-	return 0;
-}  /* osm_submit_request() */
-
-
 static void osm_end_buffer_io(struct buffer_head *bh, int uptodate)
 {
 	struct osm_request *r;
@@ -1159,8 +1145,7 @@ static void osm_end_buffer_io(struct buffer_head *bh, int uptodate)
 }  /* osm_end_buffer_io() */
 
 
-static int osm_build_io(request_queue_t *q, int rw,
-			struct osm_request *r,
+static int osm_build_io(int rw, struct osm_request *r,
 			unsigned long blknr, unsigned long nr)
 {
 	struct kvec	*vec = r->r_cb.vec;
@@ -1202,7 +1187,7 @@ static int osm_build_io(request_queue_t *q, int rw,
 		return -EINVAL;
 	}
 
-	r->r_bh_count = r->r_seg_count = 0;
+	r->r_bh_count = 0;
 
 	/* This is massaged from fs/buffer.c.  Blame Ben. */
 	/* This is ugly.  FIXME. */
@@ -1210,7 +1195,7 @@ static int osm_build_io(request_queue_t *q, int rw,
 		struct page *page = veclet->page;
 		unsigned offset = veclet->offset;
 		unsigned iosize = veclet->length;
-		struct buffer_head *tmp, *iobh;
+		struct buffer_head *tmp;
 	       
 		if (!page)
 			BUG();
@@ -1227,15 +1212,14 @@ static int osm_build_io(request_queue_t *q, int rw,
 
 		init_buffer(tmp, osm_end_buffer_io, NULL);
 
-		/* This is why it has to be a real disk */
-		tmp->b_dev = tmp->b_rdev = dev;
+		tmp->b_dev = dev;
 		tmp->b_blocknr = tmp->b_rsector = blknr;
 
 		blknr += (iosize / sector_size);
 		tmp->b_state = (1 << BH_Mapped) | (1 << BH_Lock)
 				| (1 << BH_Req);
 		tmp->b_private = r;
-		tmp->b_reqnext = NULL;
+		tmp->b_next = tmp->b_reqnext = NULL;
 		atomic_set(&tmp->b_count, 1);
 
 		if (rw == WRITE) {
@@ -1243,6 +1227,7 @@ static int osm_build_io(request_queue_t *q, int rw,
 			clear_bit(BH_Dirty, &tmp->b_state);
 		}
 
+#if 0 /* delete later */
 		/* Make tmp a bounce buffer if needed */
 		iobh = blk_queue_bounce(q, rw, tmp);
 		if (iobh != tmp) {
@@ -1251,12 +1236,10 @@ static int osm_build_io(request_queue_t *q, int rw,
 		}
 
 		if (r->r_bh) {
-#if 1
 			if (!BH_CONTIG(r->r_bhtail, iobh) ||
 			    !BH_PHYS_4G(r->r_bhtail, iobh)) {
 				r->r_seg_count++;
 			}
-#endif
 
 			r->r_bhtail->b_reqnext = iobh;
 			r->r_bhtail = iobh;
@@ -1266,9 +1249,18 @@ static int osm_build_io(request_queue_t *q, int rw,
 		}
 		/* Keep a list of original buffers */
 		tmp->b_next = r->r_buffers;
-		r->r_buffers = tmp;
+#else
+                if (r->r_bh)
+                    r->r_bhtail->b_next = tmp;
+                else
+                    r->r_bh = tmp;
+
+                r->r_bhtail = tmp;
+#endif
 		r->r_bh_count++;
 	} /* End of page loop */		
+
+	r->r_buffers = r->r_bh;
 
 	atomic_set(&r->r_io_count, r->r_bh_count);
 
@@ -1278,7 +1270,7 @@ error:
 	/* Walk bh list, freeing them */
 	while (r->r_bh) {
 		struct buffer_head *tmp = r->r_bh;
-		r->r_bh = tmp->b_reqnext;
+		r->r_bh = tmp->b_next;
 		kmem_cache_free(bh_cachep, tmp);
 	}
 	r->r_bhtail = NULL;
@@ -1291,12 +1283,12 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 			 struct osmfs_inode_info *oi,
 			 osm_ioc *ioc)
 {
-	int rw, ret, major, minorsize = 0;
+	int ret, major, rw = READ, minorsize = 0;
 	struct osm_request *r;
 	struct osm_disk_info *d;
 	osm_ioc tmp;
 	size_t count;
-	request_queue_t *q;
+        struct buffer_head *bh;
 
 	if (!ioc)
 		return -EINVAL;
@@ -1381,12 +1373,12 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 			break;
 
 		case OSM_NOOP:
-			/* FIXME: Do something */
-			return 0;
+                        /* Trigger an errorless completion */
+                        count = 0;
 			break;
 	}
 	
-	/* Not really an error, but hey, it's and end_io call */
+	/* Not really an error, but hey, it's an end_io call */
 	ret = 0;
 	if (count == 0)
 		goto out_error;
@@ -1400,15 +1392,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 		goto out_error;
 	}
 
-	ret = -ENODEV;
-	q = blk_get_queue(r->r_disk->d_dev);
-	if (!q) {
-		printk(KERN_ERR
-		       "OSM: osm_submit_request: Attempt to access nonexistent block device [0x%02X, 0x%02X]\n", MAJOR(r->r_bh->b_rdev), MINOR(r->r_bh->b_rdev));
-		goto out_error;
-	}
-
-	ret = osm_build_io(q, rw, r,
+	ret = osm_build_io(rw, r,
 			   tmp.first_osm_ioc, tmp.rcount_osm_ioc);
 	dprintk("OSM: Return from buildio is %d\n", ret);
 	if (ret)
@@ -1416,10 +1400,24 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	r->r_elapsed = jiffies;  /* Set start time */
 
-	ret = osm_submit_request(q, rw, r,
-				 tmp.first_osm_ioc, tmp.rcount_osm_ioc);
-	if (ret) 
-		goto out_error;
+        bh = r->r_bh;
+        while (bh)
+        {
+#ifdef RED_HAT_LINUX_KERNEL
+ #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,9)
+            submit_bh_rsector(rw, bh);
+ #else
+  #error Invalid Red Hat Linux kernel
+ #endif
+#else
+ #if LINUX_VERSION_CODE == KERNEL_VERSION(2,4,19) /* Pray it's UL */
+            submit_bh_blknr(rw, bh);
+ #else
+  #error Invalid SuSE? kernel
+ #endif
+#endif
+            bh = bh->b_next;
+        }
 
 	r->r_status |= OSM_SUBMITTED;
 
@@ -1823,10 +1821,6 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
 {
 	kdev_t kdv;
-#if 0 /* allow partitions */
-	struct gendisk *g;
-	int drive, first_minor;
-#endif
 	unsigned long handle;
 	struct osmfs_file_info *ofi = OSMFS_FILE(file);
 	struct osmfs_inode_info *oi = OSMFS_INODE(inode);
@@ -1848,15 +1842,6 @@ static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned i
 			if (!SCSI_DISK_MAJOR(MAJOR(kdv)))
 				return -EINVAL;
 
-#if 0 /* allow partitions */
-			g = get_gendisk(kdv);
-			if (!g)
-				return -ENXIO;
-			drive = (MINOR(kdv) >> g->minor_shift);
-			first_minor = (drive << g->minor_shift);
-			if (first_minor != MINOR(kdv))
-				return -EINVAL;
-#endif
 			dq.dq_maxio = OSM_MAX_IOSIZE;
 			if (copy_to_user((struct osm_disk_query *)arg,
 					 &dq, sizeof(dq)))

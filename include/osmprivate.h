@@ -27,7 +27,7 @@
  */
 #define OSMLIB_NAME "OSM Library - Generic Linux"
 #define OSMLIB_MAJOR 0  /* Version should be updated to Oracle style */
-#define OSMLIB_MINOR 2
+#define OSMLIB_MINOR 3
 #define OSMLIB_MICRO 0
 
 /*
