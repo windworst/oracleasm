@@ -26,6 +26,21 @@
 #define _OSMKERNEL_H
 
 /*
+ * OSM Defines
+ */
+#define OSM_BUSY         0x0001                       /* too busy to process */
+#define OSM_SUBMITTED    0x0002          /* request submitted for processing */
+#define OSM_COMPLETED    0x0004                         /* request completed */
+#define OSM_FREE         0x0008                            /* memory is free */
+#define OSM_CANCELLED    0x0010                         /* request cancelled */
+#define OSM_ERROR        0x0020              /* request failed with an error */
+#define OSM_PARTIAL      0x0040                   /* only a partial transfer */
+#define OSM_BADKEY       0x0080                         /* disk key mismatch */
+#define OSM_FENCED       0x0100      /* I/O was not allowed by the fence key */
+
+
+
+/*
  * Disk/Fence Keys - (unused as yet)
  */
 typedef struct _osm_check osm_check;
@@ -76,6 +91,7 @@ struct _osm_ioc {
 	} reserved_osm_ioc_u;
 #define reserved_osm_ioc_high reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_0
 #define reserved_osm_ioc_low reserved_osm_ioc_u.reserved_osm_ioc_4.reserved_osm_ioc_4_1
+#define request_key_osm_ioc reserved_osm_ioc_low
 };
 
 #endif  /* _OSMKERNEL */

@@ -353,6 +353,35 @@ out:
 }  /* osm_close() */
 
 
+osm_erc osm_io(osm_ctx ctx,
+               osm_ioc *requests[], uword reqlen,
+               osm_ioc *waitreqs[], uword waitlen,
+               osm_ioc *completions[], uword complen,
+               ub4 intr, ub4 timeout, uword *statusp)
+{
+    osm_erc err;
+    osm_ctx_private *priv = (osm_ctx_private *)ctx;
+    struct osmio io;
+    int rc;
+
+    /* io.handle = what? */
+    io.requests = requests;
+    io.reqlen = reqlen;
+    io.waitreqs = waitreqs;
+    io.waitlen = waitlen;
+    io.completions = completions;
+    io.complen = complen;
+    io.intr = intr;
+    io.timeout = timeout;
+    io.statusp = statusp;
+
+    rc = ioctl(priv->fd, OSMIOC_IODISK, &io);
+
+    err = rc ? OSM_ERR_INVAL : 0;
+    return err;
+}  /* osm_io() */
+
+
 /*
  * Error code strings must be kept in sync with osmerror.h
  */
@@ -377,7 +406,7 @@ osm_erc osm_error(osm_ctx ctx, osm_erc errcode,
     osm_erc err;
 
     err = OSM_ERR_INVAL;
-    if (!ctx || !errbuf || (eblen < 1))
+    if (!errbuf || (eblen < 1))
         goto out;
 
     if (errcode >= OSM_ERR_NONE)

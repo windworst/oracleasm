@@ -45,16 +45,22 @@
 /* some random number */
 #define OSMFS_MAGIC	0x958459f6
 
+/* Debugging is on */
+#define DEBUG 1
+
 static struct super_operations osmfs_ops;
 static struct address_space_operations osmfs_aops;
 static struct file_operations osmfs_dir_operations;
 static struct file_operations osmfs_file_operations;
 static struct inode_operations osmfs_dir_inode_operations;
 
+static kmem_cache_t	*osm_request_cachep;
+
 /*
  * osmfs super-block data in memory
  */
 struct osmfs_sb_info {
+	struct super_block *osmfs_super;
 	/* Prevent races accessing the used block
 	 * counts. Conceptually, this could probably be a semaphore,
 	 * but the only thing we do while holding the lock is
@@ -84,6 +90,7 @@ struct osmfs_sb_info {
 
 
 struct osmfs_file_info {
+	struct file *f_file;
 	spinlock_t f_lock;		/* Lock on the structure */
 	struct list_head f_ctx;		/* Hook into the i_threads list */
 	struct list_head f_ios;		/* Outstanding I/Os for this thread */
@@ -101,6 +108,7 @@ struct osmfs_file_info {
  * Note that 'thread' here can mean 'process' too :-)
  */
 struct osmfs_inode_info {
+	struct inode *i_inode;
 	spinlock_t i_lock;		/* lock on the osmfs_inode_info structure */
 	struct list_head disk_hash[OSM_HASH_BUCKETS]; /* Hash of disk handles */
 	struct list_head i_threads;	/* list of context structures for each calling thread */
@@ -114,10 +122,12 @@ struct osmfs_inode_info {
  * osm disk info
  */
 struct osm_disk_info {
+	struct osmfs_inode_info *d_inode;
 	struct list_head d_hash;
 	kdev_t dev;
 	atomic_t d_count;
 	struct list_head d_open;	/* List of assocated osm_disk_heads */
+	struct list_head d_ios;
 };
 
 
@@ -139,6 +149,7 @@ struct osm_disk_head {
 
 struct osm_request {
 	struct list_head r_list;
+	struct list_head r_queue;
 	struct osmfs_file_info *r_file;
 	struct osm_disk_info *r_disk;
 	osm_ioc *r_ioc;				/* User osm_ioc */
@@ -243,9 +254,11 @@ static inline struct osm_disk_info *osm_add_disk(struct osmfs_inode_info *oi, kd
 	}
 out:
 	if (!d) {
+		n->d_inode = oi;
 		n->dev = dev;
 		atomic_set(&n->d_count, 1);
 		INIT_LIST_HEAD(&n->d_open);
+		INIT_LIST_HEAD(&n->d_ios);
 
 		list_add(&n->d_hash, l);
 		d = n;
@@ -263,7 +276,7 @@ static inline void osm_put_disk(struct osm_disk_info *d)
 	if (!d)
 		BUG();
 
-	if (!atomic_dec_and_test(&d->d_count)) {
+	if (atomic_dec_and_test(&d->d_count)) {
 		printk("OSM: Freeing disk 0x%.8lX\n", (unsigned long)d->dev);
 		if (!list_empty(&d->d_open))
 			BUG();
@@ -271,6 +284,79 @@ static inline void osm_put_disk(struct osm_disk_info *d)
 		kfree(d);
 	}
 }  /* osm_put_disk() */
+
+
+#ifdef DEBUG
+/* Debugging code */
+static void osmdump_file(struct osmfs_file_info *ofi)
+{
+	struct list_head *p;
+	struct osm_disk_head *h;
+	struct osm_disk_info *d;
+	struct osm_request *r;
+
+	printk("OSM: Dumping osmfs_file_info 0x%p\n", ofi);
+	printk("OSM: Opened disks:\n");
+	list_for_each(p, &ofi->f_disks) {
+		h = list_entry(p, struct osm_disk_head, h_flist);
+		d = h->h_disk;
+		printk("OSM: 	0x%p [0x%02X, 0x%02X]\n",
+		       d, MAJOR(d->dev), MINOR(d->dev));
+	}
+	spin_lock(&ofi->f_lock);
+	printk("OSM: Pending I/Os:\n");
+	list_for_each(p, &ofi->f_ios) {
+		r = list_entry(p, struct osm_request, r_list);
+		d = r->r_disk;
+		printk("OSM:	0x%p (against [0x%02X, 0x%02X])\n",
+		       r, MAJOR(d->dev), MINOR(d->dev));
+	}
+
+	printk("OSM: Complete I/Os:\n");
+	list_for_each(p, &ofi->f_complete) {
+		r = list_entry(p, struct osm_request, r_list);
+		printk("OSM:	0x%p\n", r);
+	}
+
+	spin_unlock(&ofi->f_lock);
+}  /* osmdump_file() */
+
+static void osmdump_inode(struct osmfs_inode_info *oi)
+{
+	int i;
+	struct list_head *p, *q, *hash;
+	struct osm_disk_info *d;
+	struct osm_disk_head *h;
+	struct osmfs_file_info *f;
+
+	printk("OSM: Dumping osmfs_inode_info 0x%p\n", oi);
+	printk("OSM: Open threads:\n");
+	list_for_each(p, &oi->i_threads) {
+		f = list_entry(p, struct osmfs_file_info, f_ctx);
+		printk("OSM:	0x%p\n", f);
+	}
+
+	printk("OSM: Known disks:\n");
+	for (i = 0; i < OSM_HASH_BUCKETS; i++) {
+		hash = &(oi->disk_hash[i]);
+		if (list_empty(hash))
+			continue;
+		list_for_each(p, hash) {
+			d = list_entry(p, struct osm_disk_info, d_hash);
+			printk("OSM: 	0x%p, [0x%02X, 0x%02X]\n",
+			       d, MAJOR(d->dev), MINOR(d->dev));
+			printk("OSM:	Owners:\n");
+			list_for_each(q, &d->d_open) {
+				h = list_entry(q, struct osm_disk_head,
+					       h_dlist);
+				f = h->h_file;
+				printk("OSM:		0x%p\n", f);
+			}
+		}
+	}
+}  /* osmdump_inode() */
+#endif
+
 
 
 /*
@@ -433,6 +519,7 @@ struct inode *osmfs_get_inode(struct super_block *sb, int mode, int dev)
 	if (inode) {
 		oi = kmalloc(sizeof(struct osmfs_inode_info),
 			     GFP_KERNEL);
+		oi->i_inode = inode;
 
 		for (i = 0; i < OSM_HASH_BUCKETS; i++)
 			INIT_LIST_HEAD(&(oi->disk_hash[i]));
@@ -757,19 +844,173 @@ static int osm_disk_close(struct osmfs_file_info *ofi, struct osmfs_inode_info *
 }  /* osm_disk_close() */
 
 
+static int osm_update_user_ioc(struct osm_request *r)
+{
+	osm_ioc *ioc;
+
+	ioc = r->r_ioc;
+	printk("OSM: User IOC is 0x%p\n", ioc);
+
+	printk("Putting r_status (0x%08X)\n", r->r_status);
+	if (put_user(r->r_status, &(ioc->status_osm_ioc)))
+		return -EFAULT;
+	if (r->r_status & OSM_ERROR) {
+		if (put_user(r->r_error, &(ioc->error_osm_ioc)))
+			return -EFAULT;
+	}
+	if (r->r_status & OSM_COMPLETED) {
+		if (put_user(r->r_elapsed, &(ioc->elaptime_osm_ioc)))
+			return -EFAULT;
+	}
+	printk("r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
+	       r->r_status,
+	       (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR),
+	       (r->r_status & (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR)));
+	if (r->r_status & OSM_FREE) {
+		if (put_user(0UL, &(ioc->request_key_osm_ioc)))
+			return -EFAULT;
+	} else if ((r->r_status &
+		    (OSM_SUBMITTED | OSM_COMPLETED | OSM_ERROR)) ==
+		   OSM_SUBMITTED) {
+		printk("Putting key 0x%p\n", r);
+		/* Only on first submit */
+		if (put_user(r, &(ioc->request_key_osm_ioc)))
+			return -EFAULT;
+	}
+
+	return 0;
+}  /* osm_update_user_ioc() */
+
+
+static struct osm_request *osm_request_alloc()
+{
+	return kmem_cache_alloc(osm_request_cachep, GFP_KERNEL);
+}  /* osm_request_alloc() */
+
+
+static void osm_request_free(struct osm_request *r)
+{
+	/* FIXME: Clean up bh and buffer stuff */
+
+	kmem_cache_free(osm_request_cachep, r);
+}  /* osm_request_free() */
+
+
 static int osm_submit_io(struct osmfs_file_info *ofi, 
 			 struct osmfs_inode_info *oi,
 			 osm_ioc *ioc)
 {
-	return 0;
+	long ret;
+	struct osm_request *r;
+	struct osm_disk_info *d;
+	osm_ioc tmp;
+
+	if (copy_from_user(&tmp, ioc, sizeof(tmp)))
+		return -EFAULT;
+
+	if (tmp.status_osm_ioc)
+		return -EINVAL;
+
+	ret = -ENOMEM;
+	r = osm_request_alloc();
+	if (!r)
+		goto out;
+
+	r->r_status = 0;
+	r->r_file = ofi;
+	r->r_ioc = ioc;
+	
+	ret = -EINVAL;
+	d = osm_find_disk(oi, REAL_HANDLE(tmp.disk_osm_ioc));
+	if (!d)
+		goto out_free;
+
+	r->r_disk = d;
+	
+	/* FIXME: Build the I/O */
+
+	lock_oi(oi);
+	list_add(&r->r_queue, &d->d_ios);
+	unlock_oi(oi);
+
+	spin_lock(&ofi->f_lock);
+	list_add(&r->r_list, &ofi->f_ios);
+	spin_unlock(&ofi->f_lock);
+
+	/* FIXME: Actually queue the I/O */
+
+	r->r_status |= OSM_SUBMITTED;
+
+	ret = osm_update_user_ioc(r);
+	goto out;
+
+out_free:
+	osm_request_free(r);
+
+out:
+	return ret;
 }  /* osm_submit_io() */
 
 
 static int osm_maybe_wait_io(struct osmfs_file_info *ofi, 
 			     struct osmfs_inode_info *oi,
-			     osm_ioc *ioc)
+			     osm_ioc *iocp)
 {
-	return 0;
+	long ret;
+	unsigned long p;
+	struct osm_request *r;
+
+	printk("OSM: Entering wait_io()\n");
+	if (get_user(p, &(iocp->request_key_osm_ioc)))
+		return -EFAULT;
+
+	printk("OSM: User key is 0x%p\n", (struct osm_request *)p);
+	r = (struct osm_request *)p;
+	if (!r)
+		return -EINVAL;
+
+	/* Is it valid? */
+	if (!r->r_file || (r->r_file != ofi) ||
+	    (r->r_list.next == &r->r_list))
+		return -EINVAL;
+
+	printk("OSM: osm_request is valid...we think\n");
+	if (!(r->r_status & (OSM_COMPLETED | OSM_BUSY | OSM_ERROR))) {
+		/* FIXME: Wait */
+	}
+
+	spin_lock(&ofi->f_lock);
+
+	if (list_empty(&ofi->f_complete))
+		BUG();
+#ifdef DEBUG
+	{
+		/* Check that the request is on ofi->f_complete */
+		struct list_head *p;
+		struct osm_request *q;
+		q = NULL;
+		list_for_each(p, &ofi->f_complete) {
+			q = list_entry(p, struct osm_request, r_list);
+			if (q == r)
+				break;
+			q = NULL;
+		}
+		if (!q)
+			BUG();
+	}
+#endif  /* DEBUG */
+
+	printk("OSM: Removing request 0x%p\n", r);
+	list_del_init(&r->r_list);
+	r->r_file = NULL;
+	spin_unlock(&ofi->f_lock);
+
+	ret = osm_update_user_ioc(r);
+
+	printk("OSM: Freeing request 0x%p\n", r);
+	osm_request_free(r);
+
+	return ret;
 }  /* osm_maybe_wait_io() */
 
 
@@ -789,30 +1030,64 @@ static int osm_complete_io(struct osmfs_file_info *ofi,
 		return 0;
 	}
 
-	l = ofi->f_complete.next;
-	list_del(l);
-	spin_unlock(&ofi->f_lock);
+	l = ofi->f_complete.prev;
 	r = list_entry(l, struct osm_request, r_list);
+	list_del_init(&r->r_list);
+	r->r_file = NULL;
+	spin_unlock(&ofi->f_lock);
+
 	*ioc = r->r_ioc;
+	
+#ifdef DEBUG
+	if (!(r->r_status & (OSM_FREE | OSM_ERROR)))
+		BUG();
+#endif /* DEBUG */
 
-	ret = put_user(r->r_status, &((*ioc)->status_osm_ioc));
-	if (ret)
-		goto out_free;
-	ret = put_user(r->r_error, &((*ioc)->error_osm_ioc));
-	if (ret)
-		goto out_free;
-	ret = put_user(r->r_elapsed, &((*ioc)->elaptime_osm_ioc));
-	if (ret)
-		goto out_free;
-	ret = put_user(0UL, &((*ioc)->reserved_osm_ioc_low));
-	if (!ret)
-		goto out_free;
+	ret = osm_update_user_ioc(r);
 
-out_free:
-	/* FIXME: Free the osm_request */
+	osm_request_free(r);
 
 	return ret;
 }  /* osm_complete_io() */
+
+
+static void osm_finish_io(struct osm_request *r)
+{
+	struct osm_disk_info *d = r->r_disk;
+	struct osmfs_file_info *ofi = r->r_file;
+	struct osmfs_inode_info *oi = d->d_inode;
+
+	if (!ofi || !d || !oi)
+		BUG();
+
+	lock_oi(oi);
+	list_del(&r->r_queue);
+	r->r_disk = NULL;
+	unlock_oi(oi);
+	osm_put_disk(d);
+
+	r->r_status |= (OSM_COMPLETED | OSM_FREE);
+
+	spin_lock(&ofi->f_lock);
+	list_del(&r->r_list);
+	list_add(&r->r_list, &ofi->f_complete);
+	spin_unlock(&ofi->f_lock);
+}  /* osm_finish_io() */
+
+
+/* HACK HACK HACK */
+/* This just completes I/Os to test the code */
+static void hack_io(struct osmfs_file_info *ofi)
+{
+	struct list_head *l, *p;
+	struct osm_request *r;
+
+	list_for_each_safe(l, p, &ofi->f_ios) {
+		r = list_entry(l, struct osm_request, r_list);
+
+		osm_finish_io(r);
+	}
+}  /* END hack_io() HACK */
 
 
 static int osm_do_io(struct osmfs_file_info *ofi,
@@ -821,16 +1096,28 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 {
 	long ret = 0;
 	__u32 i;
-	osm_ioc *iocp, tmp;
+	osm_ioc *iocp;
 
+	/* HACK HACK HACK */
+	/* Without actual I/O, this fakes I/O completion */
+
+	printk("Pre-hack_io()\n");
+	osmdump_file(ofi);
+	hack_io(ofi);
+	printk("Post-hack_io()\n");
+	osmdump_file(ofi);
+
+	/* END HACK */
+
+
+	ret = 0;
 	if (ioc->requests) {
 		for (i = 0; i < ioc->reqlen; i++) {
 			if (get_user(iocp, ioc->requests + i))
 				return -EFAULT;
-			if (copy_from_user(&tmp, iocp, sizeof(tmp)))
-				return -EFAULT;
-
-			ret = osm_submit_io(ofi, oi, &tmp);
+			ret = osm_submit_io(ofi, oi, iocp);
+			if (ret)
+				goto out;
 		}
 	}
 
@@ -838,10 +1125,10 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 		for (i = 0; i < ioc->waitlen; i++) {
 			if (get_user(iocp, ioc->waitreqs + i))
 				return -EFAULT;
-			if (copy_from_user(&tmp, iocp, sizeof(tmp)))
-				return -EFAULT;
 
-			ret = osm_maybe_wait_io(ofi, oi, &tmp);
+			ret = osm_maybe_wait_io(ofi, oi, iocp);
+			if (ret)
+				goto out;
 		}
 	}
 
@@ -862,8 +1149,8 @@ static int osm_do_io(struct osmfs_file_info *ofi,
 		}
 	}
 
-
-	return 0;
+out:
+	return ret;
 }  /* osm_do_io() */
 
 
@@ -879,6 +1166,7 @@ static int osmfs_file_open(struct inode * inode, struct file * file)
 						GFP_KERNEL);
 	if (!ofi)
 		return -ENOMEM;
+	ofi->f_file = file;
 	spin_lock_init(&ofi->f_lock);
 	INIT_LIST_HEAD(&ofi->f_ctx);
 	INIT_LIST_HEAD(&ofi->f_disks);
@@ -903,6 +1191,7 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	struct list_head *p, *q;
 	struct osm_disk_head *h;
 	struct osm_disk_info *d;
+	struct osm_request *r;
 
 	oi = OSMFS_INODE(inode);
 	ofi = OSMFS_FILE(file);
@@ -928,66 +1217,24 @@ static int osmfs_file_release(struct inode * inode, struct file * file)
 	list_del(&ofi->f_ctx);
 	unlock_oi(oi);
 
+	if (!list_empty(&ofi->f_ios))
+		printk("OSM: There are still I/Os on ofi 0x%p\n", ofi);
+	
+	/* I don't *think* we need the lock */
+	spin_lock(&ofi->f_lock);
+	while (!list_empty(&ofi->f_complete)) {
+		p = ofi->f_complete.prev;
+		r = list_entry(p, struct osm_request, r_list);
+		list_del(&r->r_list);
+		r->r_file = NULL;
+		osm_request_free(r);
+	}
+	spin_unlock(&ofi->f_lock);
 
 	kfree(ofi);
 
 	return 0;
 }  /* osmfs_file_release() */
-
-
-#if 1
-/* Debugging code */
-static void osmdump_file(struct osmfs_file_info *ofi)
-{
-	struct list_head *p;
-	struct osm_disk_head *h;
-	struct osm_disk_info *d;
-
-	printk("OSM: Dumping osmfs_file_info 0x%p\n", ofi);
-	printk("OSM: Opened disks:\n");
-	list_for_each(p, &ofi->f_disks) {
-		h = list_entry(p, struct osm_disk_head, h_flist);
-		d = h->h_disk;
-		printk("OSM: 	0x%p [0x%02X, 0x%02X]\n",
-		       d, MAJOR(d->dev), MINOR(d->dev));
-	}
-}  /* osmdump_file() */
-
-static void osmdump_inode(struct osmfs_inode_info *oi)
-{
-	int i;
-	struct list_head *p, *q, *hash;
-	struct osm_disk_info *d;
-	struct osm_disk_head *h;
-	struct osmfs_file_info *f;
-
-	printk("OSM: Dumping osmfs_inode_info 0x%p\n", oi);
-	printk("OSM: Open threads:\n");
-	list_for_each(p, &oi->i_threads) {
-		f = list_entry(p, struct osmfs_file_info, f_ctx);
-		printk("OSM:	0x%p\n", f);
-	}
-
-	printk("OSM: Known disks:\n");
-	for (i = 0; i < OSM_HASH_BUCKETS; i++) {
-		hash = &(oi->disk_hash[i]);
-		if (list_empty(hash))
-			continue;
-		list_for_each(p, hash) {
-			d = list_entry(p, struct osm_disk_info, d_hash);
-			printk("OSM: 	0x%p, [0x%02X, 0x%02X]\n",
-			       d, MAJOR(d->dev), MINOR(d->dev));
-			printk("OSM:	Owners:\n");
-			list_for_each(q, &d->d_open) {
-				h = list_entry(q, struct osm_disk_head,
-					       h_dlist);
-				f = h->h_file;
-				printk("OSM:		0x%p\n", f);
-			}
-		}
-	}
-}  /* osmdump_inode() */
-#endif
 
 
 static int osmfs_file_ioctl(struct inode * inode, struct file * file, unsigned int cmd, unsigned long arg)
@@ -1146,6 +1393,7 @@ static struct super_block *osmfs_read_super(struct super_block * sb, void * data
 	if (!osb)
 		return NULL;
 
+	osb->osmfs_super = sb;
 	osb->next_iid = 1;
 	spin_lock_init(&osb->osmfs_lock);
 
@@ -1187,12 +1435,20 @@ static DECLARE_FSTYPE(osmfs_fs_type, "osmfs", osmfs_read_super, FS_LITTER);
 
 static int __init init_osmfs_fs(void)
 {
+	osm_request_cachep =
+		kmem_cache_create("osm_request",
+				  sizeof(struct osm_request),
+				  0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	if (!osm_request_cachep)
+		panic("Unable to create osm_request cache\n");
+
 	return register_filesystem(&osmfs_fs_type);
 }
 
 static void __exit exit_osmfs_fs(void)
 {
 	unregister_filesystem(&osmfs_fs_type);
+	kmem_cache_destroy(osm_request_cachep);
 }
 
 module_init(init_osmfs_fs)
