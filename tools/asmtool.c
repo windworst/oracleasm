@@ -42,6 +42,8 @@
 #include <sys/statfs.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <limits.h>
 #include <errno.h>
 
 #include <linux/types.h>
@@ -134,7 +136,7 @@ static int mark_disk(int fd, struct asm_disk_label *adl,
 static int unmark_disk(int fd, struct asm_disk_label *adl);
 static char *asm_disk_id(struct asm_disk_label *adl);
 static int delete_disk_by_name(const char *manager,
-                               const char *disk,
+                               char *disk,
                                ASMToolAttrs *attrs);
 static int delete_disk_by_device(const char *manager,
                                  const char *target,
@@ -142,19 +144,19 @@ static int delete_disk_by_device(const char *manager,
 static int make_disk(const char *manager, const char *disk,
                      const char *target);
 static int unlink_disk(const char *manager, const char *disk);
-static int create_disk(const char *manager, const char *disk,
+static int create_disk(const char *manager, char *disk,
                        const char *target, ASMToolAttrs *attrs);
-static int delete_disk(const char *manager, const char *object,
+static int delete_disk(const char *manager, char *object,
                        ASMToolAttrs *attrs);
 static int get_info_asmdisk_by_device(const char *manager,
                                       const char *target,
                                       ASMToolAttrs *attrs);
 static int get_info_asmdisk_by_name(const char *manager,
-                                    const char *disk,
+                                    char *disk,
                                     ASMToolAttrs *attrs);
-static int get_info_asmdisk(const char *manager, const char *object,
+static int get_info_asmdisk(const char *manager, char *object,
                             ASMToolAttrs *attrs);
-static int get_info(const char *manager, const char *object,
+static int get_info(const char *manager, char *object,
                     const char *stype, ASMToolAttrs *attrs);
 static int is_manager(const char *filename);
 static int list_managers();
@@ -404,13 +406,22 @@ static char *asm_disk_id(struct asm_disk_label *adl)
 }  /* asm_disk_id() */
 
 
-static int delete_disk_by_name(const char *manager, const char *disk,
+static int delete_disk_by_name(const char *manager, char *disk,
                                ASMToolAttrs *attrs)
 {
-    int rc, fd = -1;
+    int c, rc, fd = -1;
     char *asm_disk;
     struct asm_disk_label adl;
 
+    rc = -EINVAL;
+    c = asmdisk_toupper(disk, -1, 0);
+    if (c)
+    {
+        fprintf(stderr,
+                "asmtool: ASM disk name contains an invalid character: \"%c\"\n",
+                c);
+        goto out;
+    }
     rc = -ENOMEM;
     asm_disk = asm_disk_path(manager, disk);
     if (!asm_disk)
@@ -602,9 +613,9 @@ static int delete_disk_by_device(const char *manager,
         else
         {
             /*
-             * Ok, if /dev/foo was labeled 'vol1', and opening
-             * <manager>/disks/vol1 yields the same st_rdev as /dev/foo,
-             * Then <manager>/disks/vol1 is, indeed, the associated
+             * Ok, if /dev/foo was labeled 'VOL1', and opening
+             * <manager>/disks/VOL1 yields the same st_rdev as /dev/foo,
+             * Then <manager>/disks/VOL1 is, indeed, the associated
              * ASM disk.  Now let's blow it away.
              */
             rc = unlink_disk(manager, id);
@@ -709,7 +720,7 @@ static int unlink_disk(const char *manager, const char *disk)
 }  /* unlink_disk() */
 
 
-static int create_disk(const char *manager, const char *disk,
+static int create_disk(const char *manager, char *disk,
                        const char *target, ASMToolAttrs *attrs)
 {
     int rc, fd;
@@ -722,10 +733,12 @@ static int create_disk(const char *manager, const char *disk,
                 "asmtool: You must specify an ASM disk name (-n).\n");
         return -EINVAL;
     }
-    if (strchr(disk, '/'))
+    rc = asmdisk_toupper(disk, -1, 0);
+    if (rc)
     {
-        fprintf(stderr, "asmtool: Invalid ASM disk name: \"%s\"\n",
-                disk);
+        fprintf(stderr,
+                "asmtool: Invalid character in ASM disk name: \"%c\"\n",
+                rc);
         return -EINVAL;
     }
     if (!target || !*target)
@@ -810,7 +823,7 @@ out:
 }  /* create_disk() */
 
 
-static int delete_disk(const char *manager, const char *object,
+static int delete_disk(const char *manager, char *object,
                        ASMToolAttrs *attrs)
 {
     int rc;
@@ -832,14 +845,23 @@ static int delete_disk(const char *manager, const char *object,
 
 
 static int get_info_asmdisk_by_name(const char *manager,
-                                    const char *disk,
+                                    char *disk,
                                     ASMToolAttrs *attrs)
 {
-    int rc, fd;
+    int c, rc, fd;
     char *label, *asm_disk;
     struct asm_disk_label adl;
 
     rc = -EINVAL;
+    c = asmdisk_toupper(disk, -1, 0);
+    if (c)
+    {
+        fprintf(stderr,
+                "asmtool: ASM disk name contains an invalid character: \"%c\"\n",
+                c);
+        goto out;
+    }
+
     label = (char *)attr_string(&attrs->attr_list, "label", NULL);
     if (label && strcmp(disk, label))
     {
@@ -993,7 +1015,7 @@ out:
 }  /* get_info_asmdisk_by_device() */
 
 
-static int get_info_asmdisk(const char *manager, const char *object,
+static int get_info_asmdisk(const char *manager, char *object,
                             ASMToolAttrs *attrs)
 {
     if (strchr(object, '/'))
@@ -1003,7 +1025,7 @@ static int get_info_asmdisk(const char *manager, const char *object,
 }  /* get_info_asmdisk() */
 
 
-static int get_info(const char *manager, const char *object,
+static int get_info(const char *manager, char *object,
                     const char *stype, ASMToolAttrs *attrs)
 {
     int rc;

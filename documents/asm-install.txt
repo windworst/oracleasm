@@ -94,13 +94,16 @@ going to be accessing needs to be made available.  This is accomplished
 by creating an ASM disk.  The /etc/init.d/oracleasm script is again
 used for this task:
 
-	[root@ca-test1 /]# /etc/init.d/oracleasm createdisk vol1 /dev/sdg
-	Creating Oracle ASM disk "vol1"                            [  OK  ]
+	[root@ca-test1 /]# /etc/init.d/oracleasm createdisk VOL1 /dev/sdg
+	Creating Oracle ASM disk "VOL1"                            [  OK  ]
+
+Disk names are ASCII capital letters, numbers, and underscores.  They
+must start with a letter.
 
 Disks that are no longer used by ASM can be unmarked as well:
 
-	[root@ca-test1 /]# /etc/init.d/oracleasm deletedisk vol1
-	Deleting Oracle ASM disk "vol1"                            [  OK  ]
+	[root@ca-test1 /]# /etc/init.d/oracleasm deletedisk VOL1
+	Deleting Oracle ASM disk "VOL1"                            [  OK  ]
 
 Any operating system disk can be queried to see if it is used by ASM:
 
@@ -112,11 +115,11 @@ Any operating system disk can be queried to see if it is used by ASM:
 Existing disks can be listed and queried:
 
 	[root@ca-test1 /]# /etc/init.d/oracleasm listdisks
-	vol1
-	vol2
-	vol3
-	[root@ca-test1 /]# /etc/init.d/oracleasm querydisk vol1
-	Checking for ASM disk "vol1"                               [  OK  ]
+	VOL1
+	VOL2
+	VOL3
+	[root@ca-test1 /]# /etc/init.d/oracleasm querydisk VOL1
+	Checking for ASM disk "VOL1"                               [  OK  ]
 
 When a disk is added to a RAC setup, the other nodes need to be notified
 about it.  Run the 'createdisk' command on one node, and then run
@@ -131,9 +134,9 @@ about it.  Run the 'createdisk' command on one node, and then run
 ASMLib uses discovery strings to determine what disks ASM is asking for.
 The generic Linux ASMLib uses glob strings.  The string must be prefixed
 with "ORCL:".  Disks are specified by name.  A disk created with the
-name "vol1" can be discovered in ASM via the discovery string
-"ORCL:vol1".  Similarly, all disks that start with the string "vol" can
-be queried with the discovery string "ORCL:vol*".
+name "VOL1" can be discovered in ASM via the discovery string
+"ORCL:VOL1".  Similarly, all disks that start with the string "VOL" can
+be queried with the discovery string "ORCL:VOL*".
 
 Disks cannot be discovered with path names in the discovery string.  If
 the prefix is missing, the generic Linux ASMLib will ignore the

@@ -44,6 +44,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <libgen.h>
+#include <ctype.h>
+#include <limits.h>
 #include <errno.h>
 
 #include <linux/types.h>

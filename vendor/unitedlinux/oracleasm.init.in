@@ -196,13 +196,14 @@ case "$1" in
             echo "Action \"createdisk\" requires two arguments" >&2
             exit 1
         fi
+        UPDISK="`upper_disk "$2"`"
         make_disk "$2" "$3"
         if [ $? = 1 ]
         then
-            if_fail 1 "Unable to create disk \"$2\""
+            if_fail 1 "Unable to create disk \"$UPDISK\""
         fi
-        perm_disk "${ORACLE_ASMMANAGER}/disks/$2"
-        if_fail $? "Unable to change ownership of disk \"$2\""
+        perm_disk "${ORACLE_ASMMANAGER}/disks/$UPDISK"
+        if_fail $? "Unable to change ownership of disk \"$UPDISK\""
         ;;
 
     deletedisk)
@@ -211,8 +212,9 @@ case "$1" in
             echo "Action \"deletedisk\" requires an argument" >&2
             exit 1
         fi
-        remove_disk "$2"
-        if_fail $? "Unable to delete disk \"$2\""
+        UPDISK="`upper_disk "$2"`"
+        remove_disk "$UPDISK"
+        if_fail $? "Unable to delete disk \"$UPDISK\""
         ;;
 
     listdisks)
@@ -225,7 +227,8 @@ case "$1" in
             echo "Action \"querydisk\" requires an argument" >&2
             exit 1
         fi
-        check_disk "$2"
+        UPDISK="`upper_disk "$2"`"
+        check_disk "$UPDISK"
         ;;
 
     scandisks)

@@ -1,6 +1,16 @@
 
 2004-02-25	Joel Becker <joel.becker@oracle.com>
 
+	* include/linux/asmdisk.h: Evil case-insensitive stuff.
+	* include/linux/asmerror.h: Invalid discovery strings.
+	* tools/asmtool.c: Evil case-insensitive stuff.
+	* documents/asm-install.txt: Updated to reflect allcaps.
+	* vendor/redhat/oracleasm.init.in: Uppercase.
+	* vendor/unitedlinux/oracleasm.init.in: Uppercase.
+	* vendor/common/oracleasm.init.functions: upper_disk().
+
+2004-02-25	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: 1.0.1 version
 	* vendor/redhat/oracleasm.init.in: RHEL3 firewire kernels.
 

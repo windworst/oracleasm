@@ -77,6 +77,7 @@ enum _ASMErrors
     ASM_ERR_PERM	= 1,	/* Operation not permitted */
     ASM_ERR_NOMEM	= 2,	/* Out of memory */
     ASM_ERR_IO          = 3,    /* I/O error */
+    ASM_ERR_DSCVR       = 4,    /* Bad discovery string */
 };
 
 #endif  /* _ASMERROR_H */

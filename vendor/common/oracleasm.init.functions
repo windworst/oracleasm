@@ -435,6 +435,16 @@ EOF
 
 
 #
+# upper_disk()
+# Make a disk name uppercase
+#
+upper_disk()
+{
+    echo "$1" | tr '[a-z]' '[A-Z]'
+}
+
+
+#
 # make_disk()
 # Creates an ASM disk.
 #

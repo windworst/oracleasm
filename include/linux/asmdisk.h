@@ -85,4 +85,55 @@ struct asm_disk_label {
 	char dl_id[24];
 };
 
+#ifndef __KERNEL__
+/* 
+ * Why?
+ * label_asm_name is defined as a SQL identifier.  That is, it is
+ * case insensitive.  It is also defined as ASCII only.  Disk names
+ * are what become label_asm_name.  So for the user's convenience (sic),
+ * we blatantly promote to uppercase.
+ */
+static inline int asmdisk_toupper(unsigned char *str, ssize_t len,
+				  int glob)
+{
+	int count, c;
+
+	if (len < 0)
+		len = INT_MAX;
+	count = 0;
+	for (count = 0; (count < len) && str[count]; count++)
+	{
+		c = str[count];
+		if (!isascii(c))
+			return -ERANGE;
+		/* This is super-ASCII-specific */
+		if (c == '_')
+			continue;
+		if (glob &&
+		    ((c == '*') || (c == '?') ||
+		     (c == '[') || (c == ']') ||
+		     (c == '\\') || (c == '-')))
+			continue;
+		if (c < '0')
+			return c;
+		if (c <= '9')
+			continue;
+		if (c < 'A')
+			return c;
+		if (c <= 'Z')
+			continue;
+		if (c < '_')
+			return c;
+		if ((c < 'a') || (c > 'z'))
+			return c;
+		str[count] = (unsigned char)(c - ('a' - 'A'));
+	}
+
+	if ((count) && ((str[0] < 'A') || (str[0] > 'Z')))
+		return str[0];
+
+	return 0;
+}
+#endif  /* __KERNEL__ */
+
 #endif  /* _ASMDISK_H */
