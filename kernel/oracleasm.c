@@ -577,59 +577,6 @@ static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode, stru
 	return 0;
 }
 
-
-static inline int asmfs_positive(struct dentry *dentry)
-{
-	return dentry->d_inode && !d_unhashed(dentry);
-}
-
-/*
- * Check that a directory is empty (this works
- * for regular files too, they'll just always be
- * considered empty..).
- *
- * Note that an empty directory can still have
- * children, they just all have to be negative..
- */
-static int asmfs_empty(struct dentry *dentry)
-{
-	struct list_head *list;
-
-	spin_lock_irq(&dcache_lock);
-	list = dentry->d_subdirs.next;
-
-	while (list != &dentry->d_subdirs) {
-		struct dentry *de = list_entry(list, struct dentry, d_child);
-
-		if (asmfs_positive(de)) {
-			spin_unlock_irq(&dcache_lock);
-			return 0;
-		}
-		list = list->next;
-	}
-	spin_unlock_irq(&dcache_lock);
-	return 1;
-}
-
-/*
- * This works for both directories and regular files.
- * (non-directories will always have empty subdirs)
- */
-static int asmfs_unlink(struct inode * dir, struct dentry *dentry)
-{
-	int retval = -ENOTEMPTY;
-
-	if (asmfs_empty(dentry)) {
-		struct inode *inode = dentry->d_inode;
-
-		inode->i_nlink--;
-		dput(dentry);			/* Undo the count from "create" - this does all the work */
-
-		retval = 0;
-	}
-	return retval;
-}
-
 static void asmfs_put_super(struct super_block *sb)
 {
 	kfree(ASMFS_SB(sb));
