@@ -1044,6 +1044,13 @@ static int osm_submit_request(request_queue_t *q, int rw,
 	req->rq_dev = r->r_bh->b_rdev;
 	req->start_time = jiffies;
 
+	blk_started_io(req->nr_sectors);
+
+	/*
+	 * account_start_io() and friends not handled, because
+	 * they suck and are static functions
+	 */
+
 	/* FIXME: Do something smarter than "add to end" */
 	add_request(q, req, q->queue_head.prev);
 
@@ -1252,6 +1259,9 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	count = tmp.rcount_osm_ioc * get_hardsect_size(d->d_dev);
 
+	printk("first, 0x%08lX.%08lX; masked 0x%08lX\n",
+	       HIGH_UB4(tmp.first_osm_ioc), LOW_UB4(tmp.first_osm_ioc),
+	       (unsigned long)tmp.first_osm_ioc);
 	/* linux only supports unsigned long size sector numbers */
 	ret = -EINVAL;
 	if (tmp.status_osm_ioc ||
@@ -1261,6 +1271,8 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 	    (count > OSM_MAX_IOSIZE) ||
 	    (count < 0))
 		goto out_error;
+
+	printk("Passed checks\n");
 
 	switch (tmp.operation_osm_ioc) {
 		default:
@@ -1302,7 +1314,7 @@ static int osm_submit_io(struct osmfs_file_info *ofi,
 
 	ret = osm_build_io(q, rw, r,
 			   tmp.first_osm_ioc, tmp.rcount_osm_ioc);
-	printk("Return from buildio is %d\n", ret);
+	printk("OSM: Return from buildio is %d\n", ret);
 	if (ret)
 		goto out_error;
 

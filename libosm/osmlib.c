@@ -219,6 +219,7 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
     glob_t *globbuf;
     char *path;
     int rc, fd, len, to_clear;
+    unsigned long size;
     struct stat stat_buf;
 
     err = OSM_ERR_INVAL;
@@ -243,9 +244,11 @@ osm_erc osm_fetch(osm_ctx ctx, osm_name *name)
                 rc = ioctl(priv->fd, OSMIOC_ISDISK, &(stat_buf.st_rdev));
                 if (!rc)
                 {
-                    rc = ioctl(fd, BLKGETSIZE, &(pname->size_osm_name));
+                    /* Use size temporary for ub4 platforms */
+                    rc = ioctl(fd, BLKGETSIZE, &size);
                     if (!rc)
                     {
+                        pname->size_osm_name = size;
                         rc = ioctl(fd, BLKSSZGET,
                                    &(pname->blksz_osm_name));
                         if (!rc)
