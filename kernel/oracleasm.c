@@ -32,6 +32,7 @@
 #include <linux/genhd.h>
 #include <linux/blk.h>
 #include <linux/blkdev.h>
+#include <linux/smp_lock.h>
 
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
@@ -2448,10 +2449,66 @@ static void __init init_asmfs_dir_operations(void) {
 };
 
 
+#ifdef CONFIG_COMPAT  /* 64 bit module handling 32bit userspace */
+static int compat_ioctls [] = {
+	ASMIOC_GETIID,
+	ASMIOC_CHECKIID,
+	ASMIOC_QUERYDISK,
+	ASMIOC_OPENDISK,
+	ASMIOC_CLOSEDISK,
+	ASMIOC_IODISK32,
+	ASMIOC_IODISK64
+};
+
+static int __init init_asmfs_ioctl32(void) {
+	int ret, i;
+	int num = sizeof(compat_ioctls) / sizeof(*compat_ioctls);
+
+#if defined(__powerpc64__) && \
+	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
+	lock_kernel();
+#endif
+	for (i = 0; i < num; i++) {
+		ret = register_ioctl32_conversion(compat_ioctls[i],
+						  NULL);
+		if (ret)
+			break;
+	}
+	if (ret) {
+		for (num = i, i = 0; i < num; i++) {
+			unregister_ioctl32_conversion(compat_ioctls[i]);
+		}
+	}
+#if defined(__powerpc64__)  && \
+	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
+	unlock_kernel();
+#endif
+	return ret;
+}
+
+static void __exit exit_asmfs_ioctl32(void) {
+	int i;
+	int num = sizeof(compat_ioctls) / sizeof(*compat_ioctls);
+#if defined(__powerpc64__) && \
+	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
+	lock_kernel();
+#endif
+	for (i = 0; i < num; i++) {
+		unregister_ioctl32_conversion(compat_ioctls[i]);
+	}
+#if defined(__powerpc64__)  && \
+	(LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)) /* UGH! */
+	unlock_kernel();
+#endif
+}
+#endif  /* CONFIG_COMPAT */
+
 static DECLARE_FSTYPE(asmfs_fs_type, "oracleasmfs", asmfs_read_super, FS_LITTER);
 
 static int __init init_asmfs_fs(void)
 {
+	int ret;
+
 	LOG("sizeof asm_ioc32: %u\n", sizeof(asm_ioc32));
 	asm_request_cachep =
 		kmem_cache_create("asm_request",
@@ -2460,14 +2517,31 @@ static int __init init_asmfs_fs(void)
 	if (!asm_request_cachep)
 		panic("Unable to create asm_request cache\n");
 
+#ifdef CONFIG_COMPAT
+	ret = init_asmfs_ioctl32();
+	if (ret)
+		kmem_cache_destroy(asm_request_cachep);
+#endif  /* CONFIG_COMPAT */
+
 	init_asmfs_dir_operations();
-	return register_filesystem(&asmfs_fs_type);
+	ret = register_filesystem(&asmfs_fs_type);
+	if (ret) {
+		kmem_cache_destroy(asm_request_cachep);
+#ifdef CONFIG_COMPAT
+		exit_asmfs_ioctl32();
+#endif  /* CONFIG_COMPAT */
+	}
+
+	return ret;
 }
 
 static void __exit exit_asmfs_fs(void)
 {
 	unregister_filesystem(&asmfs_fs_type);
 	kmem_cache_destroy(asm_request_cachep);
+#ifdef CONFIG_COMPAT
+	exit_asmfs_ioctl32();
+#endif  /* CONFIG_COMPAT */
 }
 
 module_init(init_asmfs_fs)

@@ -1,6 +1,18 @@
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>
 
+	* configure.in: ppc64 -m64 stuff.
+	* include/linux/asmcompat32.h: Lots of CONFIG_COMPAT hacks.
+	* kernel/Makefile: Fix CFLAGS.
+	* kernel/oracleasm.c: Lots of CONFIG_COMPAT hacks.
+	* libosm/Makefile: Fix CPPFLAGS.
+	* test/Makefile: Fix CPPFLAGS.
+	* test/asmtest.c: No osm_dump.
+	* test/sizes.c: Fix BUILD_PLATFORM.
+	* tools/Makefile: Fix CPPFLAGS.
+
+2003-11-12	Joel Becker <joel.becker@oracle.com>
+
 	* configure.in: 0.9.0 for the ASM half-change.
 
 2003-11-12	Joel Becker <joel.becker@oracle.com>

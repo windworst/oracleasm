@@ -5,8 +5,8 @@ include $(TOPDIR)/Preamble.make
 SBIN_PROGRAMS = asmtool
 
 VERSION_FLAGS = -DVERSION="\"${VERSION}\""
-CPPFLAGS = -DLINUX ${VERSION_FLAGS} $(DEFS)
-CFLAGS = -Wall -g -O2
+CPPFLAGS += -DLINUX ${VERSION_FLAGS} $(DEFS)
+CFLAGS += -Wall
 
 INCLUDES = -I. -I$(TOPDIR)/include
 

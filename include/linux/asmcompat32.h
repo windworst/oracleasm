@@ -45,5 +45,40 @@
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
 
+
+/*
+ * Handle CONFIG_COMPAT for 32->64bit.  UGLY in 2.4.
+ * This is REALLY UGLY.  I hate you all.
+ */
+#if defined(__KERNEL__)
+# if BITS_PER_LONG == 64
+#  if defined(CONFIG_COMPAT)
+#   if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,0)
+#    if defined(__ia64__) || defined(__powerpc64__)
+#     undef CONFIG_COMPAT
+#    else
+#     include <asm/ioctl32.h>
+#    endif  /* !__ia64__  && !__powerpc64__ */
+#   else
+#    include <linux/ioctl32.h>
+#   endif  /* LINUX_VERSION_CODE < 2.6.0 */
+#  endif  /* CONFIG_COMPAT */
+#  if !defined(CONFIG_COMPAT) && \
+	(LINUX_VERSION_CODE > KERNEL_VERSION(2,4,18))
+#   define CONFIG_COMPAT 1
+#   if defined(__x86_64__)
+#    include <asm/ioctl32.h>
+#   else
+#    if defined(__powerpc64__)
+extern int register_ioctl32_conversion(unsigned int cmd, int (*handler)(unsigned int, unsigned int, unsigned long, struct file *));
+extern int unregister_ioctl32_conversion(unsigned int cmd);
+#    else
+#     undef CONFIG_COMPAT
+#    endif  /* __powerpc64__ */
+#   endif  /* __x86_64__ */
+#  endif  /* CONFIG_COMPAT */
+# endif  /* BITS_PER_LONG == 64 */
+#endif  /* __KERNEL__ */
+
 #endif  /* _ASMCOMPAT32_H */
 

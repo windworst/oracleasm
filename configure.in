@@ -53,6 +53,9 @@ case "$host_cpu" in
 x86_64)
     MCMODEL="-mcmodel=kernel"
     ;;
+ppc64|powerpc64|ppc64iseries|ppc64pseries)
+    CFLAGS="$CFLAGS -m64"
+    ;;
 *)
     MCMODEL=""
     ;;
