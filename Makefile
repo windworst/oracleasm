@@ -30,7 +30,6 @@ KERNEL_DEFS = -D__KERNEL__ -DMODULE -DLINUX -DRED_HAT_LINUX_KERNEL=1
 KERNEL_CPPFLAGS = $(KERNEL_INCLUDES) $(KERNEL_DEFS)
 
 # FIXME: Needs selection
-KVEC_FILE = kernel/kiovec-rhas21.c
 BLK_FILE = kernel/blk-rhas21.c
 
 all: kernel/osm.o libosm/libosm.so test/osmtest-bin
@@ -48,7 +47,7 @@ $(OSMLIB_OBJS): $(OSMLIB_HEADERS)
 $(OSMLIB_OBJS): %.o: %.c
 	$(CC) $(CPPFLAGS) $(OSMLIB_CPPFLAGS) -c -o $@ $<
 
-kernel/osm.o: include/osmprivate.h $(KVEC_FILE) $(BLK_FILE)
+kernel/osm.o: include/osmprivate.h $(BLK_FILE)
 kernel/osm.o: kernel/osm.c
 	$(CC) $(CPPFLAGS) $(KERNEL_CPPFLAGS) -c -o $@ $<
 
