@@ -2143,14 +2143,19 @@ static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
 	if (!filp)
 		goto out;
 
+	ret = -ENOTBLK;
+	if (!S_ISBLK(filp->f_mapping->host->i_mode))
+		goto out_put;
+
 	bdev = I_BDEV(filp->f_mapping->host);
 
 	qd_info->qd_max_sectors = compute_max_sectors(bdev);
 	qd_info->qd_hardsect_size = bdev_hardsect_size(bdev);
 
-	fput(filp);
-
 	ret = 0;
+
+out_put:
+	fput(filp);
 
 out:
 	qd_info->qd_abi.ai_status = ret;
@@ -2193,9 +2198,12 @@ static ssize_t asmfs_svc_open_disk(struct file *file, char *buf, size_t size)
 		goto out_error;
 
 	if (igrab(filp->f_mapping->host)) {
-		bdev = I_BDEV(filp->f_mapping->host);
+		ret = -ENOTBLK;
+		if (S_ISBLK(filp->f_mapping->host->i_mode)) {
+			bdev = I_BDEV(filp->f_mapping->host);
 
-		ret = asm_open_disk(file, bdev);
+			ret = asm_open_disk(file, bdev);
+		}
 	}
 	fput(filp);
 	if (ret)
