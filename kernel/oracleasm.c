@@ -286,7 +286,11 @@ static struct transaction_context trans_contexts[] = {
 
 static struct backing_dev_info memory_backing_dev_info = {
 	.ra_pages	= 0,	/* No readahead */
+#if 1
 	.memory_backed	= 1,	/* Does not contribute to dirty memory */
+#else
+	.capabilities   = BDI_CAP_NO_ACCT_DIRTY | BDI_CAP_NO_WRITEBACK,
+#endif
 };
 
 
@@ -929,21 +933,22 @@ static inline void clear_timeout(struct timeout *to)
 }
 
 /* Must be called with asm_file_info->f_lock held */
-static struct asm_disk_info *find_io_disk(struct file *file)
+static struct block_device *find_io_bdev(struct file *file)
 {
 	struct asmfs_file_info *afi = ASMFS_FILE(file);
 	struct asm_request *r;
-	struct asm_disk_info *d = NULL;
+	struct asm_disk_info *d;
+	struct block_device *bdev = NULL;
 
 	list_for_each_entry(r, &afi->f_ios, r_list) {
 		d = r->r_disk;
-		if (d) {
-			igrab(&d->vfs_inode);
+		if (d && d->d_bdev) {
+			bdev = d->d_bdev;
 			break;
 		}
 	}
 
-	return d;
+	return bdev;
 }
 
 static int asm_update_user_ioc(struct asm_request *r)
@@ -1341,6 +1346,8 @@ static int asm_maybe_wait_io(struct file *file,
 		add_wait_queue(&to->wait, &to_wait);
 		do {
 			struct asm_disk_info *d;
+			struct block_device *bdev = NULL;
+			struct inode *disk_inode;
 
 			ret = 0;
 			set_task_state(tsk, TASK_INTERRUPTIBLE);
@@ -1350,11 +1357,16 @@ static int asm_maybe_wait_io(struct file *file,
 					   ASM_BUSY | ASM_ERROR))
 				break;
 			d = r->r_disk;
-			if (d)
-				igrab(&d->vfs_inode);
+			if (d && d->d_bdev)
+				bdev = d->d_bdev;
 			spin_unlock_irq(&afi->f_lock);
 
-			if (d) {
+			disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
+					      (unsigned long)bdev,
+					      asmdisk_test,
+					      ASMFS_I(ASMFS_F2I(file)));
+			if (disk_inode) {
+				d = ASMDISK_I(disk_inode);
 				if (d->d_bdev)
 					blk_run_address_space(d->d_bdev->bd_inode->i_mapping);
 				iput(&d->vfs_inode);
@@ -1500,7 +1512,9 @@ static int asm_wait_completion(struct file *file,
 	add_wait_queue(&afi->f_wait, &wait);
 	add_wait_queue(&to->wait, &to_wait);
 	do {
+		struct block_device *bdev;
 		struct asm_disk_info *d;
+		struct inode *disk_inode;
 
 		ret = 0;
 		set_task_state(tsk, TASK_INTERRUPTIBLE);
@@ -1511,10 +1525,15 @@ static int asm_wait_completion(struct file *file,
 			break;
 		}
 
-		d = find_io_disk(file);
+		bdev = find_io_bdev(file);
 		spin_unlock_irq(&afi->f_lock);
 
-		if (d) {
+		disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
+				      (unsigned long)bdev,
+				      asmdisk_test,
+				      ASMFS_I(ASMFS_F2I(file)));
+		if (disk_inode) {
+			d = ASMDISK_I(disk_inode);
 			if (d->d_bdev)
 				blk_run_address_space(d->d_bdev->bd_inode->i_mapping);
 			iput(&d->vfs_inode);
@@ -1947,7 +1966,9 @@ static int asmfs_file_release(struct inode *inode, struct file *file)
 	/* No need for a fastpath */
 	add_wait_queue(&afi->f_wait, &wait);
 	do {
+		struct block_device *bdev;
 		struct asm_disk_info *d;
+		struct inode *disk_inode;
 
 		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
@@ -1955,10 +1976,14 @@ static int asmfs_file_release(struct inode *inode, struct file *file)
 		if (list_empty(&afi->f_ios))
 		    break;
 
-		d = find_io_disk(file);
+		bdev = find_io_bdev(file);
 		spin_unlock_irq(&afi->f_lock);
 
-		if (d) {
+		disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
+				      (unsigned long)bdev,
+				      asmdisk_test, aii);
+		if (disk_inode) {
+			d = ASMDISK_I(disk_inode);
 			if (d->d_bdev)
 				blk_run_address_space(d->d_bdev->bd_inode->i_mapping);
 			iput(&d->vfs_inode);

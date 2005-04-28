@@ -884,6 +884,8 @@ static int make_disk(const char *manager, const char *disk,
         fprintf(stderr,
                 "asmtool: Unable to open ASM disk \"%s\": %s\n",
                 disk, strerror(-rc));
+        /* Ignore the result, let the above error fall through */
+        unlink_disk(manager, disk);
     }
 
 out_close:
