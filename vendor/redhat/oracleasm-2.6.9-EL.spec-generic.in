@@ -28,6 +28,7 @@
 
 %ifarch ia64
 %define karch		ia64
+%define buildsmp	0
 %define buildhugemem	0
 %endif
 
