@@ -39,7 +39,7 @@
 %define kver		%{base}-%{sver}.EL
 
 # The minimum -support package required for the kernel bits.
-%define support_ver     1.0.94
+%define support_ver     2.0.0
 
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
