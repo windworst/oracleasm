@@ -430,7 +430,7 @@ rm -rf "$RPM_BUILD_ROOT"
 
 %if %{builddefault}
 %post default
-depmod -a
+depmod -ae %{kver}-default
 
 %files default
 %defattr(-,root,root)
@@ -440,7 +440,7 @@ depmod -a
 
 %if %{buildsmp}
 %post smp
-depmod -a
+depmod -ae %{kver}-smp
 
 %files smp
 %defattr(-,root,root)
@@ -450,7 +450,7 @@ depmod -a
 
 %if %{buildbigsmp}
 %post bigsmp
-depmod -a
+depmod -ae %{kver}-bigsmp
 
 %files bigsmp
 %defattr(-,root,root)
@@ -460,7 +460,7 @@ depmod -a
 
 %if %{build64kpagesize}
 %post 64k-pagesize
-depmod -a
+depmod -ae %{kver}-64k-pagesize
 
 %files 64k-pagesize
 %defattr(-,root,root)
@@ -470,7 +470,7 @@ depmod -a
 
 %if %{buildsn2}
 %post sn2
-depmod -a
+depmod -ae %{kver}-sn2/
 
 %files sn2
 %defattr(-,root,root)
@@ -480,7 +480,7 @@ depmod -a
 
 %if %{buildiseries64}
 %post iseries64
-depmod -a
+depmod -ae %{kver}-iseries64
 
 %files iseries64
 %defattr(-,root,root)
@@ -490,7 +490,7 @@ depmod -a
 
 %if %{buildpmac64}
 %post pmac64
-depmod -a
+depmod -ae %{kver}-pmac64
 
 %files pmac64
 %defattr(-,root,root)
@@ -500,7 +500,7 @@ depmod -a
 
 %if %{buildpseries64}
 %post pseries64
-depmod -a
+depmod -ae %{kver}-pseries64
 
 %files pseries64
 %defattr(-,root,root)
@@ -510,7 +510,7 @@ depmod -a
 
 %if %{builds390}
 %post s390
-depmod -a
+depmod -ae %{kver}-s390
 
 %files s390
 %defattr(-,root,root)
@@ -520,7 +520,7 @@ depmod -a
 
 %if %{builds390x}
 %post s390x
-depmod -a
+depmod -ae %{kver}-s390x
 
 %files s390x
 %defattr(-,root,root)

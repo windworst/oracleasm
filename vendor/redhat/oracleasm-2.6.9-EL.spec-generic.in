@@ -165,7 +165,7 @@ rm -rf "$RPM_BUILD_ROOT"
 
 %if %{buildup}
 %post -n oracleasm-%{kver}
-depmod -a
+depmod -ae %{kver}
 
 %files -n oracleasm-%{kver}
 %defattr(-,root,root)
@@ -175,7 +175,7 @@ depmod -a
 
 %if %{buildsmp}
 %post -n oracleasm-%{kver}smp
-depmod -a
+depmod -ae %{kver}smp
 
 %files -n oracleasm-%{kver}smp
 %defattr(-,root,root)
@@ -185,7 +185,7 @@ depmod -a
 
 %if %{buildhugemem}
 %post -n oracleasm-%{kver}hugemem
-depmod -a
+depmod -ae %{kver}hugemem
 
 %files -n oracleasm-%{kver}hugemem
 %defattr(-,root,root)
