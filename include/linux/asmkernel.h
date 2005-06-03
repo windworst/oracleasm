@@ -59,7 +59,7 @@
 #define ASM_WARN         0x0040 /* a future request may fail */
 #define ASM_PARTIAL      0x0080 /* only a partial transfer */
 #define ASM_BADKEY       0x0100 /* disk key mismatch */
-#define ASM_FENCED       0x0200 /* I/O was not allowed by the fence key */
+#define ASM_BAD_DATA     0x0200 /* I/O was not allowed by the fence key */
 #define ASM_LOCAL_ERROR  0x0400 /* error is local to this host */
 
 /* special timeout values */
@@ -81,10 +81,6 @@
 #define ASM_COPY        0x03    /* copy data from one location to another */
 #define ASM_GETKEY      0x04    /* get value of one or more disk keys */
 #define ASM_SETKEY      0x05    /* set value of one or more disk keys */
-#define ASM_GETFENCE    0x06    /* get value of one or more fence keys */
-#define ASM_SETFENCE    0x07    /* set value of one or more fence keys */
-#define ASM_GETTAG      0x08    /* get the tag of one or more partitions */
-#define ASM_SETTAG      0x10    /* set the tag of one or more partitions */
 
 
 
@@ -94,10 +90,8 @@
 typedef struct _asm_check asm_check;
 struct _asm_check
 {
-	__u32		fence_num_asm_check;
-	__u32		fence_value_asm_check;
-	__u32		error_fence_asm_check;
 	__u32		key_num_asm_check;
+	__u32		spare1_asm_check;
 	__u64		key_mask_asm_check;
 	__u64		key_value_asm_check;
 	__u64		error_key_asm_check;
