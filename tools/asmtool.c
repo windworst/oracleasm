@@ -274,9 +274,9 @@ static int device_is_loopback(int fd)
 static int open_disk(const char *disk_name)
 {
     int fd, rc;
-    struct stat stat_buf;
+    struct stat64 stat_buf;
 
-    rc = stat(disk_name, &stat_buf);
+    rc = stat64(disk_name, &stat_buf);
     if (rc)
         return -errno;
 
@@ -284,12 +284,12 @@ static int open_disk(const char *disk_name)
     if (!S_ISBLK(stat_buf.st_mode))
         return -ENOTBLK;
 
-    fd = open(disk_name, O_RDWR);
+    fd = open64(disk_name, O_RDWR);
     if (fd < 0)
         return -errno;
 
     /* Second check, try not to write the wrong place */
-    rc = fstat(fd, &stat_buf);
+    rc = fstat64(fd, &stat_buf);
     if (rc)
     {
         close(fd);
@@ -704,7 +704,7 @@ static int delete_disk_by_device(const char *manager,
     int rc, dev_fd, disk_fd;
     char *id, *asm_disk;
     ASMHeaderInfo ahi;
-    struct stat dev_stat_buf, disk_stat_buf;
+    struct stat64 dev_stat_buf, disk_stat_buf;
 
     rc = open_disk(target);
     if (rc < 0)
@@ -777,7 +777,7 @@ static int delete_disk_by_device(const char *manager,
         /* We've successfully opened the ASM disk */
         disk_fd = rc;
 
-        rc = fstat(disk_fd, &disk_stat_buf);
+        rc = fstat64(disk_fd, &disk_stat_buf);
         close(disk_fd);
         if (rc)
         {
@@ -786,7 +786,7 @@ static int delete_disk_by_device(const char *manager,
                     id, strerror(errno));
             goto out_free;
         }
-        rc = fstat(dev_fd, &dev_stat_buf);
+        rc = fstat64(dev_fd, &dev_stat_buf);
         if (rc)
         {
             fprintf(stderr,
@@ -844,7 +844,7 @@ static int make_disk(const char *manager, const char *disk,
 {
     int rc, t_fd;
     char *asm_disk;
-    struct stat stat_buf;
+    struct stat64 stat_buf;
 
     asm_disk = asm_disk_path(manager, disk);
     if (!asm_disk)
@@ -861,7 +861,7 @@ static int make_disk(const char *manager, const char *disk,
 
     /* FIXME: Check if mounted ? */
 
-    rc = fstat(t_fd, &stat_buf);
+    rc = fstat64(t_fd, &stat_buf);
     if (rc)
     {
         fprintf(stderr, "asmtool: Unable to query device \"%s\": %s\n",
@@ -1070,7 +1070,7 @@ static int get_info_asmdisk_by_name(const char *manager,
     int c, rc, fd;
     char *label, *asm_disk;
     ASMHeaderInfo ahi;
-    struct stat stat_buf;
+    struct stat64 stat_buf;
 
     rc = -EINVAL;
     c = asmdisk_toupper(disk, -1, 0);
@@ -1138,7 +1138,7 @@ static int get_info_asmdisk_by_name(const char *manager,
     }
     else
     {
-        rc = fstat(fd, &stat_buf);
+        rc = fstat64(fd, &stat_buf);
         if (rc)
         {
             fprintf(stdout,
@@ -1284,7 +1284,7 @@ static int change_attr_asmdisk_by_name(const char *manager, char *disk,
     int c, rc, fd = -1;
     char *asm_disk, *label, *label_disk;
     ASMHeaderInfo ahi;
-    struct stat stat_buf;
+    struct stat64 stat_buf;
 
     rc = -EINVAL;
     c = asmdisk_toupper(disk, -1, 0);
@@ -1381,7 +1381,7 @@ static int change_attr_asmdisk_by_name(const char *manager, char *disk,
     }
     fd = rc;
 
-    rc = fstat(fd, &stat_buf);
+    rc = fstat64(fd, &stat_buf);
     if (rc)
     {
         rc = -errno;
@@ -1487,7 +1487,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
     int rc, dev_fd, disk_fd;
     char *id, *asm_disk, *label;
     ASMHeaderInfo ahi;
-    struct stat dev_stat_buf, disk_stat_buf;
+    struct stat64 dev_stat_buf, disk_stat_buf;
 
     rc = -EINVAL;
     label = (char *)attr_string(&attrs->attr_list, "label", NULL);
@@ -1600,7 +1600,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
         /* We've successfully opened the ASM disk */
         disk_fd = rc;
 
-        rc = fstat(disk_fd, &disk_stat_buf);
+        rc = fstat64(disk_fd, &disk_stat_buf);
         close(disk_fd);
         if (rc)
         {
@@ -1609,7 +1609,7 @@ static int change_attr_asmdisk_by_device(const char *manager,
                     id, strerror(errno));
             goto out_free;
         }
-        rc = fstat(dev_fd, &dev_stat_buf);
+        rc = fstat64(dev_fd, &dev_stat_buf);
         if (rc)
         {
             fprintf(stderr,
@@ -1724,13 +1724,13 @@ out:
 static int is_manager(const char *filename)
 {
     int rc;
-    struct statfs statfs_buf;
+    struct statfs64 statfs_buf;
 
     if (!filename || !*filename)
         return -EINVAL;
 
     /* I wanted to use statvfs, but there is no f_type */
-    rc = statfs(filename, &statfs_buf);
+    rc = statfs64(filename, &statfs_buf);
     if (rc)
         return -errno;
 

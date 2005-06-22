@@ -31,6 +31,8 @@
  * Boston, MA 021110-1307, USA.
  */
 
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -373,7 +375,7 @@ static int as_ide_disk(const char *dev_name)
     snprintf(proc_name, len, PROC_IDE_FORMAT, dev_name);
     
     /* If not ide, file won't exist */
-    f = fopen(proc_name, "r");
+    f = fopen64(proc_name, "r");
     if (f)
     {
         if (fgets(proc_name, len, f))
@@ -411,7 +413,7 @@ static int scan_devices(struct list_head *order_list,
         return -ENOMEM;
     }
 
-    f = fopen("/proc/partitions", "r");
+    f = fopen64("/proc/partitions", "r");
     if (!f)
     {
         rc = -errno;
@@ -759,8 +761,8 @@ out:
 }  /* clean_disks() */
 
 
-static int device_is_disk(const char *manager, const char *device,
-                          char **disk_name)
+static int check_device_is_disk(const char *manager, const char *device,
+                                char **disk_name)
 {
     int rc;
     char *output, *errput, *ptr;
@@ -790,11 +792,11 @@ static int device_is_disk(const char *manager, const char *device,
         if (WEXITSTATUS(rc))
         {
             if (strstr(errput, "not marked"))
-                return 0;
+                return -ENXIO;
             if (strstr(errput, "No such"))
-                return 0;
+                return -ENOENT;
             if (strstr(errput, "Invalid argument"))  /* Bad IDE lseek */
-                return 0;
+                return -EINVAL;
             fprintf(stderr,
                     "asmscan: Error on %s (%d): %s\n",
                     device, WEXITSTATUS(rc), errput);
@@ -805,13 +807,13 @@ static int device_is_disk(const char *manager, const char *device,
             {
                 ptr = strrchr(output, '"');
                 if (!ptr)
-                    return 0;  /* Should error */
+                    return -EINVAL;  /* Should error */
                 *ptr = '\0';
                 ptr = strrchr(output, '"');
                 if (!ptr)
-                    return 0;  /* Again, error */
+                    return -EINVAL;  /* Again, error */
                 *disk_name = strdup(ptr + 1);
-                return 1;
+                return 0;
             }
             
             fprintf(stdout,
@@ -832,9 +834,35 @@ static int device_is_disk(const char *manager, const char *device,
                 device);
     }
 
-    return 0;
-}  /* device_is_disk() */
+    return -EIO;
+}  /* check_device_is_disk() */
 
+static int device_is_disk(const char *manager, const char *device,
+                          char **disk_name)
+{
+    int rc = -ENOENT;
+    int delay = 1;
+
+    /*
+     * This is a backoff of three tries:
+     *
+     * try1
+     * sleep 1
+     * try2 
+     * sleep 5
+     * try3
+     * fail
+     */
+    do {
+        rc = check_device_is_disk(manager, device, disk_name);
+        if (rc == -ENOENT) {
+            sleep(delay);
+            delay += 4;
+        }
+    } while ((rc == -ENOENT) && (delay < 6));
+
+    return !rc;  /* 0 is success */
+}
 
 static int instantiate_disk(const char *manager,
                             const char *disk_name,
@@ -904,7 +932,7 @@ static int device_is_partition(ASMScanDevice *device)
     int rc, fd;
 
     /* Any errors, return false.  This will force BLKRRPART on the device. */
-    fd = open(device->sd_path, O_RDONLY);
+    fd = open64(device->sd_path, O_RDONLY);
     if (fd < 0)
         return 0;
 
@@ -924,7 +952,7 @@ static int reread_single_device(ASMScanDevice *device)
     int rc, fd;
 
     /* Any errors, return false.  This will force BLKRRPART on the device. */
-    fd = open(device->sd_path, O_RDONLY);
+    fd = open64(device->sd_path, O_RDONLY);
     if (fd < 0)
         return -errno;
 
