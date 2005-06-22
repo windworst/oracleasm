@@ -1,0 +1,137 @@
+#!/bin/sh
+
+
+PROGNAME=$(basename $0)
+
+# The module path is the path underneath /lib/modules/`uname -r`.
+# Do _not_ include .o or .ko here.  The extension will be detected.
+# This can be a directory to symlink and entire subtree.
+MODULEPATH="kernel/drivers/addon/oracleasm/oracleasm"
+
+
+FORCE=
+
+print_usage()
+{
+    echo "Usage: ${PROGNAME} [-f] <module_version> [<debug_kernel_version>]" >&2
+    echo "       ${PROGNAME} -h" >&2
+    exit 1
+}
+
+while getopts ":fh" opt
+do
+    case "$opt" in 
+    f)
+        FORCE=true
+        ;;
+    h)
+        print_usage
+        ;;
+    ":")
+        echo "${PROGNAME}: Option '-${OPTARG}' requires an argument" >&2
+        print_usage
+        ;;
+    "?")
+        echo "${PROGNAME}: Unknown option: '-${OPTARG}'" >&2
+        print_usage
+        ;;
+    *)
+        echo "${PROGNAME}: What the?  Option parsing" >&2
+        print_usage
+        ;;
+    esac
+done
+
+shift $(expr ${OPTIND} - 1)
+     
+OLDVERSION="$1"
+shift
+if [ -z "$OLDVERSION" ]
+then
+    echo "${PROGNAME}: No original driver specified" >&2
+    print_usage
+fi
+
+case "$OLDVERSION" in
+*/*)
+    OLDMODULEPATH="$OLDVERSION"
+    EXTENSION=
+    ;;
+*)
+    OLDMODULEPATH="/lib/modules/${OLDVERSION}/${MODULEPATH}"
+    if [ -e "${OLDMODULEPATH}.ko" ]
+    then
+        EXTENSION=".ko"
+    elif [ -e "${OLDMODULEPATH}.o" ]
+    then
+        EXTENSION=".o"
+    elif [ -d "${OLDMODULEPATH}" ]
+    then
+        EXTENSION=
+    else
+        echo "No driver exists for old version ${OLDVERSION}" >&2
+        exit 1
+    fi
+    OLDMODULEPATH="${OLDMODULEPATH}${EXTENSION}"
+    ;;
+esac
+
+NEWVERSION="$1"
+shift
+if [ -z "$NEWVERSION" ]
+then
+    NEWVERSION="$(uname -r)"
+fi
+  
+case "$NEWVERSION" in
+*/*)
+    NEWMODULEPATH="$NEWVERSION"
+    ;;
+*)
+    NEWMODULEPATH="/lib/modules/${NEWVERSION}/${MODULEPATH}${EXTENSION}"
+    ;;
+esac
+
+LINKED=false
+if [ -e "${NEWMODULEPATH}" ]
+then
+    if [ -L "${NEWMODULEPATH}" -a "$FORCE" = "true" ]
+    then
+        ln -sf "${OLDMODULEPATH}" "${NEWMODULEPATH}"
+        if [ $? = 0 ]
+        then
+            LINKED=true
+        fi
+    else
+        echo "${PROGNAME}: Target exists" >&2
+        exit 1
+    fi
+else
+    mkdir -p "$(dirname "${NEWMODULEPATH}")"
+    if [ $? = 0 ]
+    then
+        ln -s "${OLDMODULEPATH}" "${NEWMODULEPATH}"
+        if [ $? = 0 ]
+        then
+            LINKED=true
+        fi
+    fi
+fi
+
+if [ "$LINKED" = "true" ]
+then
+    case "$NEWVERSION" in
+    /lib/modules/*)
+        NEWVERSION="${NEWVERSION#/lib/modules/}"
+        NEWVERSION="${NEWVERSION%%/*}"
+        ;;
+    */*)
+        # It's an absolute path of unknown origin.  Assume this kernel.
+        NEWVERSION="$(uname -r)"
+        ;;
+    *)
+        ;;
+    esac
+
+    depmod -ae "$NEWVERSION"
+fi

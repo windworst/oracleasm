@@ -3,6 +3,7 @@ TOPDIR = ..
 include $(TOPDIR)/Preamble.make
 
 SBIN_PROGRAMS = asmtool asmscan
+SBIN_EXTRA = oracleasm_debug_link
 
 VERSION_FLAGS = -DVERSION="\"${VERSION}\""
 CPPFLAGS += -DLINUX ${VERSION_FLAGS} $(DEFS)
