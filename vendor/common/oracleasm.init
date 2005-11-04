@@ -126,7 +126,7 @@ if_fail()
     then
         return
     fi
-    failure_status ${REASON}
+    failure_status "${REASON}"
     exit 1
 }
 

@@ -39,9 +39,11 @@
 %define buildsn2		1
 %endif
 
-%ifarch ppc
-%define karch ppc
+%ifarch ppc64
+%define karch ppc64
 
+%define builddefault		0
+%define buildsmp		0
 %define buildbigsmp		0
 %define buildiseries64		1
 %define buildpmac64		1
@@ -58,7 +60,7 @@
 %endif
 
 %ifarch s390x
-%define karch s390x
+%define karch s390
 
 %define builddefault		0
 %define buildsmp		0
@@ -74,6 +76,8 @@
 
 # The minimum -support package required for the kernel bits.
 %define support_ver     2.0.0
+# Minimum oracleasmlib version that supports positive ASM_ERR_NODEV.
+%define min_enodev	2.0.1
 
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
@@ -90,6 +94,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-default = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 
@@ -108,6 +113,7 @@ AutoReqProv: no
 Provides: oracleasm = %{version}
 Requires: kernel-default = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description default
@@ -140,6 +146,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-bigsmp = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description bigsmp
@@ -156,6 +163,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-64k-pagesize = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description 64k-pagesize
@@ -172,6 +180,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-sn2 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description sn2
@@ -188,6 +197,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-iseries64 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description iseries64
@@ -204,6 +214,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-pmac64 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description pmac64
@@ -220,6 +231,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-pseries64 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description pseries64
@@ -236,6 +248,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-s390 = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description s390
@@ -252,6 +265,7 @@ Provides: oracleasm = %{version}
 AutoReqProv: no
 Requires: kernel-s390x = %{kver}
 Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
 BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
 
 %description s390x
@@ -267,9 +281,28 @@ This package is compiled for IBM zSeries systems.
 
 %build
 
+local_configure()
+{
+	./configure					\
+		--prefix=%{_prefix}			\
+		--exec-prefix=%{_exec_prefix}		\
+		--bindir=%{_bindir}			\
+		--sbindir=%{_sbindir}			\
+		--sysconfdir=%{_sysconfdir}		\
+		--datadir=%{_datadir}			\
+		--includedir=%{_includedir}		\
+		--libdir=%{_libdir}			\
+		--libexecdir=%{_libexecdir}		\
+		--localstatedir=%{_localstatedir}	\
+		--sharedstatedir=%{_sharedstatedir}	\
+		--mandir=%{_mandir}			\
+		--infodir=%{_infodir}			\
+		--with-kernel="$1"
+}
+
 %if %{builddefault}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/default"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -284,7 +317,7 @@ make clean
 
 %if %{buildsmp}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/smp"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -299,7 +332,7 @@ make clean
 
 %if %{buildbigsmp}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/bigsmp"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -314,7 +347,7 @@ make clean
 
 %if %{build64kpagesize}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/64k-pagesize"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -329,7 +362,7 @@ make clean
 
 %if %{buildsn2}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/sn2"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -344,7 +377,7 @@ make clean
 
 %if %{buildiseries64}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/iseries64"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -359,7 +392,7 @@ make clean
 
 %if %{buildpmac64}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/pmac64"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -374,7 +407,7 @@ make clean
 
 %if %{buildpseries64}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/pseries64"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -389,7 +422,7 @@ make clean
 
 %if %{builds390}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/s390"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -404,7 +437,7 @@ make clean
 
 %if %{builds390x}
 KPATH="/usr/src/linux-%{kver}-obj/%{karch}/s390x"
-%configure --with-kernel="${KPATH}"
+local_configure "${KPATH}"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 

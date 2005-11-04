@@ -1087,6 +1087,7 @@ static void asm_end_ioc(struct asm_request *r, unsigned int bytes_done,
 		default:
 			dprintk("ASM: Invalid error of %d!\n", err);
 			r->r_error = ASM_ERR_INVAL;
+			r->r_status |= ASM_LOCAL_ERROR;
 			break;
 
 		case 0:
@@ -1094,6 +1095,7 @@ static void asm_end_ioc(struct asm_request *r, unsigned int bytes_done,
 
 		case -EFAULT:
 			r->r_error = ASM_ERR_FAULT;
+			r->r_status |= ASM_LOCAL_ERROR;
 			break;
 
 		case -EIO:
@@ -1102,6 +1104,7 @@ static void asm_end_ioc(struct asm_request *r, unsigned int bytes_done,
 
 		case -ENODEV:
 			r->r_error = ASM_ERR_NODEV;
+			r->r_status |= ASM_LOCAL_ERROR;
 			break;
 
 		case -ENOMEM:
@@ -1111,6 +1114,7 @@ static void asm_end_ioc(struct asm_request *r, unsigned int bytes_done,
 
 		case -EINVAL:
 			r->r_error = ASM_ERR_INVAL;
+			r->r_status |= ASM_LOCAL_ERROR;
 			break;
 	}
 

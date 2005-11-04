@@ -54,6 +54,7 @@
 #include "linux/asmmanager.h"
 
 #include "list.h"
+#include "devmap.h"
 
 
 /*
@@ -66,8 +67,7 @@
 
 /* Kernel ABI ioctls for testing disks */
 #define HDIO_GETGEO             0x0301
-#define LOOP_GET_STATUS64       0x4C05
-#define LOOP_GET_STATUS         0x4C03
+
 
 struct hd_geometry {
     unsigned char heads;
@@ -153,7 +153,7 @@ static inline size_t strnlen(const char *s, size_t size);
 static void print_usage(int rc);
 static void print_version();
 static int device_is_partition(int fd);
-static int device_is_loopback(int fd);
+static int device_needs_partition(int fd);
 static int open_disk(const char *disk_name);
 static int read_disk(int fd, ASMHeaderInfo *ahi);
 static int write_disk(int fd, ASMHeaderInfo *ahi);
@@ -260,16 +260,19 @@ static int device_is_partition(int fd)
     return !!geo.start;
 }  /* device_is_partition() */
 
-static int device_is_loopback(int fd)
+static int device_needs_partition(int fd)
 {
-    int rc;
-    char buf[1024];
+    if (device_is_block(fd, "loop"))
+        return 0;
 
-    rc = ioctl(fd, LOOP_GET_STATUS64, buf);
-    if (rc)
-        rc = ioctl(fd, LOOP_GET_STATUS, buf);
-    return !rc;
-}  /* device_is_loopback() */
+    if (device_is_block(fd, "md"))
+        return 0;
+
+    if (device_is_block(fd, "device-mapper"))
+        return 0;
+
+    return 1;
+}
 
 static int open_disk(const char *disk_name)
 {
@@ -953,7 +956,7 @@ static int create_disk(const char *manager, char *disk,
     fd = rc;
 
     rc = -EINVAL;
-    if (!device_is_loopback(fd) && !device_is_partition(fd) && attrs->mark)
+    if (attrs->mark && !device_is_partition(fd) && device_needs_partition(fd))
     {
         fprintf(stderr, 
                 "asmtool: Device \"%s\" is not a partition\n",

@@ -40,7 +40,21 @@ Tools to manage the Oracle Automatic Storage Management library driver
 
 
 %build
-%configure --sbindir=/usr/sbin
+./configure					\
+	--prefix=%{_prefix}			\
+	--exec-prefix=%{_exec_prefix}		\
+	--bindir=%{_bindir}			\
+	--sbindir=%{_sbindir}			\
+	--sysconfdir=%{_sysconfdir}		\
+	--datadir=%{_datadir}			\
+	--includedir=%{_includedir}		\
+	--libdir=%{_libdir}			\
+	--libexecdir=%{_libexecdir}		\
+	--localstatedir=%{_localstatedir}	\
+	--sharedstatedir=%{_sharedstatedir}	\
+	--mandir=%{_mandir}			\
+	--infodir=%{_infodir}			\
+	--sbindir=/usr/sbin
 
 cd tools
 make
@@ -70,6 +84,7 @@ chkconfig oracleasm on
 %defattr(-,root,root)
 /usr/sbin/asmtool
 /usr/sbin/asmscan
+%attr(0755,root,root) /usr/lib/oracleasm/oracleasm_debug_link
 %attr(0755,root,root) /etc/init.d/oracleasm
 %config /etc/sysconfig/oracleasm
 

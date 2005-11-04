@@ -844,20 +844,21 @@ static int device_is_disk(const char *manager, const char *device,
     int delay = 1;
 
     /*
-     * This is a backoff of three tries:
+     * This is a backoff of four tries:
      *
      * try1
      * sleep 1
      * try2 
-     * sleep 5
+     * sleep 3
      * try3
+     * sleep 5
      * fail
      */
     do {
         rc = check_device_is_disk(manager, device, disk_name);
         if (rc == -ENOENT) {
             sleep(delay);
-            delay += 4;
+            delay += 2;
         }
     } while ((rc == -ENOENT) && (delay < 6));
 

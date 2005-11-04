@@ -1,21 +1,18 @@
 /*
  * NAME
- *	asmerror.h - Oracle ASM library internal error header.
+ *	devmap.h - Linux device type mappings.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
  *
  * DESCRIPTION
- *      This file contains the internal error code mappings for the
- *      Oracle Automatic Storage Managment userspace library.
+ *      This is simple code to determine a device's driver.
  *
  * MODIFIED   (YYYY/MM/DD)
- *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
- *              Initial LGPL header.
- *      2005/09/14 - Joel Becker <joel.becker@oracle.com>
- *              Make NODEV a nonfatal error.
+ *      2005/10/24 - Joel Becker <joel.becker@oracle.com>
+ *              Initial code.
  *
- * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
+ * Copyright (c) 2002-2005 Oracle Corporation.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -62,26 +59,12 @@
 
 
 
-#ifndef _ASMERROR_H
-#define _ASMERROR_H
+#ifndef _DEVMAP_H
+#define _DEVMAP_H
 
-/*
- * Error codes.  Positive means runtime error, negative means software
- * error.  See asmlib.c for the description strings.
- */
-enum _ASMErrors
-{
-    ASM_ERR_INSTALL     = -5,   /* Driver not installed */
-    ASM_ERR_FAULT       = -4,   /* Invalid address */
-    ASM_ERR_NODEV_OLD   = -3,   /* Old invalid device */
-    ASM_ERR_BADIID      = -2,   /* Invalid IID */
-    ASM_ERR_INVAL       = -1,   /* Invalid argument */
-    ASM_ERR_NONE        = 0,    /* No error */
-    ASM_ERR_PERM	= 1,	/* Operation not permitted */
-    ASM_ERR_NOMEM	= 2,	/* Out of memory */
-    ASM_ERR_IO          = 3,    /* I/O error */
-    ASM_ERR_DSCVR       = 4,    /* Bad discovery string */
-    ASM_ERR_NODEV       = 5,    /* Invalid device */
-};
+const char *lookup_char_device(unsigned int major);
+const char *lookup_block_device(unsigned int major);
+int device_is_char(int fd, const char *type);
+int device_is_block(int fd, const char *type);
 
-#endif  /* _ASMERROR_H */
+#endif  /* _DEVMAP_H */

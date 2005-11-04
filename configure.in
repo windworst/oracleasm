@@ -94,14 +94,14 @@ fi
 if test -z "$TOOLSARCH"
 then
     case "$host_cpu" in
-    x86_64|i386|ppc|ia64)
+    x86_64|ia64|s390x)
         TOOLSARCH="$host_cpu"
         ;;
-    i686|i586|i486)
+    i386|i686|i586|i486)
         TOOLSARCH="i386"
         ;;
-    ppc64|ppciseries|ppcpseries|ppc64iseries|ppc64pseries|powerpc|powerpc64)
-        TOOLSARCH="ppc"
+    ppc|ppc64|ppciseries|ppcpseries|ppc64iseries|ppc64pseries|powerpc|powerpc64)
+        TOOLSARCH="ppc64"
         ;;
     *)
         AC_MSG_RESULT([not found])
@@ -110,7 +110,7 @@ then
     esac
 fi
 case "$TOOLSARCH" in
-x86_64|ia64)
+x86_64|ia64|ppc64)
     MODULEARCH="$TOOLSARCH"
     ;;
 ppc)
@@ -158,11 +158,11 @@ CPPFLAGS="-I$KERNELINC $CPPFLAGS"
 saved_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS $M64"
 
+AC_CHECK_SIZEOF(unsigned long)
+
 if test ! -f "$KERNELINC/linux/autoconf.h"; then
   AC_MSG_ERROR(No configured kernel include tree found)
 fi
-
-AC_CHECK_SIZEOF(unsigned long)
 
 AC_MSG_CHECKING([for kernel module symbol versions])
 AC_EGREP_CPP(kernel_has_modversions,
