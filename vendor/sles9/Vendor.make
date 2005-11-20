@@ -2,6 +2,10 @@
 # SLES 9
 #
 
+TOOLSARCH = $(shell $(TOPDIR)/vendor/sles9/rpmarch.guess tools $(TOPDIR))
+MODULEARCH = $(shell $(TOPDIR)/vendor/sles9/rpmarch.guess module $(TOPDIR))
+
+
 $(TOPDIR)/vendor/sles9/oracleasm-2.6.5-%.spec: $(TOPDIR)/vendor/sles9/oracleasm-2.6.5.spec-generic
 	SPECVER="$@"; \
 		SPECVER="$${SPECVER#*oracleasm-2.6.5-}"; \

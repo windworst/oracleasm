@@ -4,15 +4,8 @@ mode="$1"
 srcdir="$2"
 
 host_cpu=
-QUERYFILE=
 
-if test -f /etc/redhat-release ; then
-  QUERYFILE=/etc/redhat-release
-elif test -f /etc/SuSE-release ; then
-  QUERYFILE=/etc/SuSE-release
-elif test -f /etc/UnitedLinux-release ; then
-  QUERYFILE=/etc/UnitedLinux-release
-fi
+QUERYFILE=/etc/SuSE-release
 
 if test -n "$QUERYFILE"; then
   host_cpu="`rpm -qf $QUERYFILE --queryformat \"%{ARCH}\"`"
@@ -45,8 +38,8 @@ case "$host_cpu" in
   i586)
     MODULEARCH="$host_cpu"
     ;;
-  i386)
-    MODULEARCH="i686"
+  i386|i686)
+    MODULEARCH="i586"
     ;;
   ppc|ppc64|ppciseries|ppcpseries|ppc64iseries|ppc64pseries|powerpc|powerpc64)
     MODULEARCH="ppc64"

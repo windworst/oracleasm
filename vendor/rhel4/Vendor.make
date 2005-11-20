@@ -2,6 +2,9 @@
 # RHEL 4
 #
 
+TOOLSARCH = $(shell $(TOPDIR)/vendor/rhel4/rpmarch.guess tools $(TOPDIR))
+MODULEARCH = $(shell $(TOPDIR)/vendor/rhel4/rpmarch.guess module $(TOPDIR))
+
 $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-%.spec: $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-EL.spec-generic
 	SPECVER="$@"; \
 		SPECVER="$${SPECVER#*oracleasm-2.6.9-}"; \
