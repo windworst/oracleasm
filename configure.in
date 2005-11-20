@@ -253,6 +253,6 @@ AC_SUBST(RPM_VERSION)
 AC_OUTPUT([Config.make
 include/linux/asm_module_version.h
 vendor/common/oracleasm-support.spec
-vendor/suse/oracleasm-2.6.5.spec-generic
-vendor/redhat/oracleasm-2.6.9-EL.spec-generic
+vendor/sles9/oracleasm-2.6.5.spec-generic
+vendor/rhel4/oracleasm-2.6.9-EL.spec-generic
 ])

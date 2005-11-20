@@ -11,7 +11,7 @@ include $(TOPDIR)/Preamble.make
 #
 # Add any directories to recurse into via the SUBDIRS variable.
 # 
-SUBDIRS = common redhat suse
+SUBDIRS = common rhel4 sles9
 
 #
 # Include this at the very end of the Makefile

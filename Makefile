@@ -52,14 +52,14 @@ support_rpm: support_srpm
 # SLES 9
 #
 
-$(TOPDIR)/vendor/suse/oracleasm-2.6.5-%.spec: $(TOPDIR)/vendor/suse/oracleasm-2.6.5.spec-generic
+$(TOPDIR)/vendor/sles9/oracleasm-2.6.5-%.spec: $(TOPDIR)/vendor/sles9/oracleasm-2.6.5.spec-generic
 	SPECVER="$@"; \
 		SPECVER="$${SPECVER#*oracleasm-2.6.5-}"; \
 		SPECVER="$${SPECVER%.spec}"; \
 		sed -e 's/^%define sver.*%{generic}$$/%define sver		'$${SPECVER}'/' < $< > $@
 
-sles9_%_srpm: dist $(TOPDIR)/vendor/suse/oracleasm-2.6.5-%.spec
-	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/suse/oracleasm-2.6.5-$(patsubst sles9_%_srpm,%,$@).spec
+sles9_%_srpm: dist $(TOPDIR)/vendor/sles9/oracleasm-2.6.5-%.spec
+	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/sles9/oracleasm-2.6.5-$(patsubst sles9_%_srpm,%,$@).spec
 
 sles9_%_rpm: sles9_%_srpm
 	$(RPMBUILD) --rebuild $(MODULEARCH) "oracleasm-2.6.5-$(patsubst sles9_%_rpm,%,$@)-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
@@ -69,14 +69,14 @@ sles9_%_rpm: sles9_%_srpm
 # RHEL 4
 #
 
-$(TOPDIR)/vendor/redhat/oracleasm-2.6.9-%.spec: $(TOPDIR)/vendor/redhat/oracleasm-2.6.9-EL.spec-generic
+$(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-%.spec: $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-EL.spec-generic
 	SPECVER="$@"; \
 		SPECVER="$${SPECVER#*oracleasm-2.6.9-}"; \
 		SPECVER="$${SPECVER%.EL.spec}"; \
 		sed -e 's/^%define sver.*%{generic}$$/%define sver		'$${SPECVER}'/' < $< > $@
 
-rhel4_%_srpm: dist $(TOPDIR)/vendor/redhat/oracleasm-2.6.9-%.EL.spec
-	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/redhat/oracleasm-2.6.9-$(patsubst rhel4_%_srpm,%,$@).EL.spec
+rhel4_%_srpm: dist $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-%.EL.spec
+	$(RPMBUILD) -bs --define "_sourcedir $(RPM_TOPDIR)" --define "_srcrpmdir $(RPM_TOPDIR)" $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-$(patsubst rhel4_%_srpm,%,$@).EL.spec
 
 rhel4_%_rpm: rhel4_%_srpm
 	$(RPMBUILD) --rebuild $(MODULEARCH) "oracleasm-2.6.9-$(patsubst rhel4_%_rpm,%,$@).EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
