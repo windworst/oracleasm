@@ -26,13 +26,17 @@ DIST_FILES = \
 	Config.make.in	\
 	Preamble.make	\
 	Postamble.make	\
+	aclocal.m4	\
+	mbvendor.m4	\
 	config.guess	\
 	config.sub	\
 	configure	\
 	configure.in	\
 	install-sh	\
 	mkinstalldirs	\
-	rpmarch.guess
+	Vendor.make	\
+	vendor.guess
+
 
 
 

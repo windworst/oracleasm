@@ -42,11 +42,6 @@ AC_PROG_RANLIB
 
 AC_PATH_PROG(AR, ar)
 
-AC_CHECK_PROGS(RPMBUILD, rpmbuild rpm)
-AC_MSG_CHECKING([absolute rpm file directory])
-RPM_TOPDIR="`pwd`"
-AC_MSG_RESULT([$RPM_TOPDIR])
-AC_SUBST(RPM_TOPDIR)
 
 AC_HEADER_STDC
 AC_C_CONST
@@ -80,58 +75,6 @@ esac
 AC_SUBST(MCMODEL)
 AC_SUBST(M64)
 AC_SUBST(USERM64)
-
-AC_MSG_CHECKING(build architectures)
-TOOLSARCH=
-if test -f /etc/redhat-release
-then
-    RPMARCH="`rpm -qf /etc/redhat-release --queryformat \"%{ARCH}\"`"
-    if test -n "$RPMARCH" -a "$RPMARCH" != "noarch"
-    then
-        TOOLSARCH="$RPMARCH"
-    fi
-fi
-if test -z "$TOOLSARCH"
-then
-    case "$host_cpu" in
-    x86_64|ia64|s390x)
-        TOOLSARCH="$host_cpu"
-        ;;
-    i386|i686|i586|i486)
-        TOOLSARCH="i386"
-        ;;
-    ppc|ppc64|ppciseries|ppcpseries|ppc64iseries|ppc64pseries|powerpc|powerpc64)
-        TOOLSARCH="ppc64"
-        ;;
-    *)
-        AC_MSG_RESULT([not found])
-        AC_MSG_ERROR([invalid or unsupported CPU type])
-        ;;
-    esac
-fi
-case "$TOOLSARCH" in
-x86_64|ia64|ppc64)
-    MODULEARCH="$TOOLSARCH"
-    ;;
-ppc)
-    MODULEARCH="$host_cpu"
-    ;;
-i386)
-    if test -r /etc/UnitedLinux-release -o -r /etc/SuSE-release
-    then
-        MODULEARCH=i586
-    else
-        MODULEARCH="i686"
-    fi
-    ;;
-*)
-    AC_MSG_RESULT([not found])
-    AC_MSG_RESULT([invalid or unsupported kernel CPU type])
-    ;;
-esac
-AC_MSG_RESULT([${MODULEARCH}, ${TOOLSARCH}])
-AC_SUBST(MODULEARCH)
-AC_SUBST(TOOLSARCH)
 
 MB_VENDOR()
 
@@ -231,17 +174,6 @@ AC_SUBST(MODULEDIR)
 CPPFLAGS="$saved_CPPFLAGS"
 CFLAGS="$saved_CFLAGS"
 
-AC_MSG_CHECKING(for gcc include path)
-gccdir="`$CC -print-search-dirs | sed -n 's/^install: \(.*\)/\1/p'`include"
-if test -z "$gccdir"; then
-  AC_MSG_RESULT(not found)
-  AC_MSG_ERROR(Could not determine gcc include path)
-else
-  AC_MSG_RESULT($gccdir)
-fi
-
-GCCINC=$gccdir
-AC_SUBST(GCCINC)
 
 AC_MSG_CHECKING(RPM package version)
 AC_ARG_WITH(rpmversion, [  --with-rpmversion=version  Version for the RPM package [1]], rpmversion="$withval", rpmversion="1")
