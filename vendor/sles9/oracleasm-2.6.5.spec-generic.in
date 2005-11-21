@@ -71,7 +71,7 @@
 
 # This must be changed to the minimum ABI compat kernel version expected
 %define base		2.6.5
-%define sver		%{generic}
+%define sver		@@SVER@@
 %define kver		%{base}-%{sver}
 
 # The minimum -support package required for the kernel bits.
@@ -82,7 +82,7 @@
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
 Version: @DIST_VERSION@
-Release: @RPM_VERSION@
+Release: @@PKG_VERSION@@
 Copyright: GPL
 Group: System Environment/Kernel
 Source: oracleasm-@DIST_VERSION@.tar.gz

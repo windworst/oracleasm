@@ -16,7 +16,7 @@
 Summary: The Oracle Automatic Storage Management support programs.
 Name: oracleasm-support
 Version: @DIST_VERSION@
-Release: @RPM_VERSION@
+Release: @@PKG_VERSION@@
 Copyright: GPL
 Group: System Environment/Kernel
 Source: oracleasm-@DIST_VERSION@.tar.gz

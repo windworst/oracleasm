@@ -17,9 +17,9 @@ AC_SUBST(PACKAGE)
 #
 MAJOR_VERSION=2
 MINOR_VERSION=0
-MICRO_VERSION=1
-INTERFACE_AGE=1
-BINARY_AGE=1
+MICRO_VERSION=2
+INTERFACE_AGE=2
+BINARY_AGE=2
 VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${MICRO_VERSION}"
 AC_SUBST(MAJOR_VERSION)
 AC_SUBST(MINOR_VERSION)
@@ -108,21 +108,6 @@ if test ! -f "$KERNELINC/linux/autoconf.h"; then
   AC_MSG_ERROR(No configured kernel include tree found)
 fi
 
-AC_MSG_CHECKING([for kernel module symbol versions])
-AC_EGREP_CPP(kernel_has_modversions,
-[#include <linux/autoconf.h>
-#ifdef CONFIG_MODVERSIONS
-  kernel_has_modversions
-#endif
-}], modversions=yes, modversions=no)
-AC_MSG_RESULT($modversions)
-
-MODVERSIONS=
-if test "x$modversions" = "xyes"; then
-  MODVERSIONS="-include \$(KERNELINC)/linux/modversions.h -DMODVERSIONS"
-fi
-AC_SUBST(MODVERSIONS)
-
 AC_MSG_CHECKING(for kernel version)
 rm -f conf.kvertest
 AC_TRY_RUN([
@@ -164,27 +149,14 @@ AC_SUBST(BUILD_DRIVER)
 KERNELVER=$kversion
 AC_SUBST(KERNELVER)
 
-AC_MSG_CHECKING(for directory for kernel modules)
-AC_ARG_WITH(moddir, [  --with-moddir=/path     Path to where modules should be installed [/lib/modules/<KVER>/fs]], moddir="$withval", moddir="/lib/modules/$kversion/kernel/fs")
-AC_MSG_RESULT($moddir)
-
-MODULEDIR=$moddir
-AC_SUBST(MODULEDIR)
 
 CPPFLAGS="$saved_CPPFLAGS"
 CFLAGS="$saved_CFLAGS"
 
 
-AC_MSG_CHECKING(RPM package version)
-AC_ARG_WITH(rpmversion, [  --with-rpmversion=version  Version for the RPM package [1]], rpmversion="$withval", rpmversion="1")
-AC_MSG_RESULT($rpmversion)
-
-RPM_VERSION=$rpmversion
-AC_SUBST(RPM_VERSION)
-
 AC_OUTPUT([Config.make
 include/linux/asm_module_version.h
-vendor/common/oracleasm-support.spec
+vendor/common/oracleasm-support.spec-generic
 vendor/sles9/oracleasm-2.6.5.spec-generic
 vendor/rhel4/oracleasm-2.6.9-EL.spec-generic
 ])

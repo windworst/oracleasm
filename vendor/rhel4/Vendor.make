@@ -9,13 +9,13 @@ $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-%.spec: $(TOPDIR)/vendor/rhel4/oracleasm-
 	SPECVER="$@"; \
 		SPECVER="$${SPECVER#*oracleasm-2.6.9-}"; \
 		SPECVER="$${SPECVER%.EL.spec}"; \
-		sed -e 's/^%define sver.*%{generic}$$/%define sver		'$${SPECVER}'/' < $< > $@
+		sed -e 's/@@SVER@@/'$${SPECVER}'/' -e 's/@@PKG_VERSION@@/'$(PKG_VERSION)'/' < $< > $@
 
 rhel4_%_srpm: dist $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-%.EL.spec
-	$(RPMBUILD) -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-$(patsubst rhel4_%_srpm,%,$@).EL.spec
+	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/rhel4/oracleasm-2.6.9-$(patsubst rhel4_%_srpm,%,$@).EL.spec
 
 rhel4_%_rpm: rhel4_%_srpm
-	$(RPMBUILD) --rebuild $(MODULEARCH) "oracleasm-2.6.9-$(patsubst rhel4_%_rpm,%,$@).EL-$(DIST_VERSION)-$(RPM_VERSION).src.rpm"
+	rpmbuild --rebuild $(MODULEARCH) "oracleasm-2.6.9-$(patsubst rhel4_%_rpm,%,$@).EL-$(DIST_VERSION)-$(PKG_VERSION).src.rpm"
 
 
 include $(TOPDIR)/vendor/common/Vendor.make

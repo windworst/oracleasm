@@ -4,5 +4,7 @@
 # use the mbvendor infrastructure
 #
 
+PKG_VERSION = $(shell $(TOPDIR)/svnrev.guess $(PACKAGE))
+
 -include $(TOPDIR)/vendor/$(shell ./vendor.guess)/Vendor.make
 
