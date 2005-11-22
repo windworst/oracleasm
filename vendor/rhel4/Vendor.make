@@ -19,3 +19,5 @@ rhel4_%_rpm: rhel4_%_srpm
 
 
 include $(TOPDIR)/vendor/common/Vendor.make
+
+packages: $(shell $(TOPDIR)/vendor/rhel4/kernel.guess targets) support_rpm

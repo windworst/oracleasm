@@ -7,6 +7,10 @@ SLES9_KERNEL_BASE="/usr/src"
 # a list here of the mappings.  It's pretty simple.  One entry per
 # architecture, <arch>:<flavor1>[,<flavor> ...]
 #
+# Anyway, we can even reuse this when detecting kernels to build
+# packages for.  A kernel is only built if build trees for all flavors
+# are installed.
+#
 SLES9_KERNEL_TYPES="
     x86_64:default,smp
     ppc64:pseries64,iseries64,pmac64
@@ -151,6 +155,11 @@ find_version()
      # Find the most recent valid kernel
     ls -1 -t "$SLES9_KERNEL_BASE" | while read kdir
     do
+        if [ -L "${SLES9_KERNEL_BASE}/${kdir}" -o ! -d "${SLES9_KERNEL_BASE}/${kdir}" ]
+        then
+            continue
+        fi
+
         case "$kdir" in
         *-obj)
             ;;
@@ -173,6 +182,72 @@ find_version()
             echo "$KERNELDIR"
             break
         fi
+    done
+}
+
+validate_target()
+{
+    DIR="$1"
+    ARCH="$2"
+    types="$3"
+    for type in $types
+    do
+        KVER="`verfromdir "${SLES9_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
+        if ! validate_dir "$KVER" "$kdir/${ARCH}/${type}"
+        then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+find_targets()
+{
+    ARCH="$(guess_sles9_arch)"
+    if [ -z "$ARCH" ]
+    then
+        return
+    fi
+
+    types=
+    for typelist in $SLES9_KERNEL_TYPES
+    do
+        TARCH=$(echo $typelist | cut -f1 -d:)
+        if [ "$TARCH" = "$ARCH" ]
+        then
+            types=$(echo $typelist | cut -f2 -d: | sed -e 's/,/ /g')
+            break
+        fi
+    done
+
+    if [ -z "$types" ]
+    then
+        return
+    fi
+
+    ls -1 -t "$SLES9_KERNEL_BASE" | while read kdir
+    do
+        # Avoid the symlinks
+        if [ -L "${SLES9_KERNEL_BASE}/${kdir}" -o ! -d "${SLES9_KERNEL_BASE}/${kdir}" ]
+        then
+            continue
+        fi
+        case "$kdir" in
+        linux-*-obj)
+            if validate_target "$kdir" "$ARCH" "$types"
+            then
+                KVER="${kdir#linux-}"
+                KVER="${KVER%-obj}"
+                if rpm -q "kernel-syms-${KVER}" 1>/dev/null 2>&1
+                then
+                    echo "sles9_${KVER}_rpm"
+                fi
+            fi
+            ;;
+        *)
+            ;;
+        esac
     done
 }
 
@@ -199,6 +274,7 @@ include|build)
     fi
     ;;
 targets)
+    find_targets
     ;;
 "")
     echo "Missing operation" >&2

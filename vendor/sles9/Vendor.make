@@ -20,3 +20,5 @@ sles9_%_rpm: sles9_%_srpm
 
 
 include $(TOPDIR)/vendor/common/Vendor.make
+
+packages: $(shell $(TOPDIR)/vendor/sles9/kernel.guess targets) support_rpm

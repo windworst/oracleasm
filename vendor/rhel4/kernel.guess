@@ -3,6 +3,23 @@
 
 RHEL4_KERNEL_BASE="/usr/src/kernels"
 
+#
+# This is a simple mapping of architectures to kernel flavors.  One
+# entry per architecture, <arch>:<flavor1>[,<flavor> ...]
+#
+# This is used when detecting kernels to build packages for.  A kernel
+# is only built if build trees for all flavors are installed.
+#
+# Unique to redhat, empty types (the 'default' kernel) are allowed.
+# Be careful parsing this!
+#
+RHEL4_KERNEL_TYPES="
+    i686:,smp,hugemem
+    x86_64:,smp
+    ia64:
+    ppc64:
+"
+
 
 guess_rhel4_arch()
 {
@@ -103,6 +120,84 @@ find_version()
     done
 }
 
+# For a given KVER, see if all the -devel packages exist
+validate_target()
+{
+    KVER="$1"
+    ARCH="$2"
+    TYPELIST="$3"
+
+    typelist="${TYPELIST#$ARCH:}"
+    while :
+    do
+        type="${typelist%%,*}"
+        VERDIR="$(validate_version ${KVER}${type})"
+        if [ -z "$VERDIR" ]
+        then
+            return 1
+        fi
+    
+        # This loop walks the list of types being careful of the empty
+        # typename
+        tmp="${typelist#*,}"
+        if [ -z "$tmp" -o "$tmp" = "$typelist" ]
+        then
+            break
+        fi
+        typelist="$tmp"
+    done
+
+    return 0
+}
+
+find_targets()
+{
+    # Pre-calculate ARCH and TYPELIST, at least
+    ARCH="$(guess_rhel4_arch)"
+    if [ -z "$ARCH" ]
+    then
+        return
+    fi
+
+    TYPELIST=
+    for typelist in $RHEL4_KERNEL_TYPES
+    do
+        TARCH=$(echo "$typelist" | cut -f1 -d:)
+        if [ "$TARCH" = "$ARCH" ]
+        then
+            TYPELIST="$typelist"
+            break
+        fi
+    done
+
+    if [ -z "$TYPELIST" ]
+    then
+        return
+    fi
+    
+    ls -1 -t "$RHEL4_KERNEL_BASE" | while read kdir
+    do
+        case "$kdir" in
+        2.6.9-5.EL*)
+            # Missing get_sb_pseudo()
+            continue
+            ;;
+        *)
+            ;;
+        esac
+
+        KVER="$(verfromdir "${RHEL4_KERNEL_BASE}/${kdir}")"
+        if ! validate_dir "$KVER" "$kdir"
+        then
+            continue
+        fi
+        if validate_target "$KVER" "$ARCH" "$TYPELIST"
+        then
+            echo "rhel4_${KVER}_rpm"
+        fi
+    done
+}
+
 case "$1" in
 include|build)
     if [ -n "$2" ]
@@ -126,6 +221,7 @@ include|build)
     fi
     ;;
 targets)
+    find_targets
     ;;
 "")
     echo "Missing operation" >&2
