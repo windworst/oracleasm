@@ -1,0 +1,210 @@
+#!/bin/sh
+
+SLES9_KERNEL_BASE="/usr/src"
+
+#
+# SLES9 has wacky names for its kernel flavors.  So we'll just create
+# a list here of the mappings.  It's pretty simple.  One entry per
+# architecture, <arch>:<flavor1>[,<flavor> ...]
+#
+SLES9_KERNEL_TYPES="
+    x86_64:default,smp
+    ppc64:pseries64,iseries64,pmac64
+    ia64:default,64k-pagesize,sn2
+    i386:default,smp,bigsmp
+    s390:s390x
+"
+    
+
+
+guess_sles9_arch()
+{
+    ARCH=$(uname -m)
+    case "$ARCH" in
+    i386|i586|i686)
+	echo "i386"
+        ;;
+    s390x)
+        echo "s390"
+        ;;
+    *)
+        # This appears to be correct on ppc64
+        echo "$ARCH"
+        ;;
+    esac
+}
+
+guess_sles9_type()
+{
+    KVER="$1"
+
+    ARCH="$(guess_sles9_arch)"
+    if [ -z "$ARCH" ]
+    then
+        return
+    fi
+
+    for typelist in $SLES9_KERNEL_TYPES
+    do
+        TARCH=$(echo $typelist | cut -f1 -d:)
+        if [ "$TARCH" = "$ARCH" ]
+        then
+            for type in $(echo $typelist | cut -f2 -d: | sed -e 's/,/ /g')
+            do
+                case "$KVER" in
+                *-${type})
+                    echo "$type"
+                    break
+                    ;;
+                *)
+                    ;;
+                esac
+            done
+            break
+        fi
+    done
+}
+
+guess_sles9_dir()
+{
+    KVER="$1"
+
+    DIRTYPE=$(guess_sles9_type "$KVER")
+    ARCH=$(guess_sles9_arch)
+
+    if [ -n "$DIRTYPE" ]
+    then
+        echo "linux-${1%-${DIRTYPE}}-obj/${ARCH}/${DIRTYPE}"
+    fi
+}
+
+verfromdir()
+{
+    TESTDIR="$1"
+    if [ -r "${TESTDIR}/include/linux/version.h" ]
+    then
+        awk '/UTS_RELEASE/{gsub(/"/,"",$3); print $3}' "${TESTDIR}/include/linux/version.h"
+    fi
+}
+
+validate_dir()
+{
+    KVER="$1"
+    DIR="$2"
+
+    if [ ! -d "${SLES9_KERNEL_BASE}/${DIR}" ]
+    then
+        return 1
+    elif [ ! -f "${SLES9_KERNEL_BASE}/${DIR}/include/linux/autoconf.h" ]
+    then
+        return 1
+    elif [ ! -f "${SLES9_KERNEL_BASE}/${DIR}/include/linux/version.h" ]
+    then
+        return 1
+    fi
+
+    if [ "$KVER" != "`verfromdir "${SLES9_KERNEL_BASE}/${DIR}"`" ]
+    then
+        return 1
+    fi
+
+    return 0
+}
+
+# Takes a `uname -r` and returns "ver type", where ver
+# is 2.6.9-NN.EL and type is "smp" or the like.
+validate_version()
+{
+    KVER="$1"
+
+    dir=`guess_sles9_dir "$KVER"`
+    if validate_dir "$KVER" "$dir"
+    then
+        echo "${SLES9_KERNEL_BASE}/${dir}"
+    fi
+}
+
+find_version()
+{
+    ARCH="$(guess_sles9_arch)"
+    if [ -z "$ARCH" ]
+    then
+        return
+    fi
+
+    types=
+    for typelist in $SLES9_KERNEL_TYPES
+    do
+        TARCH=$(echo $typelist | cut -f1 -d:)
+        if [ "$TARCH" = "$ARCH" ]
+        then
+            types=$(echo $typelist | cut -f2 -d: | sed -e 's/,/ /g')
+            break
+        fi
+    done
+
+    if [ -z "$types" ]
+    then
+        return
+    fi
+
+     # Find the most recent valid kernel
+    ls -1 -t "$SLES9_KERNEL_BASE" | while read kdir
+    do
+        case "$kdir" in
+        *-obj)
+            ;;
+        *)
+            continue
+            ;;
+        esac
+        KERNELDIR=
+        for type in $types
+        do
+            KVER="`verfromdir "${SLES9_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
+            if validate_dir "$KVER" "$kdir/${ARCH}/${type}"
+            then
+                KERNELDIR="${SLES9_KERNEL_BASE}/${kdir}/${ARCH}/${type}"
+                break
+            fi
+        done
+        if [ -n "$KERNELDIR" ]
+        then
+            echo "$KERNELDIR"
+            break
+        fi
+    done
+}
+
+case "$1" in
+include|build)
+    if [ -n "$2" ]
+    then
+        KPATH="`validate_version "$2"`"
+    else
+        KVER="`uname -r`"
+        KPATH="`validate_version "$KVER"`"
+        if [ -z "$KPATH" ]
+        then
+            KPATH="`find_version`"
+        fi
+    fi
+    if [ -n "$KPATH" ]
+    then
+        if [ "$1" = "include" ]
+        then
+            KPATH="${KPATH}/include"
+        fi
+        echo "${KPATH}"
+    fi
+    ;;
+targets)
+    ;;
+"")
+    echo "Missing operation" >&2
+    ;;
+*)
+    echo "Invalid operation: $1" >&2
+    exit 1
+    ;;
+esac

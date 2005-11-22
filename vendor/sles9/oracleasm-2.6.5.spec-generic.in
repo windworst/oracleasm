@@ -297,12 +297,12 @@ local_configure()
 		--sharedstatedir=%{_sharedstatedir}	\
 		--mandir=%{_mandir}			\
 		--infodir=%{_infodir}			\
-		--with-kernel="$1"
+		--with-vendor=sles9			\
+		--with-vendorkernel="$1"
 }
 
 %if %{builddefault}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/default"
-local_configure "${KPATH}"
+local_configure "%{kver}-default"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -316,8 +316,7 @@ make clean
 %endif
 
 %if %{buildsmp}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/smp"
-local_configure "${KPATH}"
+local_configure "%{kver}-smp"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -331,8 +330,7 @@ make clean
 %endif
 
 %if %{buildbigsmp}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/bigsmp"
-local_configure "${KPATH}"
+local_configure "%{kver}-bigsmp"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -346,8 +344,7 @@ make clean
 %endif
 
 %if %{build64kpagesize}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/64k-pagesize"
-local_configure "${KPATH}"
+local_configure "%{kver}-64k-pagesize"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -361,8 +358,7 @@ make clean
 %endif
 
 %if %{buildsn2}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/sn2"
-local_configure "${KPATH}"
+local_configure "%{kver}-sn2"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -376,8 +372,7 @@ make clean
 %endif
 
 %if %{buildiseries64}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/iseries64"
-local_configure "${KPATH}"
+local_configure "%{kver}-iseries64"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -391,8 +386,7 @@ make clean
 %endif
 
 %if %{buildpmac64}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/pmac64"
-local_configure "${KPATH}"
+local_configure "%{kver}-pmac64"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -406,8 +400,7 @@ make clean
 %endif
 
 %if %{buildpseries64}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/pseries64"
-local_configure "${KPATH}"
+local_configure "%{kver}-pseries64"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -421,8 +414,7 @@ make clean
 %endif
 
 %if %{builds390}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/s390"
-local_configure "${KPATH}"
+local_configure "%{kver}-s390"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
@@ -436,8 +428,7 @@ make clean
 %endif
 
 %if %{builds390x}
-KPATH="/usr/src/linux-%{kver}-obj/%{karch}/s390x"
-local_configure "${KPATH}"
+local_configure "%{kver}-s390x"
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
