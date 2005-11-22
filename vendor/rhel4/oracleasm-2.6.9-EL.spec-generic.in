@@ -134,12 +134,12 @@ local_configure()
 		--sharedstatedir=%{_sharedstatedir}	\
 		--mandir=%{_mandir}			\
 		--infodir=%{_infodir}			\
-		--with-kernel="$1"
+		--with-vendor=rhel4			\
+		--with-vendorkernel="$1"
 }
 
 %if %{buildup}
-KPATH="/usr/src/kernels/%{kver}-%{karch}"
-local_configure "${KPATH}"
+local_configure "%{kver}"
 
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
@@ -154,8 +154,7 @@ make clean
 %endif
 
 %if %{buildsmp}
-KPATH="/usr/src/kernels/%{kver}-smp-%{karch}"
-local_configure "${KPATH}"
+local_configure "%{kver}smp"
 
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
@@ -170,8 +169,7 @@ make clean
 %endif
 
 %if %{buildhugemem}
-KPATH="/usr/src/kernels/%{kver}-hugemem-%{karch}"
-local_configure "${KPATH}"
+local_configure "%{kver}hugemem"
 
 make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 

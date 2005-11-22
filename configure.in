@@ -76,41 +76,47 @@ AC_SUBST(MCMODEL)
 AC_SUBST(M64)
 AC_SUBST(USERM64)
 
+AC_CHECK_SIZEOF(unsigned long)
+
 MB_VENDOR()
+MB_VENDOR_KERNEL(vendordir)
 
 if test "x$GCC" != "xyes"; then
   AC_MSG_ERROR(GCC is required)
 fi
 
-AC_MSG_CHECKING(for directory with kernel source)
-AC_ARG_WITH(kernel, [  --with-kernel=dir       Path to the kernel source tree [/usr/src/linux]], kerneldir="$withval", [
-  if test -d "/lib/modules/`uname -r`/build" -o -L "/lib/modules/`uname -r`/build"; then
+AC_MSG_CHECKING(for directory with kernel build tree)
+AC_ARG_WITH(kernel, [  --with-kernel=dir       Path to the kernel build tree [/usr/src/linux]], kerneldir="$withval", [
+  if test -n "$vendordir"; then
+    kerneldir="$vendordir"
+  elif test -d "/lib/modules/`uname -r`/build" -o -L "/lib/modules/`uname -r`/build"; then
     kerneldir="/lib/modules/`uname -r`/build"
   else
     kerneldir="/usr/src/linux"
   fi
 ])
-AC_MSG_RESULT($kerneldir)
 
-KERNELDIR=$kerneldir
-AC_SUBST(KERNELDIR)
-
-KERNELINC="$kerneldir/include"
-
-saved_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="-I$KERNELINC $CPPFLAGS"
-saved_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS $M64"
-
-AC_CHECK_SIZEOF(unsigned long)
-
-if test ! -f "$KERNELINC/linux/autoconf.h"; then
-  AC_MSG_ERROR(No configured kernel include tree found)
+if test ! -f "${kerneldir}/include/linux/autoconf.h"; then
+  AC_MSG_RESULT([not found])
+  KERNELDIR=
+else
+  AC_MSG_RESULT($kerneldir)
+  KERNELDIR="$kerneldir"
+  AC_SUBST(KERNELDIR)
 fi
 
 AC_MSG_CHECKING(for kernel version)
-rm -f conf.kvertest
-AC_TRY_RUN([
+if test -n "$KERNELDIR"; then
+  kernelinc="${KERNELDIR}/include"
+
+  saved_CPPFLAGS="$CPPFLAGS"
+  CPPFLAGS="-I${kernelinc} $CPPFLAGS"
+  saved_CFLAGS="$CFLAGS"
+  CFLAGS="$CFLAGS $M64"
+
+
+  rm -f conf.kvertest
+  AC_TRY_RUN([
 #include <stdio.h>
 #include <linux/version.h>
 
@@ -129,7 +135,13 @@ main (void)
   return 1;
 #endif
 }],kversion=`cat conf.kvertest`, kversion="none")
-rm -f conf.kvertest
+  rm -f conf.kvertest
+
+  CPPFLAGS="$saved_CPPFLAGS"
+  CFLAGS="$saved_CFLAGS"
+else
+  kversion="none"
+fi
 
 BUILD_DRIVER=
 case "$kversion" in
@@ -142,16 +154,13 @@ case "$kversion" in
     ;;
   *)
     AC_MSG_RESULT([This module only supports kernel version 2.6.x, disabling driver build])
-    ;;
+  ;;
 esac
 AC_SUBST(BUILD_DRIVER)
 
 KERNELVER=$kversion
 AC_SUBST(KERNELVER)
 
-
-CPPFLAGS="$saved_CPPFLAGS"
-CFLAGS="$saved_CFLAGS"
 
 
 AC_OUTPUT([Config.make

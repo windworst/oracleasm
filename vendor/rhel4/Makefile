@@ -4,6 +4,7 @@ include $(TOPDIR)/Preamble.make
 
 DIST_FILES = 					\
 	oracleasm-2.6.9-EL.spec-generic.in	\
+	kernel.guess				\
 	rpmarch.guess				\
 	Vendor.make				\
 	vendor.guess

@@ -1,0 +1,137 @@
+#!/bin/sh
+
+
+RHEL4_KERNEL_BASE="/usr/src/kernels"
+
+
+guess_rhel4_arch()
+{
+    # This appears to DTRT (i686 on x86, ppc64 on pSeries).
+    uname -m
+}
+
+guess_rhel4_type()
+{
+    case "$1" in
+    *smp)
+        echo "smp"
+        ;;
+    *hugemem)
+        echo "hugemem"
+        ;;
+    *hugeproc)
+        echo "hugeproc"
+        ;;
+    *)
+        echo ""
+        ;;
+    esac
+}
+
+guess_rhel4_dir()
+{
+    KVER="$1"
+
+    DIRTYPE=`guess_rhel4_type "$KVER"`
+    ARCH=`guess_rhel4_arch`
+
+    if [ -z "$DIRTYPE" ]
+    then
+        echo "${1%${DIRTYPE}}-${ARCH}"
+    else
+        echo "${1%${DIRTYPE}}-${DIRTYPE}-${ARCH}"
+    fi
+}
+
+verfromdir()
+{
+    TESTDIR="$1"
+    if [ -r "${TESTDIR}/include/linux/version.h" ]
+    then
+        awk '/UTS_RELEASE/{gsub(/"/,"",$3); print $3}' "${TESTDIR}/include/linux/version.h"
+    fi
+}
+
+validate_dir()
+{
+    KVER="$1"
+    DIR="$2"
+
+    if [ ! -d "${RHEL4_KERNEL_BASE}/${DIR}" ]
+    then
+        return 1
+    elif [ ! -f "${RHEL4_KERNEL_BASE}/${DIR}/include/linux/autoconf.h" ]
+    then
+        return 1
+    elif [ ! -f "${RHEL4_KERNEL_BASE}/${DIR}/include/linux/version.h" ]
+    then
+        return 1
+    fi
+
+    if [ "$KVER" != "`verfromdir "${RHEL4_KERNEL_BASE}/${DIR}"`" ]
+    then
+        return 1
+    fi
+
+    return 0
+}
+
+# Takes a `uname -r` and returns "ver type", where ver
+# is 2.6.9-NN.EL and type is "smp" or the like.
+validate_version()
+{
+    KVER="$1"
+
+    dir=`guess_rhel4_dir "$KVER"`
+    if validate_dir "$KVER" "$dir"
+    then
+        echo "${RHEL4_KERNEL_BASE}/${dir}"
+    fi
+}
+
+find_version()
+{
+    # Find the most recent valid kernel
+    ls -1 -t "$RHEL4_KERNEL_BASE" | while read kdir
+    do
+        KVER="`verfromdir "${RHEL4_KERNEL_BASE}/${kdir}"`"
+        if validate_dir "$KVER" "$kdir"
+        then
+            echo "${RHEL4_KERNEL_BASE}/${kdir}"
+            break
+        fi
+    done
+}
+
+case "$1" in
+include|build)
+    if [ -n "$2" ]
+    then
+        KPATH="`validate_version "$2"`"
+    else
+        KVER="`uname -r`"
+        KPATH="`validate_version "$KVER"`"
+        if [ -z "$KPATH" ]
+        then
+            KPATH="`find_version`"
+        fi
+    fi
+    if [ -n "$KPATH" ]
+    then
+        if [ "$1" = "include" ]
+        then
+            KPATH="${KPATH}/include"
+        fi
+        echo "${KPATH}"
+    fi
+    ;;
+targets)
+    ;;
+"")
+    echo "Missing operation" >&2
+    ;;
+*)
+    echo "Invalid operation: $1" >&2
+    exit 1
+    ;;
+esac
