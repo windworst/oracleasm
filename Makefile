@@ -34,6 +34,7 @@ DIST_FILES = \
 	configure.in	\
 	install-sh	\
 	mkinstalldirs	\
+	svnrev.guess	\
 	Vendor.make	\
 	vendor.guess
 
