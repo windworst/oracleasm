@@ -70,9 +70,7 @@
 
 
 # This must be changed to the minimum ABI compat kernel version expected
-%define base		2.6.5
-%define sver		@@SVER@@
-%define kver		%{base}-%{sver}
+%define kver		@@KVER@@
 
 # The minimum -support package required for the kernel bits.
 %define support_ver     2.0.0
