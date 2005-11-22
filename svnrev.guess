@@ -126,12 +126,17 @@ guessbranch()
                                                  }'
 }
 
-BRANCH=$(guessbranch)
-case "$BRANCH" in
-tags/${PACKAGE}*)
-    releaserev "$BRANCH"
-    ;;
-*)
-    workingrev
-    ;;
-esac
+if ! which svn 1>/dev/null 2>&1
+then
+    echo "0.local"
+else
+    BRANCH=$(guessbranch)
+    case "$BRANCH" in
+    tags/${PACKAGE}*)
+        releaserev "$BRANCH"
+        ;;
+    *)
+        workingrev
+        ;;
+    esac
+fi
