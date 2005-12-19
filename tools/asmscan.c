@@ -852,15 +852,18 @@ static int device_is_disk(const char *manager, const char *device,
      * sleep 3
      * try3
      * sleep 5
+     * try4
      * fail
      */
     do {
         rc = check_device_is_disk(manager, device, disk_name);
         if (rc == -ENOENT) {
+            if (delay > 5)
+                break;
             sleep(delay);
             delay += 2;
         }
-    } while ((rc == -ENOENT) && (delay < 6));
+    } while (rc == -ENOENT);
 
     return !rc;  /* 0 is success */
 }
