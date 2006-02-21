@@ -1893,14 +1893,16 @@ static void asm_cleanup_bios(struct file *file)
 	struct asmfs_file_info *afi = ASMFS_FILE(file);
 	struct bio *bio;
 
+	spin_lock_irq(&afi->f_lock);
 	while (afi->f_bio_free) {
-		spin_lock_irq(&afi->f_lock);
 		bio = afi->f_bio_free;
 		afi->f_bio_free = bio->bi_private;
-		spin_unlock_irq(&afi->f_lock);
 
+		spin_unlock_irq(&afi->f_lock);
 		bio_unmap_user(bio);
+		spin_lock_irq(&afi->f_lock);
 	}
+	spin_unlock_irq(&afi->f_lock);
 }
 
 static int asmfs_file_open(struct inode * inode, struct file * file)
