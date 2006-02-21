@@ -80,10 +80,14 @@
 
 #include "linux/asm_module_version.h"
 
+#include "masklog.h"
+#include "proc.h"
 #if 0
 #include "transaction_file.h"
 #else
-#include "transaction_file.c"  /* XXX ugly for now */
+/* XXX ugly for now */
+#include "transaction_file.c"
+#include "proc.c"
 #endif 
 
 #if PAGE_CACHE_SIZE % 1024
@@ -2655,6 +2659,12 @@ static int __init init_asmfs_fs(void)
 		goto out_diskcache;
 	}
 
+	ret = init_oracleasm_proc();
+	if (ret) {
+		printk("oracleasmfs: Unable to register proc entries\n");
+		goto out_proc;
+	}
+
 	init_asmfs_dir_operations();
 	ret = register_filesystem(&asmfs_fs_type);
 	if (ret) {
@@ -2665,6 +2675,9 @@ static int __init init_asmfs_fs(void)
 	return 0;
 
 out_register:
+	exit_oracleasm_proc();
+
+out_proc:
 	destroy_asmdiskcache();
 
 out_diskcache:
@@ -2680,6 +2693,7 @@ out_inodecache:
 static void __exit exit_asmfs_fs(void)
 {
 	unregister_filesystem(&asmfs_fs_type);
+	exit_oracleasm_proc();
 	destroy_asmdiskcache();
 	destroy_requestcache();
 	destroy_inodecache();
