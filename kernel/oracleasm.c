@@ -282,6 +282,8 @@ static struct inode *asmdisk_alloc_inode(struct super_block *sb)
 	struct asm_disk_info *d = kmem_cache_alloc(asmdisk_cachep, SLAB_KERNEL);
 	if (!d)
 		return NULL;
+
+	mlog(ML_DISK, "Allocated disk 0x%p\n", d);
 	return &d->vfs_inode;
 }
 
@@ -294,6 +296,8 @@ static void asmdisk_destroy_inode(struct inode *inode)
 
 	mlog_bug_on_msg(!list_empty(&d->d_open),
 			"Disk 0x%p has openers\n", d);
+
+	mlog(ML_DISK, "Destroying disk 0x%p\n", d);
 
 	kmem_cache_free(asmdisk_cachep, d);
 }
@@ -325,9 +329,12 @@ static void asmdisk_clear_inode(struct inode *inode)
 	mlog_bug_on_msg(d->d_live,
 			"Disk 0x%p is live\n", d);
 
+	mlog(ML_DISK, "Clearing disk 0x%p\n", d);
+
 	if (d->d_bdev) {
-		mlog(ML_DISK, "Releasing disk 0x%p (dev %X)\n",
-		     d, d->d_bdev->bd_dev);
+		mlog(ML_DISK,
+		     "Releasing disk 0x%p (bdev 0x%p, dev %X)\n",
+		     d, d->d_bdev, d->d_bdev->bd_dev);
 		bd_release(d->d_bdev);
 		blkdev_put(d->d_bdev);
 		d->d_bdev = NULL;
@@ -742,9 +749,16 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 		d->d_bdev = bdev;
 		d->d_max_sectors = compute_max_sectors(bdev);
 		d->d_live = 1;
+
+		mlog(ML_DISK,
+		     "First open of disk 0x%p (bdev 0x%p, dev %X)\n",
+		     d, d->d_bdev, d->d_bdev->bd_dev);
 		unlock_new_inode(disk_inode);
 	} else {
 		/* Already claimed on first open */
+		mlog(ML_DISK,
+		     "Open of disk 0x%p (bdev 0x%p, dev %X)\n",
+		     d, d->d_bdev, d->d_bdev->bd_dev);
 		bd_release(bdev);
 		blkdev_put(bdev);
 	}
@@ -802,6 +816,9 @@ static int asm_close_disk(struct file *file, unsigned long handle)
 
 	d = ASMDISK_I(disk_inode);
 	bdev = d->d_bdev;
+
+	mlog(ML_DISK, "Closing disk 0x%p (bdev 0x%p, dev %X)\n",
+	     d, d->d_bdev, d->d_bdev->bd_dev);
 
 	/*
 	 * If an additional thread raced us to close the disk, it
