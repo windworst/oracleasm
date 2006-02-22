@@ -1701,7 +1701,7 @@ static inline void asm_promote_64(asm_ioc64 *ioc)
 	     ioc_32->buffer_asm_ioc);
 	ioc->check_asm_ioc = (u64)ioc_32->check_asm_ioc;
 	ioc->buffer_asm_ioc = (u64)ioc_32->buffer_asm_ioc;
-	mlog(ML_IOC, "Promoted to (0x%llX, 0x%llX)\n",
+	mlog(ML_IOC, "Promoted to (0x%"MLFu64", 0x%"MLFu64")\n",
 	     ioc->check_asm_ioc,
 	     ioc->buffer_asm_ioc);
 
@@ -2097,7 +2097,7 @@ static ssize_t asmfs_svc_query_version(struct file *file, char *buf, size_t size
 	struct oracleasm_abi_info *abi_info;
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_abi_info))
 		return -EINVAL;
@@ -2136,7 +2136,7 @@ static ssize_t asmfs_svc_get_iid(struct file *file, char *buf, size_t size)
 	struct asmfs_sb_info *asb = ASMFS_SB(ASMFS_F2I(file)->i_sb);
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_get_iid_v2))
 		return -EINVAL;
@@ -2174,7 +2174,7 @@ static ssize_t asmfs_svc_check_iid(struct file *file, char *buf, size_t size)
 	struct asmfs_sb_info *asb = ASMFS_SB(ASMFS_F2I(file)->i_sb);
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_get_iid_v2))
 		return -EINVAL;
@@ -2214,7 +2214,7 @@ static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
 	struct block_device *bdev;
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_query_disk_v2))
 		return -EINVAL;
@@ -2266,7 +2266,7 @@ static ssize_t asmfs_svc_open_disk(struct file *file, char *buf, size_t size)
 	struct file *filp;
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_open_disk_v2))
 		return -EINVAL;
@@ -2329,7 +2329,7 @@ static ssize_t asmfs_svc_close_disk(struct file *file, char *buf, size_t size)
 	struct oracleasm_close_disk_v2 cd_info;
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_close_disk_v2))
 		return -EINVAL;
@@ -2370,7 +2370,7 @@ static ssize_t asmfs_svc_io32(struct file *file, char *buf, size_t size)
 	struct oracleasm_io_v2 io_info;
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_io_v2))
 		return -EINVAL;
@@ -2410,7 +2410,7 @@ static ssize_t asmfs_svc_io64(struct file *file, char *buf, size_t size)
 	struct oracleasm_io_v2 io_info;
 	int ret;
 
-	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, size);
+	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
 	if (size != sizeof(struct oracleasm_io_v2))
 		return -EINVAL;
