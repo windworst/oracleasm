@@ -29,9 +29,7 @@
 #include "masklog.h"
 
 struct mlog_bits mlog_and_bits = MLOG_BITS_RHS(MLOG_INITIAL_AND_MASK);
-EXPORT_SYMBOL_GPL(mlog_and_bits);
 struct mlog_bits mlog_not_bits = MLOG_BITS_RHS(MLOG_INITIAL_NOT_MASK);
-EXPORT_SYMBOL_GPL(mlog_not_bits);
 
 static char *mlog_bit_names[MLOG_MAX_BITS];
 
@@ -185,36 +183,14 @@ int mlog_init_proc(struct proc_dir_entry *parent)
 
 	set_a_string(ENTRY);
 	set_a_string(EXIT);
-	set_a_string(TCP);
-	set_a_string(MSG);
-	set_a_string(SOCKET);
-	set_a_string(HEARTBEAT);
-	set_a_string(HB_BIO);
-	set_a_string(DLMFS);
-	set_a_string(DLM);
-	set_a_string(DLM_DOMAIN);
-	set_a_string(DLM_THREAD);
-	set_a_string(DLM_MASTER);
-	set_a_string(DLM_RECOVERY);
-	set_a_string(AIO);
-	set_a_string(JOURNAL);
-	set_a_string(DISK_ALLOC);
-	set_a_string(SUPER);
-	set_a_string(FILE_IO);
-	set_a_string(EXTENT_MAP);
-	set_a_string(DLM_GLUE);
-	set_a_string(BH_IO);
-	set_a_string(UPTODATE);
-	set_a_string(NAMEI);
-	set_a_string(INODE);
-	set_a_string(VOTE);
-	set_a_string(DCACHE);
-	set_a_string(CONN);
-	set_a_string(QUORUM);
-	set_a_string(EXPORT);
+	set_a_string(DISK);
+	set_a_string(REQUEST);
+	set_a_string(BIO);
+	set_a_string(IOC);
+	set_a_string(ABI);
+
 	set_a_string(ERROR);
 	set_a_string(NOTICE);
-	set_a_string(KTHREAD);
 
 	p = create_proc_entry(LOGMASK_PROC_NAME, S_IRUGO, parent);
 	if (p == NULL)
@@ -224,4 +200,3 @@ int mlog_init_proc(struct proc_dir_entry *parent)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(mlog_init_proc);

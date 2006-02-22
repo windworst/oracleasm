@@ -53,9 +53,6 @@
  * indication of which bits are on or off:
  * 	ENTRY off
  * 	EXIT off
- * 	TCP off
- * 	MSG off
- * 	SOCKET off
  * 	ERROR off
  * 	NOTICE on
  *
@@ -69,7 +66,7 @@
  *
  * Some trivial shell can flip all the bits on or off:
  *
- * log_mask="/proc/fs/ocfs2_nodemanager/log_mask"
+ * log_mask="/proc/fs/oracleasm/log_mask"
  * cat $log_mask | (
  * 	while read bit status; do
  * 		# $1 is "on" or "off", say
@@ -85,37 +82,14 @@
 /* NOTE: If you add a flag, you need to also update mlog.c! */
 #define ML_ENTRY	0x0000000000000001ULL /* func call entry */
 #define ML_EXIT		0x0000000000000002ULL /* func call exit */
-#define ML_TCP		0x0000000000000004ULL /* net cluster/tcp.c */
-#define ML_MSG		0x0000000000000008ULL /* net network messages */
-#define ML_SOCKET	0x0000000000000010ULL /* net socket lifetime */
-#define ML_HEARTBEAT	0x0000000000000020ULL /* hb all heartbeat tracking */
-#define ML_HB_BIO	0x0000000000000040ULL /* hb io tracing */
-#define ML_DLMFS	0x0000000000000080ULL /* dlm user dlmfs */
-#define ML_DLM		0x0000000000000100ULL /* dlm general debugging */
-#define ML_DLM_DOMAIN	0x0000000000000200ULL /* dlm domain debugging */
-#define ML_DLM_THREAD	0x0000000000000400ULL /* dlm domain thread */
-#define ML_DLM_MASTER	0x0000000000000800ULL /* dlm master functions */
-#define ML_DLM_RECOVERY	0x0000000000001000ULL /* dlm master functions */
-#define ML_AIO		0x0000000000002000ULL /* ocfs2 aio read and write */
-#define ML_JOURNAL	0x0000000000004000ULL /* ocfs2 journalling functions */
-#define ML_DISK_ALLOC	0x0000000000008000ULL /* ocfs2 disk allocation */
-#define ML_SUPER	0x0000000000010000ULL /* ocfs2 mount / umount */
-#define ML_FILE_IO	0x0000000000020000ULL /* ocfs2 file I/O */
-#define ML_EXTENT_MAP	0x0000000000040000ULL /* ocfs2 extent map caching */
-#define ML_DLM_GLUE	0x0000000000080000ULL /* ocfs2 dlm glue layer */
-#define ML_BH_IO	0x0000000000100000ULL /* ocfs2 buffer I/O */
-#define ML_UPTODATE	0x0000000000200000ULL /* ocfs2 caching sequence #'s */
-#define ML_NAMEI	0x0000000000400000ULL /* ocfs2 directory / namespace */
-#define ML_INODE	0x0000000000800000ULL /* ocfs2 inode manipulation */
-#define ML_VOTE		0x0000000001000000ULL /* ocfs2 node messaging  */
-#define ML_DCACHE	0x0000000002000000ULL /* ocfs2 dcache operations */
-#define ML_CONN		0x0000000004000000ULL /* net connection management */
-#define ML_QUORUM	0x0000000008000000ULL /* net connection quorum */
-#define ML_EXPORT	0x0000000010000000ULL /* ocfs2 export operations */
+#define ML_DISK		0x0000000000000004ULL /* Disk information */
+#define ML_REQUEST	0x0000000000000010ULL /* I/O requests */
+#define ML_BIO		0x0000000000000020ULL /* bios backing I/O */
+#define ML_IOC		0x0000000000000040ULL /* asm_iocs */
+#define ML_ABI		0x0000000000000100ULL /* ABI entry points */
 /* bits that are infrequently given and frequently matched in the high word */
 #define ML_ERROR	0x0000000100000000ULL /* sent to KERN_ERR */
 #define ML_NOTICE	0x0000000200000000ULL /* setn to KERN_NOTICE */
-#define ML_KTHREAD	0x0000000400000000ULL /* kernel thread activity */
 
 #define MLOG_INITIAL_AND_MASK (ML_ERROR|ML_NOTICE)
 #define MLOG_INITIAL_NOT_MASK (ML_ENTRY|ML_EXIT)
