@@ -1002,10 +1002,11 @@ static int asm_update_user_ioc(struct asm_request *r)
 			goto out;
 		}
 	}
-	mlog(ML_IOC, "r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
-	       r->r_status,
-	       (ASM_SUBMITTED | ASM_COMPLETED | ASM_ERROR),
-	       (r->r_status & (ASM_SUBMITTED | ASM_COMPLETED | ASM_ERROR)));
+	mlog(ML_IOC,
+	     "r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
+	     r->r_status,
+	     (ASM_SUBMITTED | ASM_COMPLETED | ASM_ERROR),
+	     (r->r_status & (ASM_SUBMITTED | ASM_COMPLETED | ASM_ERROR)));
 	if (r->r_status & ASM_FREE) {
 		u64 z = 0ULL;
 		if (copy_to_user(&(ioc->reserved_asm_ioc),
@@ -1337,8 +1338,10 @@ static int asm_submit_io(struct file *file,
 		r->r_bio = NULL;
 		goto out_error;
 	}
+	mlog(ML_BIO, "Mapped bio 0x%p to request 0x%p\n", r->r_bio, r);
 
-	r->r_bio->bi_sector = ioc->first_asm_ioc;
+	r->r_bio->bi_sector =
+		ioc->first_asm_ioc * (bdev_hardsect_size(bdev) >> 9);
 
 	/*
 	 * If the bio is a bounced bio, we have to put the
@@ -1362,7 +1365,8 @@ out:
 	return ret;
 
 out_error:
-	mlog(ML_REQUEST, "out_error on request 0x%p\n", r);
+	mlog(ML_REQUEST, "Submit-side error %d for request 0x%p\n",
+	     ret,  r);
 	asm_end_ioc(r, 0, ret);
 	goto out;
 }  /* asm_submit_io() */
@@ -1400,7 +1404,8 @@ static int asm_maybe_wait_io(struct file *file,
 		return -EINVAL;
 	}
 
-	mlog(ML_REQUEST|ML_IOC, "asm_request is valid...we think\n");
+	mlog(ML_REQUEST|ML_IOC,
+	     "asm_request 0x%p is valid...we think\n", r);
 	if (!(r->r_status & (ASM_COMPLETED |
 			     ASM_BUSY | ASM_ERROR))) {
 		spin_unlock_irq(&afi->f_lock);
@@ -1952,6 +1957,7 @@ static void asm_cleanup_bios(struct file *file)
 		afi->f_bio_free = bio->bi_private;
 
 		spin_unlock_irq(&afi->f_lock);
+		mlog(ML_BIO, "Unmapping bio 0x%p\n", bio);
 		bio_unmap_user(bio);
 		spin_lock_irq(&afi->f_lock);
 	}
@@ -2016,9 +2022,6 @@ static int asmfs_file_release(struct inode *inode, struct file *file)
 
 	aii = ASMFS_I(ASMFS_F2I(file));
 	afi = ASMFS_FILE(file);
-
-	mlog_bug_on_msg(!afi, "No asmfs_file_info on filp 0x%p\n",
-			file);
 
 	mlog(ML_ABI, "Release for filp 0x%p (afi = 0x%p)\n", file, afi);
 
