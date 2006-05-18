@@ -1179,6 +1179,10 @@ static int asm_end_bio_io(struct bio *bio, unsigned int bytes_done,
 
 	mlog_entry("(0x%p, %u, %d)\n", bio, bytes_done, error);
 
+	mlog(ML_BIO, "bio 0x%p, bi_size is %u\n", bio, bio->bi_size);
+	if (bio->bi_size)
+		return 1;
+
 	r = bio->bi_private;
 
 	mlog(ML_REQUEST|ML_BIO,
