@@ -2,6 +2,17 @@ README.bugs
 
 Bugs fixed by release.
 
+oracleasm 2.0.2
+---------------
+5207987: I/O error on ASM disk on SAN causes kernel panic
+4945934: ASM disks disappear after reboot using ASMLib
+
+oracleasm 2.0.1
+---------------
+4691012: ASM fails to create disk when using mdadm with ASMLib for multipathing
+4591412: ASM disks disappear after reboot using ASMLib
+4449864: Linux ASMLib scandisks races the hotplug subsystem.
+
 oracleasm 2.0.0
 ---------------
 3919995: oracleasm listdisks should also correlate with the devices
