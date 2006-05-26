@@ -12,6 +12,7 @@
 %define buildup		1
 %define buildsmp	0
 %define buildhugemem	0
+%define buildlargesmp	0
 
 %ifarch i686
 %define karch		i686
