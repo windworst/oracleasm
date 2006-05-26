@@ -13,13 +13,17 @@ RHEL4_KERNEL_BASE="/usr/src/kernels"
 # Unique to redhat, empty types (the 'default' kernel) are allowed.
 # Be careful parsing this!
 #
+# Red Hat throws us another loop.  2.6.9-34.EL+ have a new "largesmp"
+# type.  So, we have TYPES and OLD TYPES.
+#
 RHEL4_KERNEL_TYPES="
     i686:,smp,hugemem
-    x86_64:,smp
-    ia64:
-    ppc64:
+    x86_64:,smp,largesmp
+    ia64:,largesmp
+    ppc64:,largesmp
     s390x:
 "
+
 
 
 guess_rhel4_arch()
@@ -31,14 +35,14 @@ guess_rhel4_arch()
 guess_rhel4_type()
 {
     case "$1" in
-    *smp)
-        echo "smp"
+    *largesmp)
+        echo "largesmp"
         ;;
     *hugemem)
         echo "hugemem"
         ;;
-    *hugeproc)
-        echo "hugeproc"
+    *smp)
+        echo "smp"
         ;;
     *)
         echo ""
@@ -127,6 +131,15 @@ validate_target()
     KVER="$1"
     ARCH="$2"
     TYPELIST="$3"
+
+    # Red Hat introduced the "largesmp" type in 34.EL.  Anything older
+    # can ignore it.
+    LARGESMP="${KVER#2.6.9-}"
+    LARGESMP="${LARGESMP%%.*}"
+    if [ "$LARGESMP" -lt 34 ]
+    then
+        TYPELIST="${TYPELIST%,largesmp}"
+    fi
 
     typelist="${TYPELIST#$ARCH:}"
     while :

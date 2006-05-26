@@ -88,10 +88,12 @@ releaserev()
 {
     BRANCH="$1"
     BRANCH_SEARCH="`echo "$BRANCH" | sed -e 's/\//\\\\\//g'`"
-    svn log -v | awk 'BEGIN{rev=0}
-                      /^r[0-9]+ \|/{rev += 1}
-                      /^ +A \/'"$BRANCH_SEARCH"'$/{exit}
-                      END{print rev}'
+    svn log -v 2>&1 |
+        awk 'BEGIN{rev=0}
+             /^r[0-9]+ \|/{rev += 1}
+             /^ +A \/'"$BRANCH_SEARCH"'$/{exit}
+             /^ +A \/'"$BRANCH_SEARCH"' (.*)$/{exit}
+             END{print rev}'
 }
 
 

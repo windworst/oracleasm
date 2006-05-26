@@ -22,6 +22,7 @@
 %ifarch x86_64
 %define karch		x86_64
 %define buildsmp	1
+%define buildlargesmp	@@LARGESMP@@
 %endif
 
 %ifarch ia32e
@@ -30,10 +31,12 @@
 
 %ifarch ia64
 %define karch		ia64
+%define buildlargesmp	@@LARGESMP@@
 %endif
 
 %ifarch ppc64
 %define karch		ppc64
+%define buildlargesmp	@@LARGESMP@@
 %endif
 
 %ifarch s390x
@@ -109,6 +112,23 @@ This package is compiled for large memory SMP kernels.
 %endif
 
 
+%if %{buildlargesmp}
+%package -n oracleasm-%{kver}largesmp
+Summary: The Oracle Automatic Storage Management library driver for NUMA systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-largesmp = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-largesmp-devel = %{kver}
+
+%description -n oracleasm-%{kver}largesmp
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for large SMP kernels.
+%endif
+
+
 
 %prep
 %setup -n oracleasm-%{version}
@@ -181,6 +201,21 @@ mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
 make clean
 %endif
 
+%if %{buildlargesmp}
+local_configure "%{kver}largesmp"
+
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}largesmp/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}largesmp/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
 
 %install
 
@@ -220,8 +255,20 @@ depmod -ae %{kver}hugemem
 /lib/modules/%{kver}hugemem/kernel/drivers/addon/oracleasm
 %endif
 
+%if %{buildlargesmp}
+%post -n oracleasm-%{kver}largesmp
+depmod -ae %{kver}largesmp
+
+%files -n oracleasm-%{kver}largesmp
+%defattr(-,root,root)
+/lib/modules/%{kver}largesmp/kernel/drivers/addon/oracleasm
+%endif
+
 
 %changelog
+* Thu May 25 2006 Joel Becker <joel.becker@oracle.com>
+- Add largesmp
+
 * Fri Feb 04 2005 Joel Becker <joel.becker@oracle.com>
 - Make RHEL4 specfile.
 
