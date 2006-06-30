@@ -51,15 +51,9 @@ AC_ARG_ENABLE(force32,
               force32="$enableval",
               force32="no")
 
-MCMODEL=""
-M64=""
 USERM64=""
 case "$host_cpu" in
-x86_64)
-    MCMODEL="-mcmodel=kernel"
-    ;;
 ppc64|powerpc64|ppc64iseries|ppc64pseries)
-    M64="-m64"
     case "$force32" in
     yes|true|on)
         ;;
@@ -72,8 +66,6 @@ ppc64|powerpc64|ppc64iseries|ppc64pseries)
     ;;
 esac
 
-AC_SUBST(MCMODEL)
-AC_SUBST(M64)
 AC_SUBST(USERM64)
 
 AC_CHECK_SIZEOF(unsigned long)

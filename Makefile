@@ -16,6 +16,9 @@ MODULEARCH = $(shell $(TOPDIR)/rpmarch.guess module $(TOPDIR))
 # 
 SUBDIRS = include kernel tools documents vendor
 
+KAPI_COMPAT_FILES =			\
+	kapi-compat/include/i_mutex.h
+
 #
 # Extra (non-source) files to distribute
 #
@@ -27,6 +30,7 @@ DIST_FILES = \
 	Preamble.make	\
 	Postamble.make	\
 	aclocal.m4	\
+	kfeature.m4	\
 	mbvendor.m4	\
 	config.guess	\
 	config.sub	\
@@ -36,9 +40,14 @@ DIST_FILES = \
 	mkinstalldirs	\
 	svnrev.guess	\
 	Vendor.make	\
-	vendor.guess
+	vendor.guess	\
+	$(KAPI_COMPAT_FILES)
 
+DIST_RULES = dist-subdircreate
 
+dist-subdircreate:
+	$(TOPDIR)/mkinstalldirs $(DIST_DIR)/kapi-compat/include
+	
 
 
 include Vendor.make
