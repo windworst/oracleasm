@@ -52,12 +52,12 @@ static ssize_t TA_write(struct file *file, const char *buf, size_t size, loff_t 
 	if (!ar)
 		return -ENOMEM;
 	ar->size = 0;
-	down(&file->f_dentry->d_inode->i_sem);
+	mutex_lock(&file->f_dentry->d_inode->i_mutex);
 	if (file->private_data)
 		rv = -EINVAL;
 	else
 		file->private_data = ar;
-	up(&file->f_dentry->d_inode->i_sem);
+	mutex_unlock(&file->f_dentry->d_inode->i_mutex);
 	if (rv) {
 		kfree(ar);
 		return rv;

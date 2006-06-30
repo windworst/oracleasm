@@ -269,11 +269,11 @@ static struct transaction_context trans_contexts[] = {
 
 static struct backing_dev_info memory_backing_dev_info = {
 	.ra_pages	= 0,	/* No readahead */
-#if 1
-	.memory_backed	= 1,	/* Does not contribute to dirty memory */
-#else
+#ifdef BACKING_DEV_CAPABILITIES
 	.capabilities   = BDI_CAP_NO_ACCT_DIRTY | BDI_CAP_NO_WRITEBACK,
-#endif
+#else
+	.memory_backed	= 1,	/* Does not contribute to dirty memory */
+#endif  /* OLD_BACKING_DEV */
 };
 
 
@@ -352,6 +352,15 @@ static struct super_operations asmdisk_sops = {
 	.clear_inode		= asmdisk_clear_inode,
 };
 
+#ifdef GET_SB_HAS_VFSMOUNT
+static int asmdisk_get_sb(struct file_system_type *fs_type, int flags,
+			  const char *dev_name, void *data,
+			  struct vfsmount *mnt)
+{
+	return get_sb_pseudo(fs_type, "asmdisk:",
+			     &asmdisk_sops, 0x61736D64, mnt);
+}
+#else
 static struct super_block *asmdisk_get_sb(struct file_system_type *fs_type,
 					  int flags,
 					  const char *dev_name,
@@ -360,6 +369,7 @@ static struct super_block *asmdisk_get_sb(struct file_system_type *fs_type,
 	return get_sb_pseudo(fs_type, "asmdisk:",
 			     &asmdisk_sops, 0x61736D64);
 }
+#endif
 
 static struct file_system_type asmdisk_type = {
 	.name		= "asmdisk",
@@ -2712,18 +2722,35 @@ out_free_asb:
 }
 
 
+/*
+ * We want all the simple_dir_operations, but we cannot reference them
+ * directly -- they are not EXPORT_SYMBOL()d.  So, we just copy the
+ * exported simple_dir_operations before adding any specific functions
+ * of our own.
+ *
+ * This means that asmfs_dir_operations can't be const.  Oh, well.
+ */
 static void __init init_asmfs_dir_operations(void) {
 	asmfs_dir_operations		= simple_dir_operations;
 	asmfs_dir_operations.fsync	= simple_sync_file;
 };
 
 
+#ifdef GET_SB_HAS_VFSMOUNT
+static int asmfs_get_sb(struct file_system_type *fs_type, int flags,
+			const char *dev_name, void *data,
+			struct vfsmount *mnt)
+{
+	return get_sb_nodev(fs_type, flags, data, asmfs_fill_super, mnt);
+}
+#else
 static struct super_block *asmfs_get_sb(struct file_system_type *fs_type,
 					int flags, const char *dev_name,
 					void *data)
 {
 	return get_sb_nodev(fs_type, flags, data, asmfs_fill_super);
 }
+#endif  /* GET_SB_HAS_VFSMOUNT */
 
 static struct file_system_type asmfs_fs_type = {
 	.owner		= THIS_MODULE,

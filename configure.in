@@ -161,6 +161,34 @@ AC_SUBST(BUILD_DRIVER)
 KERNELVER=$kversion
 AC_SUBST(KERNELVER)
 
+KAPI_COMPAT_CFLAGS=
+BACKING_DEV_CAPABILITIES=
+GET_SB_HAS_VFSMOUNT=
+if test x"$BUILD_DRIVER" = "xyes"; then
+  KERNELINC="${KERNELDIR}/include"  # Needed by kfeature.m4
+  KAPI_COMPAT_HEADERS=
+
+  OCFS2_CHECK_KERNEL([capabilities mask in backing_dev_info], backing-dev.h,
+    BACKING_DEV_CAPABILITIES=yes, , [\<BDI_CAP_NO_WRITEBACK\>])
+
+  OCFS2_CHECK_KERNEL([vfsmount in ->get_sb() helpers], fs.h,
+    GET_SB_HAS_VFSMOUNT=yes, , [^extern int get_sb_pseudo])
+
+  mutex_compat_header=
+  OCFS2_CHECK_KERNEL([for mutex API], mutex.h, ,
+    mutex_compat_header="i_mutex.h", [mutex_lock])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $mutex_compat_header"
+
+  # using -include has two advantages:
+  #  the source doesn't need to know to include compat headers
+  #  the compat header file names don't go through the search path
+  for h in $KAPI_COMPAT_HEADERS; do
+    KAPI_COMPAT_CFLAGS="$KAPI_COMPAT_CFLAGS -include \$(OUR_TOPDIR)/kapi-compat/include/$h"
+  done
+fi
+AC_SUBST(KAPI_COMPAT_CFLAGS)
+AC_SUBST(BACKING_DEV_CAPABILITIES)
+AC_SUBST(GET_SB_HAS_VFSMOUNT)
 
 
 AC_OUTPUT([Config.make

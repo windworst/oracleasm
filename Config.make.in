@@ -21,6 +21,7 @@ sbindir = @sbindir@
 datadir = @datadir@
 sysconfdir = @sysconfdir@
 mandir = @mandir@
+datarootdir = @datarootdir@
 
 top_builddir = .
 
@@ -49,5 +50,11 @@ KERNELDIR = @KERNELDIR@
 KERNELINC = $(KERNELDIR)/include
 KERNELVER = @KERNELVER@
 BUILD_DRIVER = @BUILD_DRIVER@
+
+else
+
+BACKING_DEV_CAPABILITIES = @BACKING_DEV_CAPABILITIES@
+GET_SB_HAS_VFSMOUNT = @GET_SB_HAS_VFSMOUNT@
+EXTRA_CFLAGS += @KAPI_COMPAT_CFLAGS@
 
 endif

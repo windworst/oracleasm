@@ -7,6 +7,7 @@ else #ifeq ($(KERNELRELEASE),)
 # We are included by kbuild
 
 ORACLEASM_SRC_DIR	:= $(M)
+OUR_TOPDIR		:= $(M)/..
 
 include $(ORACLEASM_SRC_DIR)/../Config.make
 endif
@@ -49,6 +50,14 @@ STAMP_DIR = $(ORACLEASM_SRC_DIR)
 
 INCLUDES = -I. -I$(ORACLEASM_SRC_DIR)/../include
 EXTRA_CFLAGS += $(DEFINES) $(INCLUDES)
+
+ifdef BACKING_DEV_CAPABILITIES
+EXTRA_CFLAGS += -DBACKING_DEV_CAPABILITIES
+endif
+
+ifdef GET_SB_HAS_VFSMOUNT
+EXTRA_CFLAGS += -DGET_SB_HAS_VFSMOUNT
+endif
 
 obj-m += oracleasm.o
 #oracleasm-objs := $(OBJECTS)
