@@ -1,46 +1,16 @@
 
-First things first.
+[Oracle Linux ASMLib]
 
-!!!! DO NOT RUN THE TESTS WITHOUT CHECKING YOUR DISKS !!!!
-
-	The asmtest and asmtest-multi checks write to the last 10MB or
-so of a specified disk.  They take an argument of the disk to write to.
-Do not destroy your data.
-
-
-Second things later.
-
-	Building ASMlib requires a quick run of the configure script
-in the toplevel directory.  It will ask the location to the includes for
-your kernel.  This code currently only supports Linux 2.6.  You then can
-run a make.
-	Testing ASMlib is pretty easy.  First, install and mount the
-filesystem:
-
-	# mkdir /dev/oracleasm
-	# insmod kernel/oracleasm.ko
-	# mount -t oracleasmfs oracleasmfs /dev/oracleasm
-
-	Next, you have to mark disks as candidates for ASM.  asmtool is
-the tool for this.  It exists in the tools/ subdirectory.  eg:
-
-	# tools/asmtool -m /dev/sdf5
-
-	Now you can then either use 10i or the test programs to try
-things out.  Have fun.  Report bugs.
-
-
-Third things fourth.
-
-	There isn't an easy way to determine the maximum I/O a
-particular device can handle dynamically.  The current code takes the
-least common denominator and reports the maximum I/O as the maximum of
-the smallest card (the MegaRAID).
-	Also note that while in good cases the maximum I/O will go out
-as one SCSI command, errors can cause it to break up.  These can be
-hardware and are not really predictable.  Low memory situations (where a
-large scatter/gather list cannot be allocated) also relax this
-assurance.  But, if no error occurs on the disk and there is enough
-memory, the I/O goes out all together.
+	This package contains the kernel driver for Oracle's generic Linux
+ASMLib.  To use this driver, you will also need the support tools and
+the actual ASMLib library.  Packages for both are available on the Oracle
+Technology Network (http://otn.oracle.com/tech/linux/asmlib/).
+	Building the ASMlib requires a quick run of the configure script
+in the toplevel directory.  It will try to guess the location of your
+kernel.  If you want a specific kernel, see the --with-kernel and
+--with-vendorkernel options to the configure script.  This driver only
+supports Linux 2.6.  You then can run a make.
+	Once built and installed, the support tools will be able to load
+the driver and configure ASM storage.
 
 Joel Becker <joel.becker@oracle.com>

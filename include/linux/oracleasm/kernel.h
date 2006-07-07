@@ -1,6 +1,6 @@
 /*
  * NAME
- *	asmkernel.h - Kernel definitions for ASM library structures.
+ *	kernel.h - Kernel definitions for ASM library structures.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
@@ -40,8 +40,8 @@
 */
 
 
-#ifndef _ASMKERNEL_H
-#define _ASMKERNEL_H
+#ifndef _ORACLEASM_KERNEL_H
+#define _ORACLEASM_KERNEL_H
 
 #ifdef __KERNEL__
 
@@ -164,6 +164,6 @@ struct _asm_ioc64 {
 
 #endif  /* __KERNEL__ */
 
-#endif  /* _ASMKERNEL */
+#endif  /* _ORACLEASM_KERNEL */
 
 

@@ -71,14 +71,14 @@
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
 
-#include "linux/asmcompat32.h"
-#include "linux/asmkernel.h"
-#include "linux/asmabi.h"
-#include "linux/asmdisk.h"
-#include "linux/asmmanager.h"
-#include "asmerror.h"
+#include "linux/oracleasm/compat32.h"
+#include "linux/oracleasm/kernel.h"
+#include "linux/oracleasm/abi.h"
+#include "linux/oracleasm/disk.h"
+#include "linux/oracleasm/manager.h"
+#include "linux/oracleasm/error.h"
 
-#include "linux/asm_module_version.h"
+#include "linux/oracleasm/module_version.h"
 
 #include "masklog.h"
 #include "proc.h"

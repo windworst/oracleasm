@@ -26,6 +26,8 @@ rhel4_%_rpm: rhel4_%_srpm
 	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst rhel4_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).src.rpm"
 
 
+# Package required for /usr/include/linux
+INCLUDE_REQUIRES = glibc-kernheaders
 include $(TOPDIR)/vendor/common/Vendor.make
 
-packages: $(shell $(TOPDIR)/vendor/rhel4/kernel.guess targets) support_rpm
+packages: $(shell $(TOPDIR)/vendor/rhel4/kernel.guess targets) headers_rpm

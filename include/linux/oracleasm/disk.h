@@ -1,19 +1,17 @@
 /*
  * NAME
- *	asmerror.h - Oracle ASM library internal error header.
+ *	disk.h - ASM library disk tag.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
  *
  * DESCRIPTION
- *      This file contains the internal error code mappings for the
- *      Oracle Automatic Storage Managment userspace library.
+ *      This file contains the definition of the ASM library's disk
+ *      tag.  This tag allows recognition of ASM disks.
  *
  * MODIFIED   (YYYY/MM/DD)
  *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
  *              Initial LGPL header.
- *      2005/09/14 - Joel Becker <joel.becker@oracle.com>
- *              Make NODEV a nonfatal error.
  *
  * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
  *
@@ -60,28 +58,82 @@
  * license or the GPL.
  */
 
+/*
+ * This file is an internal header to the asmlib implementation on
+ * Linux.
+ */
 
 
-#ifndef _ASMERROR_H
-#define _ASMERROR_H
+#ifndef _ORACLEASM_DISK_H
+#define _ORACLEASM_DISK_H
 
 /*
- * Error codes.  Positive means runtime error, negative means software
- * error.  See asmlib.c for the description strings.
+ * Defines
  */
-enum _ASMErrors
-{
-    ASM_ERR_INSTALL     = -5,   /* Driver not installed */
-    ASM_ERR_FAULT       = -4,   /* Invalid address */
-    ASM_ERR_NODEV_OLD   = -3,   /* Old invalid device */
-    ASM_ERR_BADIID      = -2,   /* Invalid IID */
-    ASM_ERR_INVAL       = -1,   /* Invalid argument */
-    ASM_ERR_NONE        = 0,    /* No error */
-    ASM_ERR_PERM	= 1,	/* Operation not permitted */
-    ASM_ERR_NOMEM	= 2,	/* Out of memory */
-    ASM_ERR_IO          = 3,    /* I/O error */
-    ASM_ERR_DSCVR       = 4,    /* Bad discovery string */
-    ASM_ERR_NODEV       = 5,    /* Invalid device */
+
+/*
+ * Disk label.  This is a 32 byte quantity at offset 32 (0x20) on the 
+ * disk.  The first 8 bytes are "ORCLDISK".  The remaining 24 bytes
+ * are a unique device label determined by the administrator.
+ */
+#define ASM_DISK_LABEL_MARKED   "ORCLDISK"
+#define ASM_DISK_LABEL_CLEAR    "ORCLCLRD"
+#define ASM_DISK_LABEL_OFFSET   32
+
+struct asm_disk_label {
+	char dl_tag[8];
+	char dl_id[24];
 };
 
-#endif  /* _ASMERROR_H */
+#ifndef __KERNEL__
+/* 
+ * Why?
+ * label_asm_name is defined as a SQL identifier.  That is, it is
+ * case insensitive.  It is also defined as ASCII only.  Disk names
+ * are what become label_asm_name.  So for the user's convenience (sic),
+ * we blatantly promote to uppercase.
+ */
+static inline int asmdisk_toupper(unsigned char *str, ssize_t len,
+				  int glob)
+{
+	int count, c;
+
+	if (len < 0)
+		len = INT_MAX;
+	count = 0;
+	for (count = 0; (count < len) && str[count]; count++)
+	{
+		c = str[count];
+		if (!isascii(c))
+			return -ERANGE;
+		/* This is super-ASCII-specific */
+		if (c == '_')
+			continue;
+		if (glob &&
+		    ((c == '*') || (c == '?') ||
+		     (c == '[') || (c == ']') ||
+		     (c == '\\') || (c == '-')))
+			continue;
+		if (c < '0')
+			return c;
+		if (c <= '9')
+			continue;
+		if (c < 'A')
+			return c;
+		if (c <= 'Z')
+			continue;
+		if (c < '_')
+			return c;
+		if ((c < 'a') || (c > 'z'))
+			return c;
+		str[count] = (unsigned char)(c - ('a' - 'A'));
+	}
+
+	if (!glob && count && ((str[0] < 'A') || (str[0] > 'Z')))
+		return str[0];
+
+	return 0;
+}
+#endif  /* __KERNEL__ */
+
+#endif  /* _ORACLEASM_DISK_H */

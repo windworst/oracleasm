@@ -1,18 +1,20 @@
 /*
  * NAME
- *	devmap.h - Linux device type mappings.
+ *	compat32.h - ASM library 32<->64bit compatibilty support.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
  *
  * DESCRIPTION
- *      This is simple code to determine a device's driver.
+ *      This file contains helpers for supporting 32bit, 64bit, and 
+ *      32bit-on-64bit implementations of the Oracle Automatic Storage
+ *      Management library.
  *
  * MODIFIED   (YYYY/MM/DD)
- *      2005/10/24 - Joel Becker <joel.becker@oracle.com>
- *              Initial code.
+ *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
+ *              Initial LGPL header.
  *
- * Copyright (c) 2002-2005 Oracle Corporation.  All rights reserved.
+ * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -58,13 +60,42 @@
  */
 
 
+/*
+ * This file is an internal header to the asmlib implementation on
+ * Linux.  This file presumes the definitions in asmlib.h and
+ * oratypes.h.
+ */
 
-#ifndef _DEVMAP_H
-#define _DEVMAP_H
 
-const char *lookup_char_device(unsigned int major);
-const char *lookup_block_device(unsigned int major);
-int device_is_char(int fd, const char *type);
-int device_is_block(int fd, const char *type);
+#ifndef _ORACLEASM_COMPAT32_H
+#define _ORACLEASM_COMPAT32_H
 
-#endif  /* _DEVMAP_H */
+/*
+ * This is ugly.  SIZEOF_UNSIGNED_LONG comes from autoconf.
+ * Do you have a better way?  I chose not to hand-cook an autoconf
+ * test because I'm lazy and it doesn't seem significantly better.
+ */
+#ifndef BITS_PER_LONG
+# if SIZEOF_UNSIGNED_LONG == 4
+#  define BITS_PER_LONG 32
+# else
+#  if SIZEOF_UNSIGNED_LONG == 8
+#   define BITS_PER_LONG 64
+#  else
+#   error Unknown size of unsigned long (SIZEOF_UNSIGNED_LONG)
+#  endif  /* SIZEOF_UNSIGNED_LONG == 8 */
+# endif  /* SIZEOF_UNSIGNED_LONG == 4 */
+#endif  /* BITS_PER_LONG */
+
+/*
+ * Handle the ID sizes
+ */
+#define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
+#define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
+
+#if defined(CONFIG_COMPAT)
+# include <linux/ioctl32.h>
+#endif
+
+#endif  /* _ORACLEASM_COMPAT32_H */
+

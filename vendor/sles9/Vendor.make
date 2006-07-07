@@ -19,6 +19,8 @@ sles9_%_rpm: sles9_%_srpm
 	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst sles9_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).src.rpm"
 
 
+# Package required for /usr/include/linux
+INCLUDE_REQUIRES = glibc-devel
 include $(TOPDIR)/vendor/common/Vendor.make
 
-packages: $(shell $(TOPDIR)/vendor/sles9/kernel.guess targets) support_rpm
+packages: $(shell $(TOPDIR)/vendor/sles9/kernel.guess targets) headers_rpm

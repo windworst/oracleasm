@@ -1,6 +1,6 @@
 /*
  * NAME
- *	asmmanager.h - ASM management device.
+ *	manager_compat.h - Older ASM management device specification.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
@@ -65,8 +65,8 @@
  */
 
 
-#ifndef _ASMMANAGER_H
-#define _ASMMANAGER_H
+#ifndef _ORACLEASM_MANAGER_H
+#define _ORACLEASM_MANAGER_H
 
 /*
  * Defines
@@ -177,4 +177,4 @@ static inline char *asm_iid_path(const char *manager,
 	return asm_iid;
 }
 #endif  /* __KERNEL__ */
-#endif  /* _ASMMANAGER_H */
+#endif  /* _ORACLEASM_MANAGER_H */

@@ -54,17 +54,45 @@ $(SUBDIRS):
 	$(MAKE) -C $@
 
 .PHONY: all-rules
-all-rules: subdirs $(LIBRARIES) $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(UNINST_PROGRAMS) $(MODULES) $(MANS) $(ALL_RULES)
+all-rules: subdirs $(UNINST_LIBRARIES) $(LIBRARIES) $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(UNINST_PROGRAMS) $(MODULES) $(MANS) $(ALL_RULES)
 
 
 INSTALL_SUBDIRS = $(addsuffix -install,$(SUBDIRS))
 
-.PHONY: install-rules install-subdirs $(INSTALL_RULES) install-bin-programs install-bin-extra install-sbin-programs install-sbin-extra
+.PHONY: install-rules install-subdirs $(INSTALL_RULES) install-libraries install-headers install-bin-programs install-bin-extra install-sbin-programs install-sbin-extra
 
 install-subdirs: $(INSTALL_SUBDIRS)
 
 $(INSTALL_SUBDIRS):
 	$(MAKE) -C $(subst -install,,$@) install
+
+install-libraries: $(LIBRARIES)
+ifdef LIBRARIES
+	$(SHELL) $(TOPDIR)/mkinstalldirs $(DESTDIR)$(libdir)
+	for lib in $(LIBRARIES); do \
+	  $(INSTALL_LIBRARY) $$lib $(DESTDIR)$(libdir)/$$lib; \
+	done
+endif
+
+ifeq ($(filter /%,$(HEADERS_SUBDIR)),)
+Hsubdir = /$(HEADERS_SUBDIR)
+else
+Hsubdir = $(HEADERS_SUBDIR)
+endif
+
+ifeq ($(filter include/%,$(HEADERS)),)
+Hinstall = 
+else
+Hinstall = include/
+endif
+
+install-headers: $(HEADERS)
+ifdef HEADERS
+	$(SHELL) $(TOPDIR)/mkinstalldirs $(DESTDIR)$(includedir)$(Hsubdir)
+	for hdr in $(patsubst include/%,%,$(HEADERS)); do \
+	  $(INSTALL_HEADER) $(Hinstall)$$hdr $(DESTDIR)$(includedir)$(Hsubdir)/$$hdr; \
+	done
+endif
 
 install-bin-programs: $(BIN_PROGRAMS)
 ifdef BIN_PROGRAMS
@@ -108,7 +136,7 @@ ifdef MANS
 	done
 endif
 
-install-rules: install-subdirs $(INSTALL_RULES) install-bin-programs install-bin-extra install-sbin-programs install-sbin-extra install-mans
+install-rules: install-subdirs $(INSTALL_RULES) install-libraries install-headers install-bin-programs install-bin-extra install-sbin-programs install-sbin-extra install-mans
 
 
 CLEAN_SUBDIRS = $(addsuffix -clean,$(SUBDIRS))
@@ -121,7 +149,7 @@ $(CLEAN_SUBDIRS):
 	$(MAKE) -C $(subst -clean,,$@) clean
 
 clean: clean-subdirs $(CLEAN_RULES)
-	rm -f *.o *.p .*.d core $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(LIBRARIES) $(CLEAN_FILE) stamp-md5
+	rm -f *.o *.p .*.d core $(BIN_PROGRAMS) $(SBIN_PROGRAMS) $(UNINST_PROGRAMS) $(LIBRARIES) $(UNINST_LIBRARIES) $(CLEAN_FILES) stamp-md5
 
 
 DIST_SUBDIRS = $(addsuffix -dist,$(SUBDIRS))
@@ -159,6 +187,7 @@ dist: dist-fresh dist-all
 
 distclean: clean
 	rm -f Config.make config.status config.cache config.log
+
 
 LOCAL_DFILES := $(wildcard .*.d)
 ifneq ($(LOCAL_DFILES),)

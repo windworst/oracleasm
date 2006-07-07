@@ -18,16 +18,19 @@ exec_prefix = @exec_prefix@
 
 bindir = @bindir@
 sbindir = @sbindir@
+libdir = @libdir@
+includedir = @includedir@
+datarootdir = @datarootdir@
 datadir = @datadir@
 sysconfdir = @sysconfdir@
 mandir = @mandir@
-datarootdir = @datarootdir@
 
 top_builddir = .
 
 INSTALL = @INSTALL@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_DATA = @INSTALL_DATA@
+INSTALL_HEADER = @INSTALL_DATA@
 
 LN_S = @LN_S@
 
@@ -41,8 +44,6 @@ CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 
 DEFS = @DEFS@
-
-USERM64 = @USERM64@
 
 KERNELDIR = @KERNELDIR@
 KERNELINC = $(KERNELDIR)/include

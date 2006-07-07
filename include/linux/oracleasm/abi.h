@@ -1,6 +1,6 @@
 /*
  * NAME
- *	asmabi.h - ASM library userspace to kernelspace ABI.
+ *	abi.h - ASM library userspace to kernelspace ABI.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
@@ -69,8 +69,8 @@
  */
 
 
-#ifndef _ASMABI_H
-#define _ASMABI_H
+#ifndef _ORACLEASM_ABI_H
+#define _ORACLEASM_ABI_H
 
 
 /*
@@ -180,5 +180,5 @@ struct oracleasm_get_iid_v2
 /*18*/
 };
 
-#endif  /* _ASMABI_H */
+#endif  /* _ORACLEASM_ABI_H */
 

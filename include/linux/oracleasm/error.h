@@ -1,18 +1,19 @@
 /*
  * NAME
- *	asmcompat32.h - ASM library 32<->64bit compatibilty support.
+ *	error.h - Oracle ASM library internal error header.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
  *
  * DESCRIPTION
- *      This file contains helpers for supporting 32bit, 64bit, and 
- *      32bit-on-64bit implementations of the Oracle Automatic Storage
- *      Management library.
+ *      This file contains the internal error code mappings for the
+ *      Oracle Automatic Storage Managment userspace library.
  *
  * MODIFIED   (YYYY/MM/DD)
  *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
  *              Initial LGPL header.
+ *      2005/09/14 - Joel Becker <joel.becker@oracle.com>
+ *              Make NODEV a nonfatal error.
  *
  * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
  *
@@ -60,42 +61,27 @@
  */
 
 
-/*
- * This file is an internal header to the asmlib implementation on
- * Linux.  This file presumes the definitions in asmlib.h and
- * oratypes.h.
- */
 
-
-#ifndef _ASMCOMPAT32_H
-#define _ASMCOMPAT32_H
+#ifndef _ORACLEASM_ERROR_H
+#define _ORACLEASM_ERROR_H
 
 /*
- * This is ugly.  SIZEOF_UNSIGNED_LONG comes from autoconf.
- * Do you have a better way?  I chose not to hand-cook an autoconf
- * test because I'm lazy and it doesn't seem significantly better.
+ * Error codes.  Positive means runtime error, negative means software
+ * error.  See asmlib.c for the description strings.
  */
-#ifndef BITS_PER_LONG
-# if SIZEOF_UNSIGNED_LONG == 4
-#  define BITS_PER_LONG 32
-# else
-#  if SIZEOF_UNSIGNED_LONG == 8
-#   define BITS_PER_LONG 64
-#  else
-#   error Unknown size of unsigned long (SIZEOF_UNSIGNED_LONG)
-#  endif  /* SIZEOF_UNSIGNED_LONG == 8 */
-# endif  /* SIZEOF_UNSIGNED_LONG == 4 */
-#endif  /* BITS_PER_LONG */
+enum _ASMErrors
+{
+    ASM_ERR_INSTALL     = -5,   /* Driver not installed */
+    ASM_ERR_FAULT       = -4,   /* Invalid address */
+    ASM_ERR_NODEV_OLD   = -3,   /* Old invalid device */
+    ASM_ERR_BADIID      = -2,   /* Invalid IID */
+    ASM_ERR_INVAL       = -1,   /* Invalid argument */
+    ASM_ERR_NONE        = 0,    /* No error */
+    ASM_ERR_PERM	= 1,	/* Operation not permitted */
+    ASM_ERR_NOMEM	= 2,	/* Out of memory */
+    ASM_ERR_IO          = 3,    /* I/O error */
+    ASM_ERR_DSCVR       = 4,    /* Bad discovery string */
+    ASM_ERR_NODEV       = 5,    /* Invalid device */
+};
 
-/*
- * Handle the ID sizes
- */
-#define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
-#define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
-
-#if defined(CONFIG_COMPAT)
-# include <linux/ioctl32.h>
-#endif
-
-#endif  /* _ASMCOMPAT32_H */
-
+#endif  /* _ORACLEASM_ERROR_H */

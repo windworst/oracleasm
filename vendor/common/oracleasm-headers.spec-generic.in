@@ -13,8 +13,8 @@
 
 
 
-Summary: The Oracle Automatic Storage Management support programs.
-Name: oracleasm-support
+Summary: The Oracle Automatic Storage Management driver ABI headers.
+Name: oracleasm-headers
 Version: @DIST_VERSION@
 Release: @@PKG_VERSION@@
 Copyright: GPL
@@ -24,6 +24,8 @@ URL: http://oss.oracle.com/projects/oracleasm/
 Distribution: Oracle
 Vendor: Oracle Corporation
 Packager: Joel Becker <joel.becker@oracle.com>
+# Requires: What, for /usr/include/linux??
+Requires: @@INCLUDE_REQUIRES@@
 AutoReqProv: no
 
 
@@ -32,7 +34,8 @@ BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
 
 
 %description
-Tools to manage the Oracle Automatic Storage Management library driver
+Headers that define the ABI between the Oracle Linux ASMLib kernel driver
+and userspace programs.
 
 
 %prep
@@ -56,21 +59,11 @@ Tools to manage the Oracle Automatic Storage Management library driver
 	--infodir=%{_infodir}			\
 	--sbindir=/usr/sbin
 
-cd tools
 make
-cd ..
-
 
 
 %install
-
-mkdir -p $RPM_BUILD_ROOT/etc/init.d
-cp -f vendor/common/oracleasm.init $RPM_BUILD_ROOT/etc/init.d/oracleasm
-mkdir -p $RPM_BUILD_ROOT/etc/sysconfig
-cp -f vendor/common/oracleasm.sysconfig $RPM_BUILD_ROOT/etc/sysconfig/oracleasm
-
-cd tools
-make DESTDIR="$RPM_BUILD_ROOT" install
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install
 
 
 %clean
@@ -78,19 +71,17 @@ rm -rf "$RPM_BUILD_ROOT"
 
 
 %post
-chkconfig oracleasm on
 
 %files
 %defattr(-,root,root)
-/usr/sbin/asmtool
-/usr/sbin/asmscan
-%attr(0755,root,root) /usr/lib/oracleasm/oracleasm_debug_link
-%attr(0755,root,root) /etc/init.d/oracleasm
-%config /etc/sysconfig/oracleasm
+/usr/include/linux/oracleasm
 
 
 
 %changelog
+* Tue Jul 04 2006 Joel Becker <joel.becker@oracle.com>
+- Make headers package
+
 * Wed Jan 07 2004 Joel Becker <joel.becker@oracle.com>
 - Make open package.
 

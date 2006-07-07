@@ -14,7 +14,7 @@ MODULEARCH = $(shell $(TOPDIR)/rpmarch.guess module $(TOPDIR))
 #
 # Add any directories to recurse into via the SUBDIRS variable.
 # 
-SUBDIRS = include kernel tools documents vendor
+SUBDIRS = include kernel documents vendor
 
 KAPI_COMPAT_FILES =			\
 	kapi-compat/include/i_mutex.h

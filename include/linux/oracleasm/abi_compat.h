@@ -1,6 +1,6 @@
 /*
  * NAME
- *	asmabi_compat.h - Old ASM library userspace to kernelspace ABI.
+ *	abi_compat.h - Older ASM library userspace to kernelspace ABIs.
  *
  * AUTHOR
  * 	Joel Becker <joel.becker@oracle.com>
@@ -69,8 +69,8 @@
  */
 
 
-#ifndef _ASMABI_COMPAT_H
-#define _ASMABI_COMPAT_H
+#ifndef _ORACLEASM_ABI_COMPAT_H
+#define _ORACLEASM_ABI_COMPAT_H
 
 
 /*
@@ -148,5 +148,5 @@ struct oracleasm_get_iid_v1
 #define ASMIOC_DUMP             _IO(ASM_IOCTL_BASE, 16)
 
 
-#endif  /* _ASMABI_COMPAT_H */
+#endif  /* _ORACLEASM_ABI_COMPAT_H */
 

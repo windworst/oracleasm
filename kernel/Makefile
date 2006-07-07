@@ -13,7 +13,7 @@ include $(ORACLEASM_SRC_DIR)/../Config.make
 endif
 
 
-HEADERS = transaction_file.h proc.h masklog.h
+UNINST_HEADERS = transaction_file.h proc.h masklog.h
 SOURCES = oracleasm.c transaction_file.c proc.c masklog.c
 OBJECTS = $(subst .c,.o,$(SOURCES))
 
@@ -39,7 +39,7 @@ clean-oracleasm:
 install-oracleasm: $(INSTALL_MODULE)
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) modules_install
 
-DIST_FILES = $(SOURCES) $(HEADERS)
+DIST_FILES = $(SOURCES) $(UNINST_HEADERS)
 
 include $(TOPDIR)/Postamble.make
 

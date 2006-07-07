@@ -14,27 +14,6 @@ include $(TOPDIR)/Preamble.make
 # 
 SUBDIRS = linux
 
-HEADERS =		\
-	asmerror.h
-
-DIST_FILES = $(HEADERS)
-
-#
-# Handle the architecture link
-#
-SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
-				  -e s/arm.*/arm/ -e s/sa110/arm/ \
-				  -e s/s390x/s390/ )
-ARCH := $(SUBARCH)
-
-#
-# Deprecated
-#asm-link: asm
-#
-#asm:
-#	$(LN_S) asm-$(ARCH) asm
-
-	
 #
 # Include this at the very end of the Makefile
 #
