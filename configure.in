@@ -75,6 +75,12 @@ else
   AC_SUBST(KERNELDIR)
 fi
 
+if test -f "${KERNELDIR}/include/linux/utsrelease.h"; then
+  UTS_HEADER=utsrelease.h
+else
+  UTS_HEADER=version.h
+fi
+
 AC_MSG_CHECKING(for kernel version)
 if test -n "$KERNELDIR"; then
   kernelinc="${KERNELDIR}/include"
@@ -88,7 +94,7 @@ if test -n "$KERNELDIR"; then
   rm -f conf.kvertest
   AC_TRY_RUN([
 #include <stdio.h>
-#include <linux/version.h>
+#include <linux/${UTS_HEADER}>
 
 int
 main (void)
