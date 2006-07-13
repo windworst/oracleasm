@@ -1,9 +1,9 @@
 #!/bin/sh
 
-SLES9_KERNEL_BASE="/usr/src"
+SLES10_KERNEL_BASE="/usr/src"
 
 #
-# SLES9 has wacky names for its kernel flavors.  So we'll just create
+# SLES10 has wacky names for its kernel flavors.  So we'll just create
 # a list here of the mappings.  It's pretty simple.  One entry per
 # architecture, <arch>:<flavor1>[,<flavor> ...]
 #
@@ -11,7 +11,7 @@ SLES9_KERNEL_BASE="/usr/src"
 # packages for.  A kernel is only built if build trees for all flavors
 # are installed.
 #
-SLES9_KERNEL_TYPES="
+SLES10_KERNEL_TYPES="
     x86_64:default,smp
     ppc64:pseries64,iseries64,pmac64
     ia64:default,64k-pagesize,sn2
@@ -48,7 +48,7 @@ guess_sles10_type()
         return
     fi
 
-    for typelist in $SLES9_KERNEL_TYPES
+    for typelist in $SLES10_KERNEL_TYPES
     do
         TARCH=$(echo $typelist | cut -f1 -d:)
         if [ "$TARCH" = "$ARCH" ]
@@ -96,18 +96,18 @@ validate_dir()
     KVER="$1"
     DIR="$2"
 
-    if [ ! -d "${SLES9_KERNEL_BASE}/${DIR}" ]
+    if [ ! -d "${SLES10_KERNEL_BASE}/${DIR}" ]
     then
         return 1
-    elif [ ! -f "${SLES9_KERNEL_BASE}/${DIR}/include/linux/autoconf.h" ]
+    elif [ ! -f "${SLES10_KERNEL_BASE}/${DIR}/include/linux/autoconf.h" ]
     then
         return 1
-    elif [ ! -f "${SLES9_KERNEL_BASE}/${DIR}/include/linux/version.h" ]
+    elif [ ! -f "${SLES10_KERNEL_BASE}/${DIR}/include/linux/version.h" ]
     then
         return 1
     fi
 
-    if [ "$KVER" != "`verfromdir "${SLES9_KERNEL_BASE}/${DIR}"`" ]
+    if [ "$KVER" != "`verfromdir "${SLES10_KERNEL_BASE}/${DIR}"`" ]
     then
         return 1
     fi
@@ -124,7 +124,7 @@ validate_version()
     dir=`guess_sles10_dir "$KVER"`
     if validate_dir "$KVER" "$dir"
     then
-        echo "${SLES9_KERNEL_BASE}/${dir}"
+        echo "${SLES10_KERNEL_BASE}/${dir}"
     fi
 }
 
@@ -137,7 +137,7 @@ find_version()
     fi
 
     types=
-    for typelist in $SLES9_KERNEL_TYPES
+    for typelist in $SLES10_KERNEL_TYPES
     do
         TARCH=$(echo $typelist | cut -f1 -d:)
         if [ "$TARCH" = "$ARCH" ]
@@ -153,9 +153,9 @@ find_version()
     fi
 
      # Find the most recent valid kernel
-    ls -1 -t "$SLES9_KERNEL_BASE" | while read kdir
+    ls -1 -t "$SLES10_KERNEL_BASE" | while read kdir
     do
-        if [ -L "${SLES9_KERNEL_BASE}/${kdir}" -o ! -d "${SLES9_KERNEL_BASE}/${kdir}" ]
+        if [ -L "${SLES10_KERNEL_BASE}/${kdir}" -o ! -d "${SLES10_KERNEL_BASE}/${kdir}" ]
         then
             continue
         fi
@@ -170,10 +170,10 @@ find_version()
         KERNELDIR=
         for type in $types
         do
-            KVER="`verfromdir "${SLES9_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
+            KVER="`verfromdir "${SLES10_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
             if validate_dir "$KVER" "$kdir/${ARCH}/${type}"
             then
-                KERNELDIR="${SLES9_KERNEL_BASE}/${kdir}/${ARCH}/${type}"
+                KERNELDIR="${SLES10_KERNEL_BASE}/${kdir}/${ARCH}/${type}"
                 break
             fi
         done
@@ -192,7 +192,7 @@ validate_target()
     types="$3"
     for type in $types
     do
-        KVER="`verfromdir "${SLES9_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
+        KVER="`verfromdir "${SLES10_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
         if ! validate_dir "$KVER" "$kdir/${ARCH}/${type}"
         then
             return 1
@@ -211,7 +211,7 @@ find_targets()
     fi
 
     types=
-    for typelist in $SLES9_KERNEL_TYPES
+    for typelist in $SLES10_KERNEL_TYPES
     do
         TARCH=$(echo $typelist | cut -f1 -d:)
         if [ "$TARCH" = "$ARCH" ]
@@ -226,10 +226,10 @@ find_targets()
         return
     fi
 
-    ls -1 -t "$SLES9_KERNEL_BASE" | while read kdir
+    ls -1 -t "$SLES10_KERNEL_BASE" | while read kdir
     do
         # Avoid the symlinks
-        if [ -L "${SLES9_KERNEL_BASE}/${kdir}" -o ! -d "${SLES9_KERNEL_BASE}/${kdir}" ]
+        if [ -L "${SLES10_KERNEL_BASE}/${kdir}" -o ! -d "${SLES10_KERNEL_BASE}/${kdir}" ]
         then
             continue
         fi

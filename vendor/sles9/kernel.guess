@@ -251,6 +251,17 @@ find_targets()
     done
 }
 
+sles9_includes()
+{
+    DIR="$1"
+    kernelsrc=`awk '/^KERNELSRC/{print $3}' "${DIR}/Makefile" 2>/dev/null`
+
+    INCLUDES="$DIR/include"
+    [ -n "$kernelsrc" ] && INCLUDES="${INCLUDES} ${DIR}/${kernelsrc}/include"
+
+    echo "$INCLUDES"
+}
+
 case "$1" in
 include|build)
     if [ -n "$2" ]
@@ -268,9 +279,10 @@ include|build)
     then
         if [ "$1" = "include" ]
         then
-            KPATH="${KPATH}/include"
+            sles9_includes "${KPATH}"
+        else
+            echo "${KPATH}"
         fi
-        echo "${KPATH}"
     fi
     ;;
 targets)
