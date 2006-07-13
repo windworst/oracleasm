@@ -1,0 +1,578 @@
+#
+# Spec file for oracleasm
+#
+
+# Macros
+# This one is hardcoded because, well, it belongs there
+%define _prefix /usr
+# Because RPM is dumb
+%define _unpackaged_files_terminate_build 0
+
+# Turn on's and off's
+%define builddefault		1
+%define buildsmp		1
+%define buildbigsmp		1
+%define build64kpagesize	0
+%define buildsn2		0
+%define buildiseries64		0
+%define buildpmac64		0
+%define buildpseries64		0
+%define builds390		0
+%define builds390x		0
+
+%ifarch %{ix86}
+%define karch i386
+%endif
+
+%ifarch x86_64 ia32e
+%define karch x86_64
+
+%define buildbigsmp		0
+%endif
+
+%ifarch ia64
+%define karch ia64
+
+%define buildsmp		0
+%define buildbigsmp		0
+%define build64kpagesize	1
+%define buildsn2		1
+%endif
+
+%ifarch ppc64
+%define karch ppc64
+
+%define builddefault		0
+%define buildsmp		0
+%define buildbigsmp		0
+%define buildiseries64		1
+%define buildpmac64		1
+%define buildpseries64		1
+%endif
+
+%ifarch s390
+%define karch s390
+
+%define builddefault		0
+%define buildsmp		0
+%define buildbigsmp		0
+%define builds390		1
+%endif
+
+%ifarch s390x
+%define karch s390
+
+%define builddefault		0
+%define buildsmp		0
+%define buildbigsmp		0
+%define builds390x		1
+%endif
+
+
+# This must be changed to the minimum ABI compat kernel version expected
+%define kver		@@KVER@@
+
+# The minimum -support package required for the kernel bits.
+%define support_ver     2.0.0
+# Minimum oracleasmlib version that supports positive ASM_ERR_NODEV.
+%define min_enodev	2.0.1
+
+Summary: The Oracle Automatic Storage Management library driver.
+Name: oracleasm-%{kver}
+Version: @DIST_VERSION@
+Release: @@PKG_VERSION@@
+License: GPL
+Group: System Environment/Kernel
+Source: oracleasm-@DIST_VERSION@.tar.gz
+URL: http://oss.oracle.com/projects/oracleasm/
+Distribution: Oracle
+Vendor: Oracle Corporation
+Packager: Joel Becker <joel.becker@oracle.com>
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-default = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+
+BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+
+
+%description
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for the default kernel.
+
+%if %{builddefault}
+%package default
+Summary: The Oracle Automatic Storage Management library driver for UP systems.
+Group: System Environment/Kernel
+AutoReqProv: no
+Provides: oracleasm = %{version}
+Requires: kernel-default = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description default
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for the default kernel.
+%endif
+
+
+%if %{buildsmp}
+%package smp
+Summary: The Oracle Automatic Storage Management library driver for SMP systems.
+Group: System Environment/Kernel
+AutoReqProv: no
+Provides: oracleasm = %{version}
+Requires: kernel-smp = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description smp
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for symmetric multiprocessor kernels.
+%endif
+
+
+%if %{buildbigsmp}
+%package bigsmp
+Summary: The Oracle Automatic Storage Management library driver for NUMA systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-bigsmp = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description bigsmp
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for large memory SMP kernels.
+%endif
+
+
+%if %{build64kpagesize}
+%package 64k-pagesize
+Summary: The Oracle Automatic Storage Management library driver for Itanium kernels with a 64KB pagesize.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-64k-pagesize = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description 64k-pagesize
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for Itanium kernels with a 64KB pagesize.
+%endif
+
+
+%if %{buildsn2}
+%package sn2
+Summary: The Oracle Automatic Storage Management library driver for Altix systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-sn2 = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description sn2
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for UP Itanium2 kernels.
+%endif
+
+
+%if %{buildiseries64}
+%package iseries64
+Summary: The Oracle Automatic Storage Management library driver for IBM iSeries systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-iseries64 = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description iseries64
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for IBM iSeries systems.
+%endif
+
+
+%if %{buildpmac64}
+%package pmac64
+Summary: The Oracle Automatic Storage Management library driver for 64-bit Power Macintosh kernels.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-pmac64 = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description pmac64
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for 64-bit Power Macintosh kernels.
+%endif
+
+
+%if %{buildpseries64}
+%package pseries64
+Summary: The Oracle Automatic Storage Management library driver for IBM pSeries systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-pseries64 = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description pseries64
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for IBM pSeries systems.
+%endif
+
+
+%if %{builds390}
+%package s390
+Summary: The Oracle Automatic Storage Management library driver for IBM S/390 31-bit systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-s390 = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description s390
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for IBM S/390 31-bit systems.
+%endif
+
+
+%if %{builds390x}
+%package s390x
+Summary: The Oracle Automatic Storage Management library driver for IBM zSeries systems.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-s390x = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-source = %{kver}, kernel-syms = %{kver}
+
+%description s390x
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for IBM zSeries systems.
+%endif
+
+
+
+%prep
+%setup -n oracleasm-%{version}
+
+
+%build
+
+local_configure()
+{
+	./configure					\
+		--prefix=%{_prefix}			\
+		--exec-prefix=%{_exec_prefix}		\
+		--bindir=%{_bindir}			\
+		--sbindir=%{_sbindir}			\
+		--sysconfdir=%{_sysconfdir}		\
+		--datadir=%{_datadir}			\
+		--includedir=%{_includedir}		\
+		--libdir=%{_libdir}			\
+		--libexecdir=%{_libexecdir}		\
+		--localstatedir=%{_localstatedir}	\
+		--sharedstatedir=%{_sharedstatedir}	\
+		--mandir=%{_mandir}			\
+		--infodir=%{_infodir}			\
+		--with-vendor=sles10			\
+		--with-vendorkernel="$1"
+}
+
+%if %{builddefault}
+local_configure "%{kver}-default"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-default/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-default/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{buildsmp}
+local_configure "%{kver}-smp"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-smp/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-smp/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{buildbigsmp}
+local_configure "%{kver}-bigsmp"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-bigsmp/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-bigsmp/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{build64kpagesize}
+local_configure "%{kver}-64k-pagesize"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-64k-pagesize/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-64k-pagesize/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{buildsn2}
+local_configure "%{kver}-sn2"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-sn2/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-sn2/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{buildiseries64}
+local_configure "%{kver}-iseries64"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-iseries64/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-iseries64/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{buildpmac64}
+local_configure "%{kver}-pmac64"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-pmac64/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-pmac64/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{buildpseries64}
+local_configure "%{kver}-pseries64"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-pseries64/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-pseries64/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{builds390}
+local_configure "%{kver}-s390"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-s390/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-s390/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{builds390x}
+local_configure "%{kver}-s390x"
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-s390x/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}-s390x/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+
+
+%install
+
+
+
+%clean
+rm -rf "$RPM_BUILD_ROOT"
+
+
+
+%if %{builddefault}
+%post default
+depmod -ae %{kver}-default
+
+%files default
+%defattr(-,root,root)
+/lib/modules/%{kver}-default/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{buildsmp}
+%post smp
+depmod -ae %{kver}-smp
+
+%files smp
+%defattr(-,root,root)
+/lib/modules/%{kver}-smp/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{buildbigsmp}
+%post bigsmp
+depmod -ae %{kver}-bigsmp
+
+%files bigsmp
+%defattr(-,root,root)
+/lib/modules/%{kver}-bigsmp/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{build64kpagesize}
+%post 64k-pagesize
+depmod -ae %{kver}-64k-pagesize
+
+%files 64k-pagesize
+%defattr(-,root,root)
+/lib/modules/%{kver}-64k-pagesize/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{buildsn2}
+%post sn2
+depmod -ae %{kver}-sn2/
+
+%files sn2
+%defattr(-,root,root)
+/lib/modules/%{kver}-sn2/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{buildiseries64}
+%post iseries64
+depmod -ae %{kver}-iseries64
+
+%files iseries64
+%defattr(-,root,root)
+/lib/modules/%{kver}-iseries64/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{buildpmac64}
+%post pmac64
+depmod -ae %{kver}-pmac64
+
+%files pmac64
+%defattr(-,root,root)
+/lib/modules/%{kver}-pmac64/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{buildpseries64}
+%post pseries64
+depmod -ae %{kver}-pseries64
+
+%files pseries64
+%defattr(-,root,root)
+/lib/modules/%{kver}-pseries64/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{builds390}
+%post s390
+depmod -ae %{kver}-s390
+
+%files s390
+%defattr(-,root,root)
+/lib/modules/%{kver}-s390/kernel/drivers/addon/oracleasm
+%endif
+
+
+%if %{builds390x}
+%post s390x
+depmod -ae %{kver}-s390x
+
+%files s390x
+%defattr(-,root,root)
+/lib/modules/%{kver}-s390x/kernel/drivers/addon/oracleasm
+%endif
+
+
+
+%changelog
+* Tue Sep 21 2004 Joel Becker <joel.becker@oracle.com>
+- Make SLES9 specfile.
+
+* Tue Jan 13 2004 Joel Becker <joel.becker@oracle.com>
+- Make kernel-only.
+
+* Thu Nov 20 2003 Joel Becker <joel.becker@oracle.com>
+- Add x86 and ia64 targets.
+
+* Wed Nov 19 2003 Joel Becker <joel.becker@oracle.com>
+- Make the UL SP3 changes.
+
+* Wed Nov 12 2003 Joel Becker <joel.becker@oracle.com>
+- Start the ASM rename.
+
+* Thu Oct 30 2003 Joel Becker <joel.becker@oracle.com>
+- Created EL3 version
+
+* Mon Jun 23 2003 Joel Becker <joel.becker@oracle.com>
+- Added osm-lib bits
+
+* Fri Jun 20 2003 Joel Becker <joel.becker@oracle.com>
+- Initial RPM
+

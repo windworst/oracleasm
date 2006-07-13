@@ -141,18 +141,20 @@ KAPI_COMPAT_CFLAGS=
 BACKING_DEV_CAPABILITIES=
 GET_SB_HAS_VFSMOUNT=
 if test x"$BUILD_DRIVER" = "xyes"; then
-  KERNELINC="${KERNELDIR}/include"  # Needed by kfeature.m4
+  kernelincludes="`vendor/${mb_vendor}/kernel.guess include`"
   KAPI_COMPAT_HEADERS=
 
-  OCFS2_CHECK_KERNEL([capabilities mask in backing_dev_info], backing-dev.h,
+  OCFS2_CHECK_KERNEL_INCLUDES([capabilities mask in backing_dev_info],
+    linux/backing-dev.h, $kernelincludes,
     BACKING_DEV_CAPABILITIES=yes, , [\<BDI_CAP_NO_WRITEBACK\>])
 
-  OCFS2_CHECK_KERNEL([vfsmount in ->get_sb() helpers], fs.h,
-    GET_SB_HAS_VFSMOUNT=yes, , [^extern int get_sb_pseudo])
+  OCFS2_CHECK_KERNEL_INCLUDES([vfsmount in ->get_sb() helpers],
+    linux/fs.h, $kernelincludes, GET_SB_HAS_VFSMOUNT=yes, ,
+    [^extern int get_sb_pseudo])
 
   mutex_compat_header=
-  OCFS2_CHECK_KERNEL([for mutex API], mutex.h, ,
-    mutex_compat_header="i_mutex.h", [mutex_lock])
+  OCFS2_CHECK_KERNEL_INCLUDES([for mutex API], linux/mutex.h,
+    $kernelincludes, , mutex_compat_header="i_mutex.h", [mutex_lock])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $mutex_compat_header"
 
   # using -include has two advantages:
@@ -171,5 +173,6 @@ AC_OUTPUT([Config.make
 include/linux/oracleasm/module_version.h
 vendor/sles9/oracleasm.spec-generic
 vendor/rhel4/oracleasm.spec-generic
+vendor/sles10/oracleasm.spec-generic
 vendor/common/oracleasm-headers.spec-generic
 ])
