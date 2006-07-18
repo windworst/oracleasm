@@ -76,6 +76,7 @@
 /*
  * Defines
  */
+#define ASMFS_MAGIC	0x958459f6
 #define ASM_ABI_MAGIC	0x41534DU
 
 #define ASM_ABI_VERSION_V2	2UL

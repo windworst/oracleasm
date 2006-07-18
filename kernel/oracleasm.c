@@ -95,8 +95,6 @@
 #endif  /* PAGE_CACHE_SIZE % 1024 */
 
 
-/* some random number */
-#define ASMFS_MAGIC	0x958459f6
 
 
 /*
