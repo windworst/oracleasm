@@ -974,11 +974,13 @@ static struct block_device *find_io_bdev(struct file *file)
 	return bdev;
 }
 
-static int asm_update_user_ioc(struct asm_request *r)
+static int asm_update_user_ioc(struct file *file, struct asm_request *r)
 {
 	int ret = 0;
+	struct asm_request copy;
 	asm_ioc __user *ioc;
 	u16 tmp_status;
+	unsigned long flags;
 
 	mlog_entry("(0x%p)\n", r);
 
@@ -991,38 +993,51 @@ static int asm_update_user_ioc(struct asm_request *r)
 		ret = -EFAULT;
 		goto out;
 	}
+
+	/*
+	 * We're going to store off a copy of the request so we can
+	 * provide a consistent view to userspace.
+	 *
+	 * And so we can get/put_user() without locking :-)
+	 */
+	spin_lock_irqsave(&ASMFS_FILE(file)->f_lock, flags);
 	r->r_status |= tmp_status;
-	mlog(ML_IOC, "Putting r_status (0x%08X)\n", r->r_status);
-	if (put_user(r->r_status, &(ioc->status_asm_ioc))) {
+	copy = *r;
+	spin_unlock_irqrestore(&ASMFS_FILE(file)->f_lock, flags);
+
+	/* From here on, ONLY TRUST copy */
+
+	mlog(ML_IOC, "Putting r_status (0x%08X)\n", copy.r_status);
+	if (put_user(copy.r_status, &(ioc->status_asm_ioc))) {
 		ret = -EFAULT;
 		goto out;
 	}
-	if (r->r_status & ASM_ERROR) {
-		mlog(ML_IOC, "Putting r_error (0x%08X)\n", r->r_error);
-		if (put_user(r->r_error, &(ioc->error_asm_ioc))) {
+	if (copy.r_status & ASM_ERROR) {
+		mlog(ML_IOC, "Putting r_error (0x%08X)\n", copy.r_error);
+		if (put_user(copy.r_error, &(ioc->error_asm_ioc))) {
 			ret = -EFAULT;
 			goto out;
 		}
 	}
-	if (r->r_status & ASM_COMPLETED) {
-		if (put_user(r->r_elapsed, &(ioc->elaptime_asm_ioc))) {
+	if (copy.r_status & ASM_COMPLETED) {
+		if (put_user(copy.r_elapsed, &(ioc->elaptime_asm_ioc))) {
 			ret = -EFAULT;
 			goto out;
 		}
 	}
 	mlog(ML_IOC,
 	     "r_status:0x%08X, bitmask:0x%08X, combined:0x%08X\n",
-	     r->r_status,
+	     copy.r_status,
 	     (ASM_SUBMITTED | ASM_COMPLETED | ASM_ERROR),
-	     (r->r_status & (ASM_SUBMITTED | ASM_COMPLETED | ASM_ERROR)));
-	if (r->r_status & ASM_FREE) {
+	     (copy.r_status & (ASM_SUBMITTED | ASM_COMPLETED | ASM_ERROR)));
+	if (copy.r_status & ASM_FREE) {
 		u64 z = 0ULL;
 		if (copy_to_user(&(ioc->reserved_asm_ioc),
 				 &z, sizeof(ioc->reserved_asm_ioc))) {
 			ret = -EFAULT;
 			goto out;
 		}
-	} else if (r->r_status &
+	} else if (copy.r_status &
 		   (ASM_SUBMITTED | ASM_ERROR)) {
 		u64 key = (u64)(unsigned long)r;
 		mlog(ML_IOC, "Putting key 0x%p on asm_ioc 0x%p\n",
@@ -1371,7 +1386,7 @@ static int asm_submit_io(struct file *file,
 	submit_bio(rw, r->r_bio);
 
 out:
-	ret = asm_update_user_ioc(r);
+	ret = asm_update_user_ioc(file, r);
 
 	mlog_exit(ret);
 	return ret;
@@ -1493,7 +1508,7 @@ static int asm_maybe_wait_io(struct file *file,
 
 	spin_unlock_irq(&afi->f_lock);
 
-	ret = asm_update_user_ioc(r);
+	ret = asm_update_user_ioc(file, r);
 
 	mlog(ML_REQUEST, "Freeing request 0x%p\n", r);
 	asm_request_free(r);
@@ -1533,7 +1548,7 @@ static int asm_complete_io(struct file *file,
 
 	*ioc = r->r_ioc;
 	
-	ret = asm_update_user_ioc(r);
+	ret = asm_update_user_ioc(file, r);
 
 	asm_request_free(r);
 
