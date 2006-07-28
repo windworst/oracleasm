@@ -141,7 +141,12 @@ KAPI_COMPAT_CFLAGS=
 BACKING_DEV_CAPABILITIES=
 GET_SB_HAS_VFSMOUNT=
 if test x"$BUILD_DRIVER" = "xyes"; then
-  kernelincludes="`vendor/${mb_vendor}/kernel.guess include`"
+  if test x"$vendordir" = x"$kerneldir" ; then
+      kernelincludes="`vendor/${mb_vendor}/kernel.guess include`"
+  else
+      kernelincludes="$kernelinc"
+  fi
+
   KAPI_COMPAT_HEADERS=
 
   OCFS2_CHECK_KERNEL_INCLUDES([capabilities mask in backing_dev_info],
