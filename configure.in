@@ -158,8 +158,8 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     [^extern int get_sb_pseudo])
 
   mutex_compat_header=
-  OCFS2_CHECK_KERNEL_INCLUDES([for mutex API], linux/mutex.h,
-    $kernelincludes, , mutex_compat_header="i_mutex.h", [mutex_lock])
+  OCFS2_CHECK_KERNEL_INCLUDES([for mutex API], linux/fs.h,
+    $kernelincludes, , mutex_compat_header="i_mutex.h", [i_mutex])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $mutex_compat_header"
 
   # using -include has two advantages:
