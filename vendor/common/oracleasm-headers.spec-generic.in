@@ -17,7 +17,7 @@ Summary: The Oracle Automatic Storage Management driver ABI headers.
 Name: oracleasm-headers
 Version: @DIST_VERSION@
 Release: @@PKG_VERSION@@
-Copyright: GPL
+License: GPL
 Group: System Environment/Kernel
 Source: oracleasm-@DIST_VERSION@.tar.gz
 URL: http://oss.oracle.com/projects/oracleasm/
