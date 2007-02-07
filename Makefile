@@ -17,7 +17,8 @@ MODULEARCH = $(shell $(TOPDIR)/rpmarch.guess module $(TOPDIR))
 SUBDIRS = include kernel documents vendor
 
 KAPI_COMPAT_FILES =			\
-	kapi-compat/include/i_mutex.h
+	kapi-compat/include/i_mutex.h	\
+	kapi-compat/include/i_private.h
 
 #
 # Extra (non-source) files to distribute

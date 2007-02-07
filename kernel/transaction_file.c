@@ -19,7 +19,7 @@
 
 #include "transaction_file.h"
 
-#define TRANSACTION_CONTEXT(i) ((i)->u.generic_ip)
+#define TRANSACTION_CONTEXT(i) ((i)->i_private)
 
 /* an argresp is stored in an allocated page and holds the 
  * size of the argument or response, along with its content
