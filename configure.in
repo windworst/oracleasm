@@ -167,6 +167,11 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     $kernelincludes, , private_compat_header="i_private.h", [i_private])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $private_compat_header"
 
+  blksize_compat_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([for i_blksize], linux/fs.h,
+    $kernelincludes, blksize_compat_header="i_blksize.h", , [i_blksize])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blksize_compat_header"
+
   # using -include has two advantages:
   #  the source doesn't need to know to include compat headers
   #  the compat header file names don't go through the search path

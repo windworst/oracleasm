@@ -80,6 +80,15 @@
 
 #include "linux/oracleasm/module_version.h"
 
+/*
+ * Modern kernels don't need this.  Older kernels will have it defined
+ * by the compat code.
+ */
+#ifndef set_i_blksize
+# define set_i_blksize(i, bs) do { /* Nothing */ } while (0)
+#endif
+
+
 #include "masklog.h"
 #include "proc.h"
 #if 0
@@ -93,7 +102,6 @@
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
 #endif  /* PAGE_CACHE_SIZE % 1024 */
-
 
 
 
@@ -531,7 +539,7 @@ static int asmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t
 	inode->i_mode = mode;
 	inode->i_uid = current->fsuid;
 	inode->i_gid = current->fsgid;
-	inode->i_blksize = PAGE_CACHE_SIZE;
+	set_i_blksize(inode, PAGE_CACHE_SIZE);
 	inode->i_blocks = 0;
 	inode->i_rdev = 0;
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
@@ -565,7 +573,7 @@ static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode, stru
 	inode->i_mode = mode;
 	inode->i_uid = current->fsuid;
 	inode->i_gid = current->fsgid;
-	inode->i_blksize = PAGE_CACHE_SIZE;
+	set_i_blksize(inode, PAGE_CACHE_SIZE);
 	inode->i_blocks = 0;
 	inode->i_rdev = 0;
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
@@ -2611,7 +2619,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	inode->i_ino = (unsigned long)inode;
 	inode->i_mode = S_IFDIR | 0755;
 	inode->i_uid = inode->i_gid = 0;
-	inode->i_blksize = PAGE_CACHE_SIZE;
+	set_i_blksize(inode, PAGE_CACHE_SIZE);
 	inode->i_blocks = 0;
 	inode->i_rdev = 0;
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
