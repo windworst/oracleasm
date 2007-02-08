@@ -499,8 +499,7 @@ static int init_inodecache(void)
 
 static void destroy_inodecache(void)
 {
-	if (kmem_cache_destroy(asmfs_inode_cachep))
-		printk(KERN_INFO "asmfs_inode_cache: not all structures were freed\n");
+	kmem_cache_destroy(asmfs_inode_cachep);
 }
 
 static int init_requestcache(void)
@@ -516,8 +515,7 @@ static int init_requestcache(void)
 
 static void destroy_requestcache(void)
 {
-	if (kmem_cache_destroy(asm_request_cachep))
-		printk(KERN_INFO "asm_request_cache: not all structures were freed\n");
+	kmem_cache_destroy(asm_request_cachep);
 }
 
 
