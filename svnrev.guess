@@ -33,7 +33,8 @@ getstat()
     then
         return
     fi
-    svn stat -v | awk 'BEGIN{modified = "false";lastrev = 0}
+    svn stat -v | awk 'BEGIN{modified = "false";lastrev = ""}
+                       {if (lastrev == ""){lastrev = 0}}
                        /Status against/{next}
                        /^\?/{next} 
                        {

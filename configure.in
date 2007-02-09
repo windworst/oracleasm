@@ -188,6 +188,7 @@ AC_OUTPUT([Config.make
 include/linux/oracleasm/module_version.h
 vendor/sles9/oracleasm.spec-generic
 vendor/rhel4/oracleasm.spec-generic
+vendor/fc6/oracleasm.spec-generic
 vendor/sles10/oracleasm.spec-generic
 vendor/common/oracleasm-headers.spec-generic
 ])

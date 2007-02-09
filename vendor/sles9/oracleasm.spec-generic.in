@@ -81,7 +81,7 @@ Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
 Version: @DIST_VERSION@
 Release: @@PKG_VERSION@@
-Copyright: GPL
+License: GPL
 Group: System Environment/Kernel
 Source: oracleasm-@DIST_VERSION@.tar.gz
 URL: http://oss.oracle.com/projects/oracleasm/
