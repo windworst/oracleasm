@@ -285,7 +285,7 @@ static struct backing_dev_info memory_backing_dev_info = {
 
 static struct inode *asmdisk_alloc_inode(struct super_block *sb)
 {
-	struct asm_disk_info *d = kmem_cache_alloc(asmdisk_cachep, SLAB_KERNEL);
+	struct asm_disk_info *d = kmem_cache_alloc(asmdisk_cachep, GFP_KERNEL);
 	if (!d)
 		return NULL;
 
@@ -443,7 +443,7 @@ static struct inode *asmfs_alloc_inode(struct super_block *sb)
 	struct asmfs_sb_info *asb = ASMFS_SB(sb);
 	struct asmfs_inode_info *aii;
 
-	aii = (struct asmfs_inode_info *)kmem_cache_alloc(asmfs_inode_cachep, SLAB_KERNEL);
+	aii = (struct asmfs_inode_info *)kmem_cache_alloc(asmfs_inode_cachep, GFP_KERNEL);
 
 	if (!aii)
 		return NULL;
