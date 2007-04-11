@@ -5,9 +5,10 @@ then
     exit 1
 fi
 
-if [ "`rpm -qf /etc/redhat-release --qf '%{VERSION}' 2>/dev/null`" != "4AS" ]
-then
-    exit 1
-fi
+case "`rpm -qf /etc/redhat-release --qf '%{VERSION}' 2>/dev/null`" in
+    4[AEW]S) ;;
+    4) ;;
+    *) exit 1 ;;
+esac
 
 exit 0
