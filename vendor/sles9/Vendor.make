@@ -4,6 +4,7 @@
 
 TOOLSARCH = $(shell $(TOPDIR)/vendor/sles9/rpmarch.guess tools $(TOPDIR))
 MODULEARCH = $(shell $(TOPDIR)/vendor/sles9/rpmarch.guess module $(TOPDIR))
+VENDOR_EXTENSION = SLE9
 
 
 $(TOPDIR)/vendor/sles9/oracleasm-%.spec: $(TOPDIR)/vendor/sles9/oracleasm.spec-generic
@@ -16,7 +17,7 @@ sles9_%_srpm: dist $(TOPDIR)/vendor/sles9/oracleasm-%.spec
 	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/sles9/oracleasm-$(patsubst sles9_%_srpm,%,$@).spec
 
 sles9_%_rpm: sles9_%_srpm
-	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst sles9_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).src.rpm"
+	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst sles9_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).$(VENDOR_EXTENSION).src.rpm"
 
 
 # Package required for /usr/include/linux

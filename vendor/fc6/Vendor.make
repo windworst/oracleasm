@@ -4,6 +4,7 @@
 
 TOOLSARCH = $(shell $(TOPDIR)/vendor/fc6/rpmarch.guess tools $(TOPDIR))
 MODULEARCH = $(shell $(TOPDIR)/vendor/fc6/rpmarch.guess module $(TOPDIR))
+VENDOR_EXTENSION = fc6
 
 $(TOPDIR)/vendor/fc6/oracleasm-%.spec: $(TOPDIR)/vendor/fc6/oracleasm.spec-generic
 	SPECVER="$@"; \
@@ -23,7 +24,7 @@ fc6_%_srpm: dist $(TOPDIR)/vendor/fc6/oracleasm-%.spec
 	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/fc6/oracleasm-$(patsubst fc6_%_srpm,%,$@).spec
 
 fc6_%_rpm: fc6_%_srpm
-	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst fc6_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).src.rpm"
+	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst fc6_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).$(VENDOR_EXTENSION).src.rpm"
 
 
 # Package required for /usr/include/linux

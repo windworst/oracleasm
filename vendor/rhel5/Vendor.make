@@ -4,6 +4,7 @@
 
 TOOLSARCH = $(shell $(TOPDIR)/vendor/rhel5/rpmarch.guess tools $(TOPDIR))
 MODULEARCH = $(shell $(TOPDIR)/vendor/rhel5/rpmarch.guess module $(TOPDIR))
+VENDOR_EXTENSION = el5
 
 $(TOPDIR)/vendor/rhel5/oracleasm-%.spec: $(TOPDIR)/vendor/rhel5/oracleasm.spec-generic
 	SPECVER="$@"; \
@@ -15,7 +16,7 @@ rhel5_%_srpm: dist $(TOPDIR)/vendor/rhel5/oracleasm-%.spec
 	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/rhel5/oracleasm-$(patsubst rhel5_%_srpm,%,$@).spec
 
 rhel5_%_rpm: rhel5_%_srpm
-	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst rhel5_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).src.rpm"
+	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst rhel5_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).$(VENDOR_EXTENSION).src.rpm"
 
 
 # Package required for /usr/include/linux
