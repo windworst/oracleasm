@@ -742,6 +742,9 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 	if (!h)
 		goto out_claim;
 
+	mlog(ML_DISK, "Looking up disk for bdev %p (dev %X)\n", bdev,
+	     bdev->bd_dev);
+
 	disk_inode = iget5_locked(asmdisk_mnt->mnt_sb,
 				  (unsigned long)bdev, asmdisk_test,
 				  asmdisk_set, ASMFS_I(inode));
