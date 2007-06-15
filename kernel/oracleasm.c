@@ -212,6 +212,12 @@ struct asm_disk_info {
 	struct inode vfs_inode;
 };
 
+/* Argument to iget5_locked()/ilookup5() to map bdev to disk_inode */
+struct asmdisk_find_inode_args {
+	unsigned long fa_handle;
+	struct asmfs_inode_info *fa_inode;
+};
+
 static inline struct asm_disk_info *ASMDISK_I(struct inode *inode)
 {
 	return container_of(inode, struct asm_disk_info, vfs_inode);
@@ -417,15 +423,23 @@ static void destroy_asmdiskcache(void)
 	kmem_cache_destroy(asmdisk_cachep);
 }
 
-
 static int asmdisk_test(struct inode *inode, void *data)
 {
-	return ASMDISK_I(inode)->d_inode == (struct asmfs_inode_info *)data;
+	struct asmdisk_find_inode_args *args = data;
+	struct asm_disk_info *d = ASMDISK_I(inode);
+	unsigned long handle = (unsigned long)(d->d_bdev);
+
+	return (d->d_inode == args->fa_inode) && (handle == args->fa_handle);
 }
 
 static int asmdisk_set(struct inode *inode, void *data)
 {
-	ASMDISK_I(inode)->d_inode = (struct asmfs_inode_info *)data;
+	struct asmdisk_find_inode_args *args = data;
+	struct asm_disk_info *d = ASMDISK_I(inode);
+
+	d->d_bdev = (struct block_device *)(args->fa_handle);
+	d->d_inode = args->fa_inode;
+
 	return 0;
 }
 
@@ -722,6 +736,7 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 	struct asm_disk_head *h;
 	struct inode *inode = ASMFS_F2I(file);
 	struct inode *disk_inode;
+	struct asmdisk_find_inode_args args;
 
 	mlog_entry("(0x%p, 0x%p)\n", file, bdev);
 
@@ -745,9 +760,11 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 	mlog(ML_DISK, "Looking up disk for bdev %p (dev %X)\n", bdev,
 	     bdev->bd_dev);
 
+	args.fa_handle = (unsigned long)bdev;
+	args.fa_inode = ASMFS_I(inode);
 	disk_inode = iget5_locked(asmdisk_mnt->mnt_sb,
 				  (unsigned long)bdev, asmdisk_test,
-				  asmdisk_set, ASMFS_I(inode));
+				  asmdisk_set, &args);
 	if (!disk_inode)
 		goto out_head;
 
@@ -761,9 +778,12 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 				"Supposedly new disk 0x%p (dev %X) is live\n",
 				d, bdev->bd_dev);
 
+		mlog_bug_on_msg(d->d_bdev != bdev,
+				"New disk 0x%p has set bdev 0x%p but we were opening 0x%p\n",
+				d, d->d_bdev, bdev);
+
 		disk_inode->i_mapping->backing_dev_info =
 			&memory_backing_dev_info;
-		d->d_bdev = bdev;
 		d->d_max_sectors = compute_max_sectors(bdev);
 		d->d_live = 1;
 
@@ -811,6 +831,7 @@ out:
 static int asm_close_disk(struct file *file, unsigned long handle)
 {
 	struct inode *inode = ASMFS_F2I(file);
+	struct asmdisk_find_inode_args args;
 	struct asm_disk_info *d;
 	struct block_device *bdev;
 	struct inode *disk_inode;
@@ -824,8 +845,10 @@ static int asm_close_disk(struct file *file, unsigned long handle)
 	mlog_bug_on_msg(!ASMFS_FILE(file) || !ASMFS_I(inode),
 			"Garbage arguments\n");
 
+	args.fa_handle = handle;
+	args.fa_inode = ASMFS_I(inode);
 	disk_inode = ilookup5(asmdisk_mnt->mnt_sb, handle,
-			      asmdisk_test, ASMFS_I(inode));
+			      asmdisk_test, &args);
 	if (!disk_inode) {
 		mlog_exit(-EINVAL);
 		return -EINVAL;
@@ -1234,6 +1257,7 @@ static int asm_submit_io(struct file *file,
 {
 	int ret, rw = READ;
 	struct inode *inode = ASMFS_F2I(file);
+	struct asmdisk_find_inode_args args;
 	struct asm_request *r;
 	struct asm_disk_info *d;
 	struct inode *disk_inode;
@@ -1281,9 +1305,11 @@ static int asm_submit_io(struct file *file,
 	spin_unlock_irq(&ASMFS_FILE(file)->f_lock);
 
 	ret = -ENODEV;
+	args.fa_handle = (unsigned long)ioc->disk_asm_ioc;
+	args.fa_inode = ASMFS_I(inode);
 	disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
 			      (unsigned long)ioc->disk_asm_ioc,
-			      asmdisk_test, ASMFS_I(inode));
+			      asmdisk_test, &args);
 	if (!disk_inode)
 		goto out_error;
 
@@ -1425,6 +1451,7 @@ static int asm_maybe_wait_io(struct file *file,
 	long ret;
 	u64 p;
 	struct asmfs_file_info *afi = ASMFS_FILE(file);
+	struct asmdisk_find_inode_args args;
 	struct asm_request *r;
 	struct task_struct *tsk = current;
 	DECLARE_WAITQUEUE(wait, tsk);
@@ -1479,10 +1506,11 @@ static int asm_maybe_wait_io(struct file *file,
 				bdev = d->d_bdev;
 			spin_unlock_irq(&afi->f_lock);
 
+			args.fa_handle = (unsigned long)bdev;
+			args.fa_inode = ASMFS_I(ASMFS_F2I(file));
 			disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
 					      (unsigned long)bdev,
-					      asmdisk_test,
-					      ASMFS_I(ASMFS_F2I(file)));
+					      asmdisk_test, &args);
 			if (disk_inode) {
 				d = ASMDISK_I(disk_inode);
 				if (d->d_bdev)
@@ -1616,6 +1644,7 @@ static int asm_wait_completion(struct file *file,
 		struct block_device *bdev;
 		struct asm_disk_info *d;
 		struct inode *disk_inode;
+		struct asmdisk_find_inode_args args;
 
 		ret = 0;
 		set_task_state(tsk, TASK_INTERRUPTIBLE);
@@ -1629,10 +1658,11 @@ static int asm_wait_completion(struct file *file,
 		bdev = find_io_bdev(file);
 		spin_unlock_irq(&afi->f_lock);
 
+		args.fa_handle = (unsigned long)bdev;
+		args.fa_inode = ASMFS_I(ASMFS_F2I(file));
 		disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
 				      (unsigned long)bdev,
-				      asmdisk_test,
-				      ASMFS_I(ASMFS_F2I(file)));
+				      asmdisk_test, &args);
 		if (disk_inode) {
 			d = ASMDISK_I(disk_inode);
 			if (d->d_bdev)
@@ -2101,6 +2131,7 @@ static int asmfs_file_release(struct inode *inode, struct file *file)
 		struct block_device *bdev;
 		struct asm_disk_info *d;
 		struct inode *disk_inode;
+		struct asmdisk_find_inode_args args;
 
 		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
 
@@ -2111,9 +2142,11 @@ static int asmfs_file_release(struct inode *inode, struct file *file)
 		bdev = find_io_bdev(file);
 		spin_unlock_irq(&afi->f_lock);
 
+		args.fa_handle = (unsigned long)bdev;
+		args.fa_inode = aii;
 		disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
 				      (unsigned long)bdev,
-				      asmdisk_test, aii);
+				      asmdisk_test, &args);
 		if (disk_inode) {
 			d = ASMDISK_I(disk_inode);
 			if (d->d_bdev)
