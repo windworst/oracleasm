@@ -1242,20 +1242,30 @@ static int asm_submit_io(struct file *file,
 
 	mlog_entry("(0x%p, 0x%p, 0x%p)\n", file, user_iocp, ioc);
 
-	if (!ioc)
+	if (!ioc) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
-	if (ioc->status_asm_ioc)
+	if (ioc->status_asm_ioc) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	r = asm_request_alloc();
 	if (!r) {
 		u16 status = ASM_FREE | ASM_ERROR | ASM_LOCAL_ERROR |
 			ASM_BUSY;
-		if (put_user(status, &(user_iocp->status_asm_ioc)))
+		if (put_user(status, &(user_iocp->status_asm_ioc))) {
+			mlog_exit(-EFAULT);
 			return -EFAULT;
-		if (put_user(ASM_ERR_NOMEM, &(user_iocp->error_asm_ioc)))
+		}
+		if (put_user(ASM_ERR_NOMEM, &(user_iocp->error_asm_ioc))) {
+			mlog_exit(-EFAULT);
 			return -EFAULT;
+		}
+
+		mlog_exit(0);
 		return 0;
 	}
 
@@ -1423,21 +1433,26 @@ static int asm_maybe_wait_io(struct file *file,
 	mlog_entry("(0x%p, 0x%p, 0x%p)\n", file, iocp, to);
 	
 	if (copy_from_user(&p, &(iocp->reserved_asm_ioc),
-			   sizeof(p)))
-		return -EFAULT;
+			   sizeof(p))) {
+		ret = -EFAULT;
+		goto out;
+	}
 
 	mlog(ML_REQUEST|ML_IOC, "User asm_ioc 0x%p has key 0x%p\n",
 	     iocp, (struct asm_request *)(unsigned long)p);
 	r = (struct asm_request *)(unsigned long)p;
-	if (!r)
-		return -EINVAL;
+	if (!r) {
+		ret = -EINVAL;
+		goto out;
+	}
 
 	spin_lock_irq(&afi->f_lock);
 	/* Is it valid? It's surely ugly */
 	if (!r->r_file || (r->r_file != afi) ||
 	    list_empty(&r->r_list) || !(r->r_status & ASM_SUBMITTED)) {
 		spin_unlock_irq(&afi->f_lock);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	mlog(ML_REQUEST|ML_IOC,
@@ -1492,7 +1507,7 @@ static int asm_maybe_wait_io(struct file *file,
 		remove_wait_queue(&to->wait, &to_wait);
 		
 		if (ret)
-			return ret;
+			goto out;
 	}
 
 	ret = 0;
@@ -1686,8 +1701,10 @@ static inline int asm_maybe_wait_io_native(struct file *file,
 	
 	for (i = 0; i < io->io_waitlen; i++) {
 		if (get_user(iocp,
-			     ((asm_ioc **)((unsigned long)(io->io_waitreqs))) + i))
-			return -EFAULT;
+			     ((asm_ioc **)((unsigned long)(io->io_waitreqs))) + i)) {
+			ret = -EFAULT;
+			break;
+		}
 
 		ret = asm_maybe_wait_io(file, iocp, to);
 		if (ret)
@@ -1823,8 +1840,10 @@ static inline int asm_maybe_wait_io_thunk(struct file *file,
 		 * are 32bit pointers.
 		 */
 		if (get_user(iocp_32,
-			     ((u32 *)((unsigned long)(io->io_waitreqs))) + i))
-			return -EFAULT;
+			     ((u32 *)((unsigned long)(io->io_waitreqs))) + i)) {
+			ret = -EFAULT;
+			break;
+		}
 
 		/* Remember, the this is pointing to 32bit userspace */
 		iocp = (asm_ioc *)(unsigned long)iocp_32;
@@ -2155,8 +2174,10 @@ static ssize_t asmfs_svc_query_version(struct file *file, char *buf, size_t size
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_abi_info))
+	if (size != sizeof(struct oracleasm_abi_info)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
        	abi_info = (struct oracleasm_abi_info *)buf;
 
@@ -2194,8 +2215,10 @@ static ssize_t asmfs_svc_get_iid(struct file *file, char *buf, size_t size)
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_get_iid_v2))
+	if (size != sizeof(struct oracleasm_get_iid_v2)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	iid_info = (struct oracleasm_get_iid_v2 *)buf;
 
@@ -2232,8 +2255,10 @@ static ssize_t asmfs_svc_check_iid(struct file *file, char *buf, size_t size)
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_get_iid_v2))
+	if (size != sizeof(struct oracleasm_get_iid_v2)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	iid_info = (struct oracleasm_get_iid_v2 *)buf;
 
@@ -2272,8 +2297,10 @@ static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_query_disk_v2))
+	if (size != sizeof(struct oracleasm_query_disk_v2)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	qd_info = (struct oracleasm_query_disk_v2 *)buf;
 
@@ -2324,13 +2351,17 @@ static ssize_t asmfs_svc_open_disk(struct file *file, char *buf, size_t size)
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_open_disk_v2))
+	if (size != sizeof(struct oracleasm_open_disk_v2)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	if (copy_from_user(&od_info,
 			   (struct oracleasm_open_disk_v2 __user *)buf,
-			   sizeof(struct oracleasm_open_disk_v2)))
+			   sizeof(struct oracleasm_open_disk_v2))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	od_info.od_handle = 0; /* Unopened */
 
@@ -2373,6 +2404,7 @@ out_error:
 			asm_close_disk(file,
 				       (unsigned long)od_info.od_handle);
 		/* Ignore close errors, this is the real error */
+		mlog_exit(-EFAULT);
 		return -EFAULT;
 	}
 
@@ -2387,13 +2419,17 @@ static ssize_t asmfs_svc_close_disk(struct file *file, char *buf, size_t size)
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_close_disk_v2))
+	if (size != sizeof(struct oracleasm_close_disk_v2)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	if (copy_from_user(&cd_info,
 			   (struct oracleasm_close_disk_v2 __user *)buf,
-			   sizeof(struct oracleasm_close_disk_v2)))
+			   sizeof(struct oracleasm_close_disk_v2))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	ret = asmfs_verify_abi(&cd_info.cd_abi);
 	if (ret)
@@ -2413,8 +2449,10 @@ out_error:
 	cd_info.cd_abi.ai_status = ret;
 	if (copy_to_user((struct oracleasm_close_disk_v2 __user *)buf,
 			 &cd_info,
-			 sizeof(struct oracleasm_close_disk_v2)))
+			 sizeof(struct oracleasm_close_disk_v2))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	mlog_exit(size);
 	return size;
@@ -2428,13 +2466,17 @@ static ssize_t asmfs_svc_io32(struct file *file, char *buf, size_t size)
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_io_v2))
+	if (size != sizeof(struct oracleasm_io_v2)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	if (copy_from_user(&io_info,
 			   (struct oracleasm_io_v2 __user *)buf,
-			   sizeof(struct oracleasm_io_v2)))
+			   sizeof(struct oracleasm_io_v2))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	ret = asmfs_verify_abi(&io_info.io_abi);
 	if (ret)
@@ -2452,8 +2494,10 @@ static ssize_t asmfs_svc_io32(struct file *file, char *buf, size_t size)
 
 out_error:
 	user_abi_info = (struct oracleasm_abi_info __user *)buf;
-	if (put_user(ret, &(user_abi_info->ai_status)))
+	if (put_user(ret, &(user_abi_info->ai_status))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	mlog_exit(size);
 	return size;
@@ -2468,13 +2512,17 @@ static ssize_t asmfs_svc_io64(struct file *file, char *buf, size_t size)
 
 	mlog_entry("(0x%p, 0x%p, %u)\n", file, buf, (unsigned int)size);
 
-	if (size != sizeof(struct oracleasm_io_v2))
+	if (size != sizeof(struct oracleasm_io_v2)) {
+		mlog_exit(-EINVAL);
 		return -EINVAL;
+	}
 
 	if (copy_from_user(&io_info,
 			   (struct oracleasm_io_v2 __user *)buf,
-			   sizeof(struct oracleasm_io_v2)))
+			   sizeof(struct oracleasm_io_v2))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	ret = asmfs_verify_abi(&io_info.io_abi);
 	if (ret)
@@ -2492,8 +2540,10 @@ static ssize_t asmfs_svc_io64(struct file *file, char *buf, size_t size)
 
 out_error:
 	user_abi_info = (struct oracleasm_abi_info __user *)buf;
-	if (put_user(ret, &(user_abi_info->ai_status)))
+	if (put_user(ret, &(user_abi_info->ai_status))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	mlog_exit(size);
 	return size;
@@ -2514,8 +2564,10 @@ static ssize_t asmfs_file_read(struct file *file, char *buf, size_t size, loff_t
 	asm_cleanup_bios(file);
 
 	user_abi_info = (struct oracleasm_abi_info __user *)buf;
-	if (get_user(op, &((user_abi_info)->ai_type)))
+	if (get_user(op, &((user_abi_info)->ai_type))) {
+		mlog_exit(-EFAULT);
 		return -EFAULT;
+	}
 
 	switch (op) {
 		default:
