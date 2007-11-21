@@ -11,29 +11,35 @@
 %define builddef	1
 %define buildpae	0
 %define buildxen	0
+%define builddebug	0
 
 %ifarch i686
 %define karch		i686
 %define buildpae	1
 %define buildxen	1
+%define builddebug	@@DEBUG@@
 %endif
 
 %ifarch x86_64
 %define karch		x86_64
 %define buildxen	1
+%define builddebug	@@DEBUG@@
 %endif
 
 %ifarch ia64
 %define karch		ia64
 %define buildxen	1
+%define builddebug	@@DEBUG@@
 %endif
 
 %ifarch ppc64
 %define karch		ppc64
+%define builddebug	@@DEBUG@@
 %endif
 
 %ifarch s390x
 %define karch		s390x
+%define builddebug	@@DEBUG@@
 %endif
 
 
@@ -103,6 +109,23 @@ BuildRequires: kernel-xen-devel = %{kver}
 %description -n oracleasm-%{kver}xen
 Kernel driver for the Oracle Automatic Storage Management library.
 This package is compiled for the Xen virtualized systems.
+%endif
+
+
+%if %{builddebug}
+%package -n oracleasm-%{kver}debug
+Summary: The Oracle Automatic Storage Management library driver for debug systems.
+Group: System Environment/Kernel
+AutoReqProv: no
+Provides: oracleasm = %{version}
+Requires: kernel-debug = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-debug-devel = %{kver}
+
+%description -n oracleasm-%{kver}debug
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for the debug kernel.
 %endif
 
 
@@ -177,6 +200,20 @@ mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
 make clean
 %endif
 
+%if %{builddebug}
+local_configure "%{kver}debug"
+
+make V=0
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}debug/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}debug/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
 
 
 %install
@@ -215,9 +252,20 @@ depmod -ae %{kver}xen
 /lib/modules/%{kver}xen/kernel/drivers/addon/oracleasm
 %endif
 
+%if %{builddebug}
+%post -n oracleasm-%{kver}debug
+depmod -ae %{kver}debug
+
+%files -n oracleasm-%{kver}debug
+%defattr(-,root,root)
+/lib/modules/%{kver}debug/kernel/drivers/addon/oracleasm
+%endif
 
 
 %changelog
+* Mon Nov 12 2007 Sunil Mushran <sunil.mushran@oracle.com>
+- Add support to build modules for kernel-debug for RHEL5
+
 * Wed Apr 18 2007 Joel Becker <joel.becker@oracle.com>
 - Add RHEL5
 

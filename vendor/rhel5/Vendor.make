@@ -10,7 +10,15 @@ $(TOPDIR)/vendor/rhel5/oracleasm-%.spec: $(TOPDIR)/vendor/rhel5/oracleasm.spec-g
 	SPECVER="$@"; \
 		SPECVER="$${SPECVER#*oracleasm-}"; \
 		SPECVER="$${SPECVER%.spec}"; \
-		sed -e 's/@@KVER@@/'$${SPECVER}'/' -e 's/@@PKG_VERSION@@/'$(PKG_VERSION)'/' < $< > $@
+		SUBVER="$${SPECVER#2.6.18-}"; \
+		SUBVER="$${SUBVER%%.*}"; \
+		if [ "$${SUBVER}" -lt 53 ]; \
+		then \
+			DEBUG=0; \
+		else \
+			DEBUG=1; \
+		fi; \
+		sed -e 's/@@KVER@@/'$${SPECVER}'/' -e 's/@@PKG_VERSION@@/'$(PKG_VERSION)'/' -e 's/@@DEBUG@@/'$${DEBUG}'/' < $< > $@
 
 rhel5_%_srpm: dist $(TOPDIR)/vendor/rhel5/oracleasm-%.spec
 	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/rhel5/oracleasm-$(patsubst rhel5_%_srpm,%,$@).spec
