@@ -2672,7 +2672,7 @@ static struct super_operations asmfs_ops = {
 static int asmfs_fill_super(struct super_block *sb,
 			    void *data, int silent)
 {
-	struct inode *inode;
+	struct inode *inode, *parent;
 	struct dentry *root, *dentry;
 	struct asmfs_sb_info *asb;
 	struct asmfs_params params;
@@ -2714,6 +2714,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	inode->i_mapping->backing_dev_info = &memory_backing_dev_info;
 	/* directory inodes start off with i_nlink == 2 (for "." entry) */
 	inode->i_nlink++;
+	parent = inode;
 
 	root = d_alloc_root(inode);
 	if (!root) {
@@ -2727,6 +2728,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	dentry = d_alloc(root, &name);
 	if (!dentry)
 		goto out_genocide;
+	parent->i_nlink++;
 	inode = new_inode(sb);
 	if (!inode)
 		goto out_genocide;
@@ -2745,6 +2747,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	dentry = d_alloc(root, &name);
 	if (!dentry)
 		goto out_genocide;
+	parent->i_nlink++;
 	inode = new_inode(sb);
 	if (!inode)
 		goto out_genocide;
