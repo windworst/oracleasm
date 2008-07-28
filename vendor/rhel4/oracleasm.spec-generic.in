@@ -13,17 +13,20 @@
 %define buildsmp	0
 %define buildhugemem	0
 %define buildlargesmp	0
+%define buildxenu	0
 
 %ifarch i686
 %define karch		i686
 %define buildsmp	1
 %define buildhugemem	1
+%define buildxenu	@@XENU@@
 %endif
 
 %ifarch x86_64
 %define karch		x86_64
 %define buildsmp	1
 %define buildlargesmp	@@LARGESMP@@
+%define buildxenu	@@XENU@@
 %endif
 
 %ifarch ia32e
@@ -129,6 +132,21 @@ Kernel driver for the Oracle Automatic Storage Management library.
 This package is compiled for large SMP kernels.
 %endif
 
+%if %{buildxenu}
+%package -n oracleasm-%{kver}xenU
+Summary: The Oracle Automatic Storage Management library driver for Xen DomU kernels.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-xenU = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-xenU-devel = %{kver}
+
+%description -n oracleasm-%{kver}xenU
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for Xen DomU kernels.
+%endif
 
 
 %prep
@@ -217,6 +235,21 @@ mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
 make clean
 %endif
 
+%if %{buildxenu}
+local_configure "%{kver}xenU"
+
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}xenU/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}xenU/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
 
 %install
 
@@ -265,8 +298,20 @@ depmod -ae %{kver}largesmp
 /lib/modules/%{kver}largesmp/kernel/drivers/addon/oracleasm
 %endif
 
+%if %{buildxenu}
+%post -n oracleasm-%{kver}xenU
+depmod -ae %{kver}xenU
+
+%files -n oracleasm-%{kver}xenU
+%defattr(-,root,root)
+/lib/modules/%{kver}xenU/kernel/drivers/addon/oracleasm
+%endif
+
 
 %changelog
+* Fri Oct 26 2007 Sunil Mushran <sunil.mushran@oracle.com>
+- Add xenU
+
 * Thu May 25 2006 Joel Becker <joel.becker@oracle.com>
 - Add largesmp
 

@@ -10,15 +10,21 @@ $(TOPDIR)/vendor/rhel4/oracleasm-%.spec: $(TOPDIR)/vendor/rhel4/oracleasm.spec-g
 	SPECVER="$@"; \
 		SPECVER="$${SPECVER#*oracleasm-}"; \
 		SPECVER="$${SPECVER%.spec}"; \
-		LARGEVER="$${SPECVER#2.6.9-}"; \
-		LARGEVER="$${LARGEVER%%.*}"; \
-		if [ "$${LARGEVER}" -lt 34 ]; \
+		SUBVER="$${SPECVER#2.6.9-}"; \
+		SUBVER="$${SUBVER%%.*}"; \
+		if [ "$${SUBVER}" -lt 34 ]; \
 		then \
 			LARGESMP=0; \
 		else \
 			LARGESMP=1; \
 		fi; \
-		sed -e 's/@@KVER@@/'$${SPECVER}'/' -e 's/@@PKG_VERSION@@/'$(PKG_VERSION)'/' -e 's/@@LARGESMP@@/'$${LARGESMP}'/' < $< > $@
+		if [ "$${SUBVER}" -lt 55 ]; \
+		then \
+			XENU=0; \
+		else \
+			XENU=1; \
+		fi; \
+		sed -e 's/@@KVER@@/'$${SPECVER}'/' -e 's/@@PKG_VERSION@@/'$(PKG_VERSION)'/' -e 's/@@LARGESMP@@/'$${LARGESMP}'/' -e 's/@@XENU@@/'$${XENU}'/' < $< > $@
 
 rhel4_%_srpm: dist $(TOPDIR)/vendor/rhel4/oracleasm-%.spec
 	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/rhel4/oracleasm-$(patsubst rhel4_%_srpm,%,$@).spec

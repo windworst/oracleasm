@@ -17,8 +17,8 @@ RHEL4_KERNEL_BASE="/usr/src/kernels"
 # type.  So, we have TYPES and OLD TYPES.
 #
 RHEL4_KERNEL_TYPES="
-    i686:,smp,hugemem
-    x86_64:,smp,largesmp
+    i686:,smp,hugemem,xenU
+    x86_64:,smp,largesmp,xenU
     ia64:,largesmp
     ppc64:,largesmp
     s390x:
@@ -35,6 +35,9 @@ guess_rhel4_arch()
 guess_rhel4_type()
 {
     case "$1" in
+    *xenU)
+        echo "xenU"
+        ;;
     *largesmp)
         echo "largesmp"
         ;;
@@ -79,6 +82,10 @@ validate_dir()
     KVER="$1"
     DIR="$2"
 
+    if [ -z "$KVER" ]
+    then
+        return 1
+    fi
     if [ ! -d "${RHEL4_KERNEL_BASE}/${DIR}" ]
     then
         return 1
@@ -132,11 +139,19 @@ validate_target()
     ARCH="$2"
     TYPELIST="$3"
 
-    # Red Hat introduced the "largesmp" type in 34.EL.  Anything older
-    # can ignore it.
-    LARGESMP="${KVER#2.6.9-}"
-    LARGESMP="${LARGESMP%%.*}"
-    if [ "$LARGESMP" -lt 34 ]
+    SUBVER="${KVER#2.6.9-}"
+    SUBVER="${SUBVER%%.*}"
+
+    # Red Hat introduced the "xenU" type in 55.EL. Anything older can
+    # ignore it.
+    if [ "$SUBVER" -lt 55 ]
+    then
+        TYPELIST="${TYPELIST%,xenU}"
+    fi
+
+    # Red Hat introduced the "largesmp" type in 34.EL. Anything older can
+    # ignore it.
+    if [ "$SUBVER" -lt 34 ]
     then
         TYPELIST="${TYPELIST%,largesmp}"
     fi
