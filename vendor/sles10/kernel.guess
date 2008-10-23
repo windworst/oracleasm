@@ -16,7 +16,7 @@ SLES10_KERNEL_TYPES="
     ppc64:pseries64,iseries64,pmac64
     ia64:default,64k-pagesize,sn2
     i386:default,smp,bigsmp
-    s390:s390x
+    s390:default
 "
     
 
