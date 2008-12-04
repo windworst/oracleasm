@@ -736,6 +736,9 @@ static int compute_max_sectors(struct block_device *bdev)
 	return pow_two_sectors;
 }
 
+#ifndef kapi_asm_blkdev_get
+# define kapi_asm_blkdev_get blkdev_get
+#endif
 static int asm_open_disk(struct file *file, struct block_device *bdev)
 {
 	int ret;
@@ -747,7 +750,7 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 
 	mlog_entry("(0x%p, 0x%p)\n", file, bdev);
 
-	ret = blkdev_get(bdev, FMODE_WRITE | FMODE_READ, 0);
+	ret = kapi_asm_blkdev_get(bdev, FMODE_WRITE | FMODE_READ);
 	if (ret)
 		goto out;
 
