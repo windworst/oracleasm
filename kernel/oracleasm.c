@@ -133,9 +133,12 @@ static struct inode_operations asmfs_file_inode_operations;
 static struct inode_operations asmfs_disk_dir_inode_operations;
 static struct inode_operations asmfs_iid_dir_inode_operations;
 
-static kmem_cache_t	*asm_request_cachep;
-static kmem_cache_t	*asmfs_inode_cachep;
-static kmem_cache_t	*asmdisk_cachep;
+static struct kmem_cache	*asm_request_cachep;
+static struct kmem_cache	*asmfs_inode_cachep;
+static struct kmem_cache	*asmdisk_cachep;
+#ifndef kapi_kmem_cache_create
+# define kapi_kmem_cache_create kmem_cache_create
+#endif
 
 /*
  * asmfs super-block data in memory
@@ -314,17 +317,18 @@ static void asmdisk_destroy_inode(struct inode *inode)
 	kmem_cache_free(asmdisk_cachep, d);
 }
 
-static void init_asmdisk_once(void *foo, kmem_cache_t *cachep, unsigned long flags)
+static void init_asmdisk_once(void *foo)
 {
-	struct asm_disk_info *d = (struct asm_disk_info *)foo;
+	struct asm_disk_info *d = foo;
 
-	if ((flags & (SLAB_CTOR_VERIFY|SLAB_CTOR_CONSTRUCTOR)) ==
-	    SLAB_CTOR_CONSTRUCTOR) {
-		memset(d, 0, sizeof(*d));
-		INIT_LIST_HEAD(&d->d_open);
-		inode_init_once(&d->vfs_inode);
-	}
+	memset(d, 0, sizeof(*d));
+	INIT_LIST_HEAD(&d->d_open);
+
+	inode_init_once(&d->vfs_inode);
 }
+#ifndef kapi_init_asmdisk_once
+# define kapi_init_asmdisk_once init_asmdisk_once
+#endif
 
 static void asmdisk_clear_inode(struct inode *inode)
 {
@@ -394,10 +398,11 @@ static struct vfsmount *asmdisk_mnt;
 static int __init init_asmdiskcache(void)
 {
 	int err;
-	asmdisk_cachep = kmem_cache_create("asmdisk_cache",
-					   sizeof(struct asm_disk_info),
-					   0, SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
-					   init_asmdisk_once, NULL);
+	asmdisk_cachep =
+		kapi_kmem_cache_create("asmdisk_cache",
+				       sizeof(struct asm_disk_info),
+				       0, SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+				       kapi_init_asmdisk_once);
 	if (!asmdisk_cachep)
 		return -ENOMEM;
 	err = register_filesystem(&asmdisk_type);
@@ -485,26 +490,27 @@ static void asmfs_destroy_inode(struct inode *inode)
 	kmem_cache_free(asmfs_inode_cachep, ASMFS_I(inode));
 }
 
-static void init_once(void *foo, kmem_cache_t *cachep, unsigned long flags)
+static void instance_init_once(void *foo)
 {
-	struct asmfs_inode_info *aii = (struct asmfs_inode_info *)foo;
+	struct asmfs_inode_info *aii = foo;
 
-	if ((flags & (SLAB_CTOR_VERIFY|SLAB_CTOR_CONSTRUCTOR)) ==
-	    SLAB_CTOR_CONSTRUCTOR) {
-		INIT_LIST_HEAD(&aii->i_disks);
-		INIT_LIST_HEAD(&aii->i_threads);
-		spin_lock_init(&aii->i_lock);
+	INIT_LIST_HEAD(&aii->i_disks);
+	INIT_LIST_HEAD(&aii->i_threads);
+	spin_lock_init(&aii->i_lock);
 
-		inode_init_once(&aii->vfs_inode);
-	}
+	inode_init_once(&aii->vfs_inode);
 }
+#ifndef kapi_instance_init_once
+# define kapi_instance_init_once instance_init_once
+#endif
 
 static int init_inodecache(void)
 {
-	asmfs_inode_cachep = kmem_cache_create("asmfs_inode_cache",
-					       sizeof(struct asmfs_inode_info),
-					       0, SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
-					       init_once, NULL);
+	asmfs_inode_cachep =
+		kapi_kmem_cache_create("asmfs_inode_cache",
+				       sizeof(struct asmfs_inode_info),
+				       0, SLAB_HWCACHE_ALIGN|SLAB_RECLAIM_ACCOUNT,
+				       kapi_instance_init_once);
 
 	if (asmfs_inode_cachep == NULL)
 		return -ENOMEM;
@@ -518,10 +524,10 @@ static void destroy_inodecache(void)
 
 static int init_requestcache(void)
 {
-	asm_request_cachep = kmem_cache_create("asm_request",
-				     	       sizeof(struct asm_request),
-					       0, SLAB_HWCACHE_ALIGN,
-					       NULL, NULL);
+	asm_request_cachep =
+		kapi_kmem_cache_create("asm_request",
+				       sizeof(struct asm_request),
+				       0, SLAB_HWCACHE_ALIGN, NULL);
 	if (asm_request_cachep == NULL)
 		return -ENOMEM;
 	return 0;

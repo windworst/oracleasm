@@ -207,6 +207,37 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     $kernelincludes, blksize_compat_header="i_blksize.h", , [i_blksize])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blksize_compat_header"
 
+  kmem_cache_create_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([kmem_cache_create() with dtor arg in slab.h],
+    linux/slab.h, $kernelincludes, kmem_cache_create_header="kmem_cache_create.h", ,
+    [^.*void (\*)(void \*, .*kmem_cache.* \*, unsigned long),])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $kmem_cache_create_header"
+
+  slab_ctor_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([SLAB_CTOR_VERIFY in slab.h], linux/slab.h,
+    $kernel_includes, slab_ctor_headre=slab_ctor_verify.h, ,
+    [SLAB_CTOR_VERIFY])
+
+  if test "x$slab_ctor_header" = "x"; then
+    # We know that a kernel with dtor also has a three-arg ctor
+    if test "x$kmem_cache_create_header" != "x"; then
+      slab_ctor_header=slab_ctor_three_arg.h
+    else
+      OCFS2_CHECK_KERNEL_INCLUDES([three argument ctor in slab.h],
+        linux/slab.h, $kernelincludes,
+        slab_ctor_header=slab_ctor_three_arg.h, ,
+        [^.*void (\*)(void \*, .*kmem_cache.* \*, unsigned long))])
+    fi
+  fi
+
+  if test "x$slab_ctor_header" = "x"; then
+    OCFS2_CHECK_KERNEL_INCLUDES([two argument ctor in slab.h], linux/slab.h,
+      $kernelincludes, slab_ctor_header=slab_ctor_two_arg.h, ,
+      [^.*void (\*)(.*kmem_cache.* \*, void \*))])
+  fi
+
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $slab_ctor_header"
+
   # using -include has two advantages:
   #  the source doesn't need to know to include compat headers
   #  the compat header file names don't go through the search path
