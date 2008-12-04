@@ -207,6 +207,12 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     $kernelincludes, blksize_compat_header="i_blksize.h", , [i_blksize])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blksize_compat_header"
 
+  bio_end_io_compat_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([for three argument bio_end_io], linux/bio.h,
+    $kernelincludes, bio_end_io_compat_header="bio_end_io.h", ,
+    [void bio_endio(struct bio \*, unsigned int, int)])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $bio_end_io_compat_header"
+
   kmem_cache_create_header=
   OCFS2_CHECK_KERNEL_INCLUDES([kmem_cache_create() with dtor arg in slab.h],
     linux/slab.h, $kernelincludes, kmem_cache_create_header="kmem_cache_create.h", ,

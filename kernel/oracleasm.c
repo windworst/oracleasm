@@ -251,6 +251,7 @@ struct asm_request {
 	int r_error;
 	unsigned long r_elapsed;		/* Start time while in-flight, elapsted time once complete */
 	struct bio *r_bio;			/* The I/O */
+	size_t r_count;				/* Total bytes */
 	atomic_t r_bio_count;			/* Atomic count */
 };
 
@@ -1233,28 +1234,29 @@ static void asm_end_ioc(struct asm_request *r, unsigned int bytes_done,
 }  /* asm_end_ioc() */
 
 
-static int asm_end_bio_io(struct bio *bio, unsigned int bytes_done,
-			  int error)
+static void asm_end_bio_io(struct bio *bio, int error)
 {
 	struct asm_request *r;
 
-	mlog_entry("(0x%p, %u, %d)\n", bio, bytes_done, error);
+	mlog_entry("(0x%p, %d)\n", bio, error);
 
 	mlog(ML_BIO, "bio 0x%p, bi_size is %u\n", bio, bio->bi_size);
-	if (bio->bi_size)
-		return 1;
 
 	r = bio->bi_private;
 
 	mlog(ML_REQUEST|ML_BIO,
 	     "Completed bio 0x%p for request 0x%p\n", bio, r);
 	if (atomic_dec_and_test(&r->r_bio_count)) {
-		asm_end_ioc(r, bytes_done, error);
+		asm_end_ioc(r, r->r_count - (r->r_bio ?
+					     r->r_bio->bi_size : 0),
+			    error);
 	}
 
-	mlog_exit(0);
-	return 0;
+	mlog_exit_void();
 }  /* asm_end_bio_io() */
+#ifndef kapi_asm_end_bio_io
+# define kapi_asm_end_bio_io asm_end_bio_io
+#endif
 
 
 static int asm_submit_io(struct file *file,
@@ -1268,7 +1270,6 @@ static int asm_submit_io(struct file *file,
 	struct asm_disk_info *d;
 	struct inode *disk_inode;
 	struct block_device *bdev;
-	size_t count;
 
 	mlog_entry("(0x%p, 0x%p, 0x%p)\n", file, user_iocp, ioc);
 
@@ -1337,7 +1338,7 @@ static int asm_submit_io(struct file *file,
 
 	bdev = d->d_bdev;
 
-	count = ioc->rcount_asm_ioc * bdev_hardsect_size(bdev);
+	r->r_count = ioc->rcount_asm_ioc * bdev_hardsect_size(bdev);
 
 	/* linux only supports unsigned long size sector numbers */
 	mlog(ML_IOC,
@@ -1347,7 +1348,7 @@ static int asm_submit_io(struct file *file,
 	     (unsigned long)ioc->first_asm_ioc,
 	     ioc->status_asm_ioc,
 	     (unsigned long)ioc->buffer_asm_ioc,
-	     (unsigned long)count);
+	     (unsigned long)r->r_count);
 	/* Note that priority is ignored for now */
 	ret = -EINVAL;
 	if (!ioc->buffer_asm_ioc ||
@@ -1355,8 +1356,8 @@ static int asm_submit_io(struct file *file,
 	    (ioc->first_asm_ioc != (unsigned long)ioc->first_asm_ioc) ||
 	    (ioc->rcount_asm_ioc != (unsigned long)ioc->rcount_asm_ioc) ||
 	    (ioc->priority_asm_ioc > 7) ||
-	    (count > (bdev_get_queue(bdev)->max_sectors << 9)) ||
-	    (count < 0))
+	    (r->r_count > (bdev_get_queue(bdev)->max_sectors << 9)) ||
+	    (r->r_count < 0))
 		goto out_error;
 
 	/* Test device size, when known. (massaged from ll_rw_blk.c) */
@@ -1398,19 +1399,19 @@ static int asm_submit_io(struct file *file,
 
 		case ASM_NOOP:
 			/* Trigger an errorless completion */
-			count = 0;
+			r->r_count = 0;
 			break;
 	}
 	
 	/* Not really an error, but hey, it's an end_io call */
 	ret = 0;
-	if (count == 0)
+	if (r->r_count == 0)
 		goto out_error;
 
 	ret = -ENOMEM;
 	r->r_bio = bio_map_user(bdev_get_queue(bdev), bdev,
 				(unsigned long)ioc->buffer_asm_ioc,
-				count, rw == READ);
+				r->r_count, rw == READ);
 	if (IS_ERR(r->r_bio)) {
 		ret = PTR_ERR(r->r_bio);
 		r->r_bio = NULL;
@@ -1425,7 +1426,7 @@ static int asm_submit_io(struct file *file,
 	 * If the bio is a bounced bio, we have to put the
 	 * end_io on the child "real" bio
 	 */
-	r->r_bio->bi_end_io = asm_end_bio_io;
+	r->r_bio->bi_end_io = kapi_asm_end_bio_io;
 	r->r_bio->bi_private = r;
 
 	r->r_elapsed = jiffies;  /* Set start time */
