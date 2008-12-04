@@ -76,8 +76,81 @@ else
 fi
 
 KBUILDINC="$KERNELDIR/include"
-kversion=none
-OCFS2_CHECK_KVER($KBUILDINC, kversion, , , :)
+OCFS2_CHECK_KVER($KBUILDINC, kbuildversion, , , :)
+
+kernelsourcedir=
+AC_MSG_CHECKING(for directory with kernel sources)
+AC_ARG_WITH(kernel-source, [  --with-kernel-source=dir Path to the kernel source [[autodetect]]], kernelsourcedir="$withval", [
+  kernelroot=`echo $kerneldir | sed -e 's/\/$//' -e 's/build$//'`
+  ksrc="$kernelroot/source"
+  knoobjsrc=`echo $kerneldir | sed 's/-obj.*//'`
+  if test -f "$kerneldir/include/linux/fs.h"; then
+    kernelsourcedir="$kerneldir"
+  elif test -f "$knoobjsrc/include/linux/fs.h"; then
+    kernelsourcedir="$knoobjsrc"
+  elif test -d "$ksrc" -o -L "$ksrc"; then
+    kernelsourcedir="$ksrc"
+  fi
+])
+
+if test -n "$kernelsourcedir"; then
+  AC_MSG_RESULT($kernelsourcedir)
+else
+  AC_MSG_RESULT([not found])
+fi
+
+KERNELSRC="$kernelsourcedir"
+KERNELBUILD="$kerneldir"
+KERNELINC="$KERNELSRC/include"
+
+if test ! -f "$KERNELBUILD/include/linux/autoconf.h"; then
+  AC_MSG_WARN(No configured kernel include tree found)
+fi
+
+if test "x$kernelsourcedir" = "x"; then
+  ksourceversion=none
+else
+  OCFS2_CHECK_KVER("$KERNELBUILD/include", ksourceversion, "source")
+fi
+
+if test "$kbuildversion" = "$ksourceversion"; then
+  vermatch=yes
+elif test "x$KERNELSRC" != "x"; then
+  saved_CPPFLAGS="$CPPFLAGS"
+  CPPFLAGS="-I$KERNELINC $CPPFLAGS"
+
+  AC_EGREP_CPP(kernel_is_SuSE,
+[#include <linux/autoconf.h>
+#ifdef CONFIG_SUSE_KERNEL
+  kernel_is_SuSE
+#endif
+}], susekernel=yes, susekernel=no)
+
+  CPPFLAGS="$saved_CPPFLAGS"
+
+  vermatch=no
+
+  if test "$susekernel" = "yes"; then
+    kbuildversion=`echo $kversion | sed 's/^\([[0-9]]*\.[[0-9]]*\.[[0-9]]*-[[0-9]]*\.[[0-9]]*\).*/\1/'`
+    ksourceversion=`echo $ksourceversion | sed 's/^\([[0-9]]*\.[[0-9]]*\.[[0-9]]*-[[0-9]]*\.[[0-9]]*\).*/\1/'`
+
+    if test "$kbuildversion" = "$ksourceversion"; then
+      vermatch=yes
+    fi
+  fi
+
+  if test "$vermatch" = "no"; then
+    AC_MSG_WARN([Kernel tree versions do not match.
+Perhaps you need to use the --with-kernel-source option?])
+  fi
+fi
+
+if test "x$kbuildversion" = "x"; then
+  kbuildversion=none
+elif test "x$vermatch" != "xyes"; then
+  kbuildversion=none
+fi
+kversion="$kbuildversion"
 
 BUILD_DRIVER=
 case "$kversion" in
@@ -103,7 +176,10 @@ if test x"$BUILD_DRIVER" = "xyes"; then
   if test x"$vendordir" = x"$kerneldir" ; then
       kernelincludes="`vendor/${mb_vendor}/kernel.guess include`"
   else
-      kernelincludes="$kernelinc"
+      kernelincludes="$KBUILDINC"
+      if test "x$BUILDINC" != "x$KERNELINC"; then
+          kernelincludes="$kernelincludes $KERNELINC"
+      fi
   fi
 
   KAPI_COMPAT_HEADERS=
