@@ -112,7 +112,8 @@ static inline int asmdisk_toupper(unsigned char *str, ssize_t len,
 		if (glob &&
 		    ((c == '*') || (c == '?') ||
 		     (c == '[') || (c == ']') ||
-		     (c == '\\') || (c == '-')))
+		     (c == '\\') || (c == '-') ||
+		     (c == '!')))
 			continue;
 		if (c < '0')
 			return c;
