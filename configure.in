@@ -213,6 +213,12 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     [void bio_endio(struct bio \*, unsigned int, int)])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $bio_end_io_compat_header"
 
+  bio_map_user_compat_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([for gfp argument to bio_map_user], linux/bio.h,
+    $kernelincludes, , bio_map_user_compat_header="bio_map_user.h",
+    [^.*unsigned long, unsigned int, int, gfp_t)])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $bio_map_user_compat_header"
+
   kmem_cache_create_header=
   OCFS2_CHECK_KERNEL_INCLUDES([kmem_cache_create() with dtor arg in slab.h],
     linux/slab.h, $kernelincludes, kmem_cache_create_header="kmem_cache_create.h", ,

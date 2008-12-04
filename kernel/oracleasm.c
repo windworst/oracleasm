@@ -1258,6 +1258,9 @@ static void asm_end_bio_io(struct bio *bio, int error)
 # define kapi_asm_end_bio_io asm_end_bio_io
 #endif
 
+#ifndef kapi_asm_bio_map_user
+# define kapi_asm_bio_map_user bio_map_user
+#endif
 
 static int asm_submit_io(struct file *file,
 			 asm_ioc __user *user_iocp,
@@ -1409,9 +1412,9 @@ static int asm_submit_io(struct file *file,
 		goto out_error;
 
 	ret = -ENOMEM;
-	r->r_bio = bio_map_user(bdev_get_queue(bdev), bdev,
-				(unsigned long)ioc->buffer_asm_ioc,
-				r->r_count, rw == READ);
+	r->r_bio = kapi_asm_bio_map_user(bdev_get_queue(bdev), bdev,
+					 (unsigned long)ioc->buffer_asm_ioc,
+					 r->r_count, rw == READ, GFP_KERNEL);
 	if (IS_ERR(r->r_bio)) {
 		ret = PTR_ERR(r->r_bio);
 		r->r_bio = NULL;
