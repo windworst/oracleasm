@@ -231,6 +231,12 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     [extern int blkdev_get(struct block_device \*, f\?mode_t, unsigned)])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blkdev_get_compat_header"
  
+  blkdev_put_compat_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([for one argument blkdev_put], linux/fs.h,
+    $kernelincludes, blkdev_put_compat_header="blkdev_put.h", ,
+    [extern int blkdev_put(struct block_device \*)])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blkdev_put_compat_header"
+
   slab_ctor_header=
   OCFS2_CHECK_KERNEL_INCLUDES([SLAB_CTOR_VERIFY in slab.h], linux/slab.h,
     $kernel_includes, slab_ctor_headre=slab_ctor_verify.h, ,

@@ -330,6 +330,12 @@ static void init_asmdisk_once(void *foo)
 #ifndef kapi_init_asmdisk_once
 # define kapi_init_asmdisk_once init_asmdisk_once
 #endif
+#ifndef kapi_asm_blkdev_get
+# define kapi_asm_blkdev_get blkdev_get
+#endif
+#ifndef kapi_asm_blkdev_put
+# define kapi_asm_blkdev_put blkdev_put
+#endif
 
 static void asmdisk_clear_inode(struct inode *inode)
 {
@@ -353,7 +359,7 @@ static void asmdisk_clear_inode(struct inode *inode)
 		     "Releasing disk 0x%p (bdev 0x%p, dev %X)\n",
 		     d, d->d_bdev, d->d_bdev->bd_dev);
 		bd_release(d->d_bdev);
-		blkdev_put(d->d_bdev);
+		kapi_asm_blkdev_put(d->d_bdev, FMODE_WRITE | FMODE_READ);
 		d->d_bdev = NULL;
 	}
 
@@ -736,9 +742,6 @@ static int compute_max_sectors(struct block_device *bdev)
 	return pow_two_sectors;
 }
 
-#ifndef kapi_asm_blkdev_get
-# define kapi_asm_blkdev_get blkdev_get
-#endif
 static int asm_open_disk(struct file *file, struct block_device *bdev)
 {
 	int ret;
@@ -807,7 +810,7 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 		     "Open of disk 0x%p (bdev 0x%p, dev %X)\n",
 		     d, d->d_bdev, d->d_bdev->bd_dev);
 		bd_release(bdev);
-		blkdev_put(bdev);
+		kapi_asm_blkdev_put(bdev, FMODE_WRITE | FMODE_READ);
 	}
 
 	h->h_disk = d;
@@ -831,7 +834,7 @@ out_claim:
 	bd_release(bdev);
 
 out_get:
-	blkdev_put(bdev);
+	kapi_asm_blkdev_put(bdev, FMODE_WRITE | FMODE_READ);
 
 out:
 	mlog_exit(ret);
