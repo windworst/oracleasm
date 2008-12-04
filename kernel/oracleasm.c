@@ -67,6 +67,7 @@
 #include <linux/smp_lock.h>
 #include <linux/parser.h>
 #include <linux/backing-dev.h>
+#include <linux/compat.h>
 
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
@@ -1950,6 +1951,27 @@ static inline int asm_complete_ios_thunk(struct file *file,
 #endif  /* BITS_PER_LONG == 64 */
 
 
+static int asm_fill_timeout(struct timespec *ts, unsigned long timeout,
+			    int bpl) 
+{
+	struct timespec __user *ut = (struct timespec __user *)timeout;
+
+#if BITS_PER_LONG == 64
+	struct compat_timespec __user *cut =
+		(struct compat_timespec __user *)timeout;
+
+	/* We open-code get_compat_timespec() because it's not exported */
+	if (bpl == ASM_BPL_32)
+	        return (!access_ok(VERIFY_READ, cut,
+				   sizeof(*cut)) ||
+			__get_user(ts->tv_sec, &cut->tv_sec) ||
+			__get_user(ts->tv_nsec, &cut->tv_nsec)) ? -EFAULT : 0; 
+
+#endif  /* BITS_PER_LONG == 64 */
+
+	return copy_from_user(&ts, ut, sizeof(ts));
+}
+
 static int asm_do_io(struct file *file, struct oracleasm_io_v2 *io,
 		     int bpl)
 {
@@ -1967,9 +1989,8 @@ static int asm_do_io(struct file *file, struct oracleasm_io_v2 *io,
 		mlog(ML_ABI, "Passed timeout 0x%"MLFu64"\n",
 		     io->io_timeout);
 		ret = -EFAULT;
-		if (copy_from_user(&ts,
-				   (struct timespec *)(unsigned long)(io->io_timeout),
-				   sizeof(ts)))
+		if (asm_fill_timeout(&ts, (unsigned long)(io->io_timeout),
+				     bpl))
 			goto out;
 
 		set_timeout(&to, &ts);
