@@ -75,54 +75,13 @@ else
   AC_SUBST(KERNELDIR)
 fi
 
-if test -f "${KERNELDIR}/include/linux/utsrelease.h"; then
-  UTS_HEADER=utsrelease.h
-else
-  UTS_HEADER=version.h
-fi
-
-AC_MSG_CHECKING(for kernel version)
-if test -n "$KERNELDIR"; then
-  kernelinc="${KERNELDIR}/include"
-
-  saved_CPPFLAGS="$CPPFLAGS"
-  CPPFLAGS="-I${kernelinc} $CPPFLAGS"
-  saved_CFLAGS="$CFLAGS"
-  CFLAGS="$CFLAGS $M64"
-
-
-  rm -f conf.kvertest
-  AC_TRY_RUN([
-#include <stdio.h>
-#include <linux/${UTS_HEADER}>
-
-int
-main (void)
-{
-#ifdef UTS_RELEASE
-  FILE *f;
-  f = fopen ("conf.kvertest", "w");
-  if (!f)
-    return 1;
-  fprintf (f, "%s", UTS_RELEASE);
-  fclose (f);
-  return 0;
-#else
-  return 1;
-#endif
-}],kversion=`cat conf.kvertest`, kversion="none")
-  rm -f conf.kvertest
-
-  CPPFLAGS="$saved_CPPFLAGS"
-  CFLAGS="$saved_CFLAGS"
-else
-  kversion="none"
-fi
+KBUILDINC="$KERNELDIR/include"
+kversion=none
+OCFS2_CHECK_KVER($KBUILDINC, kversion, , , :)
 
 BUILD_DRIVER=
 case "$kversion" in
   2.6.*)
-    AC_MSG_RESULT($kversion)
     BUILD_DRIVER=yes
     ;;
   none)
