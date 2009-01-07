@@ -563,8 +563,8 @@ static int asmfs_mknod(struct inode *dir, struct dentry *dentry, int mode, dev_t
 
 	inode->i_ino = (unsigned long)inode;
 	inode->i_mode = mode;
-	inode->i_uid = current->fsuid;
-	inode->i_gid = current->fsgid;
+	inode->i_uid = current_fsuid();
+	inode->i_gid = current_fsgid();
 	set_i_blksize(inode, PAGE_CACHE_SIZE);
 	inode->i_blocks = 0;
 	inode->i_rdev = 0;
@@ -597,8 +597,8 @@ static int asmfs_create(struct inode *dir, struct dentry *dentry, int mode, stru
 
 	inode->i_ino = (unsigned long)inode;
 	inode->i_mode = mode;
-	inode->i_uid = current->fsuid;
-	inode->i_gid = current->fsgid;
+	inode->i_uid = current_fsuid();
+	inode->i_gid = current_fsgid();
 	set_i_blksize(inode, PAGE_CACHE_SIZE);
 	inode->i_blocks = 0;
 	inode->i_rdev = 0;

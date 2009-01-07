@@ -268,6 +268,12 @@ if test x"$BUILD_DRIVER" = "xyes"; then
 
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $slab_ctor_header"
 
+  current_creds_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([current_fs?id() in cred.h], linux/cred.h,
+    $kernelincludes, , current_creds_header=current_creds.h,
+    [#define current_fsuid(])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $current_creds_header"
+
   # using -include has two advantages:
   #  the source doesn't need to know to include compat headers
   #  the compat header file names don't go through the search path

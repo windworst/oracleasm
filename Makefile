@@ -21,6 +21,7 @@ KAPI_COMPAT_FILES =					\
 	kapi-compat/include/bio_map_user.h		\
 	kapi-compat/include/blkdev_get.h		\
 	kapi-compat/include/blkdev_put.h		\
+	kapi-compat/include/current_creds.h		\
 	kapi-compat/include/i_blksize.h			\
 	kapi-compat/include/i_mutex.h			\
 	kapi-compat/include/i_private.h			\
