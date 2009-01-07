@@ -70,6 +70,8 @@
 #ifndef _ORACLEASM_COMPAT32_H
 #define _ORACLEASM_COMPAT32_H
 
+#include <linux/version.h>
+
 /*
  * This is ugly.  SIZEOF_UNSIGNED_LONG comes from autoconf.
  * Do you have a better way?  I chose not to hand-cook an autoconf
@@ -93,7 +95,7 @@
 #define HIGH_UB4(_ub8)          ((unsigned long)(((_ub8) >> 32) & 0xFFFFFFFFULL))
 #define LOW_UB4(_ub8)           ((unsigned long)((_ub8) & 0xFFFFFFFFULL))
 
-#if defined(CONFIG_COMPAT)
+#if defined(CONFIG_COMPAT) && LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
 # include <linux/ioctl32.h>
 #endif
 
