@@ -239,7 +239,7 @@ if test x"$BUILD_DRIVER" = "xyes"; then
 
   slab_ctor_header=
   OCFS2_CHECK_KERNEL_INCLUDES([SLAB_CTOR_VERIFY in slab.h], linux/slab.h,
-    $kernel_includes, slab_ctor_headre=slab_ctor_verify.h, ,
+    $kernelincludes, slab_ctor_header=slab_ctor_verify.h, ,
     [SLAB_CTOR_VERIFY])
 
   if test "x$slab_ctor_header" = "x"; then
