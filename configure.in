@@ -219,6 +219,12 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     [^.*unsigned long, unsigned int, int, gfp_t)])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $bio_map_user_compat_header"
 
+  kmem_cache_s_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([struct kmem_cache_s], linux/slab.h,
+    $kernelincludes, kmem_cache_s_header="kmem_cache_s.h", ,
+    [struct kmem_cache_s])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $kmem_cache_s_header"
+
   kmem_cache_create_header=
   OCFS2_CHECK_KERNEL_INCLUDES([kmem_cache_create() with dtor arg in slab.h],
     linux/slab.h, $kernelincludes, kmem_cache_create_header="kmem_cache_create.h", ,

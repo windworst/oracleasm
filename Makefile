@@ -25,6 +25,7 @@ KAPI_COMPAT_FILES =					\
 	kapi-compat/include/i_mutex.h			\
 	kapi-compat/include/i_private.h			\
 	kapi-compat/include/kmem_cache_create.h		\
+	kapi-compat/include/kmem_cache_s.h		\
 	kapi-compat/include/slab_ctor_three_arg.h	\
 	kapi-compat/include/slab_ctor_two_arg.h		\
 	kapi-compat/include/slab_ctor_verify.h
