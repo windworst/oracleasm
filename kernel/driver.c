@@ -81,24 +81,10 @@
 
 #include "linux/oracleasm/module_version.h"
 
-/*
- * Modern kernels don't need this.  Older kernels will have it defined
- * by the compat code.
- */
-#ifndef set_i_blksize
-# define set_i_blksize(i, bs) do { /* Nothing */ } while (0)
-#endif
-
-
+#include "compat.h"
 #include "masklog.h"
 #include "proc.h"
-#if 0
 #include "transaction_file.h"
-#else
-/* XXX ugly for now */
-#include "transaction_file.c"
-#include "proc.c"
-#endif 
 
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.

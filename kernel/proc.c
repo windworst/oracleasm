@@ -24,9 +24,6 @@
 #include "proc.h"
 #include "masklog.h"
 
-/* Yuk, but whatever */
-#include "masklog.c"
-
 static struct proc_dir_entry *asm_proc;
 #define ASM_PROC_PATH "fs/oracleasm"
 

@@ -18,6 +18,7 @@
 #include <asm/uaccess.h>
 
 #include "transaction_file.h"
+#include "compat.h"
 
 #define TRANSACTION_CONTEXT(i) ((i)->i_private)
 
