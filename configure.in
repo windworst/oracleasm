@@ -77,6 +77,7 @@ fi
 
 KBUILDINC="$KERNELDIR/include"
 OCFS2_CHECK_KVER($KBUILDINC, kbuildversion, , , :)
+OCFS2_CHECK_KARCH($KBUILDINC, kbuildarch, , , :)
 
 kernelsourcedir=
 AC_MSG_CHECKING(for directory with kernel sources)
@@ -168,6 +169,8 @@ AC_SUBST(BUILD_DRIVER)
 
 KERNELVER=$kversion
 AC_SUBST(KERNELVER)
+KERNELARCH=$kbuildarch
+AC_SUBST(KERNELARCH)
 
 KAPI_COMPAT_CFLAGS=
 BACKING_DEV_CAPABILITIES=
@@ -304,4 +307,5 @@ vendor/fc6/oracleasm.spec-generic
 vendor/sles10/oracleasm.spec-generic
 vendor/rhel5/oracleasm.spec-generic
 vendor/common/oracleasm-headers.spec-generic
+vendor/common/binrpm.spec-generic
 ])

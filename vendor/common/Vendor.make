@@ -28,3 +28,13 @@ headers_srpm: $(TOPDIR)/oracleasm-headers-$(DIST_VERSION)-$(PKG_VERSION).$(VENDO
 headers_rpm: headers_srpm
 	$(RPMBUILD) --rebuild $(TOOLSARCH) "oracleasm-headers-$(DIST_VERSION)-$(PKG_VERSION).$(VENDOR_EXTENSION).src.rpm"
 
+#
+# Build a package out of the compiled source tree
+#
+
+$(TOPDIR)/vendor/common/binrpm.spec: $(TOPDIR)/vendor/common/binrpm.spec-generic
+		sed -e 's/@@PKG_VERSION@@/'$(PKG_VERSION)'/' < $< > $@
+
+
+binrpm-pkg: $(TOPDIR)/vendor/common/binrpm.spec
+	$(RPMBUILD) --define "_builddir $(TOPDIR)" --target $(KERNELARCH) -bb $<

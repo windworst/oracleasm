@@ -1,0 +1,106 @@
+#
+# Spec file for a pre-built oracleasm
+#
+
+# Macros
+# This one is hardcoded because, well, it belongs there
+%define _prefix /usr
+# Because RPM is dumb
+%define _unpackaged_files_terminate_build 0
+
+# This must be changed to the minimum ABI compat kernel version expected
+%define kver		@KERNELVER@
+
+# The minimum -support package required for the kernel bits.
+%define support_ver     2.0.0
+# Minimum oracleasmlib version that supports positive ASM_ERR_NODEV.
+%define min_enodev	2.0.1
+
+Summary: The Oracle Automatic Storage Management library driver.
+Name: oracleasm-%{kver}
+Version: @DIST_VERSION@
+Release: @@PKG_VERSION@@.built
+License: GPL
+Group: System Environment/Kernel
+URL: http://oss.oracle.com/projects/oracleasm/
+Distribution: Oracle
+Vendor: Oracle Corporation
+Packager: Joel Becker <joel.becker@oracle.com>
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+
+BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+
+%description
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is built out of a compiled source tree.
+
+
+%build
+%install
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+%clean
+#echo rm -rf "$RPM_BUILD_ROOT"
+
+
+%post
+depmod -ae %{kver}
+
+%files
+%defattr(-,root,root)
+/lib/modules/%{kver}/kernel/drivers/addon/oracleasm
+
+
+%changelog
+* Thu Jan 15 2009 Joel Becker <joel.becker@oracle.com>
+- Build a package out of a compiled tree.
+
+* Mon Nov 12 2007 Sunil Mushran <sunil.mushran@oracle.com>
+- Add support to build modules for kernel-debug for RHEL5
+
+* Wed Apr 18 2007 Joel Becker <joel.becker@oracle.com>
+- Add RHEL5
+
+* Fri Feb 09 2007 Joel Becker <joel.becker@oracle.com>
+- Strip down for Fedora Core 6
+
+* Thu May 25 2006 Joel Becker <joel.becker@oracle.com>
+- Add largesmp
+
+* Fri Feb 04 2005 Joel Becker <joel.becker@oracle.com>
+- Make RHEL4 specfile.
+
+* Tue Sep 21 2004 Joel Becker <joel.becker@oracle.com>
+- Make SLES9 specfile.
+
+* Tue Jan 13 2004 Joel Becker <joel.becker@oracle.com>
+- Make kernel-only.
+
+* Thu Nov 20 2003 Joel Becker <joel.becker@oracle.com>
+- Add x86 and ia64 targets.
+
+* Wed Nov 19 2003 Joel Becker <joel.becker@oracle.com>
+- Make the UL SP3 changes.
+
+* Wed Nov 12 2003 Joel Becker <joel.becker@oracle.com>
+- Start the ASM rename.
+
+* Thu Oct 30 2003 Joel Becker <joel.becker@oracle.com>
+- Created EL3 version
+
+* Mon Jun 23 2003 Joel Becker <joel.becker@oracle.com>
+- Added osm-lib bits
+
+* Fri Jun 20 2003 Joel Becker <joel.becker@oracle.com>
+- Initial RPM
+
