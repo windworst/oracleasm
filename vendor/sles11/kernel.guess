@@ -1,0 +1,299 @@
+#!/bin/sh
+
+SLES11_KERNEL_BASE="/usr/src"
+
+#
+# SLES11 has wacky names for its kernel flavors.  So we'll just create
+# a list here of the mappings.  It's pretty simple.  One entry per
+# architecture, <arch>:<flavor1>[,<flavor> ...]
+#
+# Anyway, we can even reuse this when detecting kernels to build
+# packages for.  A kernel is only built if build trees for all flavors
+# are installed.
+#
+SLES11_KERNEL_TYPES="
+    x86_64:default,smp
+    ppc64:pseries64,iseries64,pmac64
+    ia64:default,64k-pagesize,sn2
+    i386:default,pae,vmi,xen
+    s390:default
+"
+    
+
+
+guess_sles11_arch()
+{
+    ARCH=$(uname -m)
+    case "$ARCH" in
+    i386|i586|i686)
+	echo "i386"
+        ;;
+    s390x)
+        echo "s390"
+        ;;
+    *)
+        # This appears to be correct on ppc64
+        echo "$ARCH"
+        ;;
+    esac
+}
+
+guess_sles11_type()
+{
+    KVER="$1"
+
+    ARCH="$(guess_sles11_arch)"
+    if [ -z "$ARCH" ]
+    then
+        return
+    fi
+
+    for typelist in $SLES11_KERNEL_TYPES
+    do
+        TARCH=$(echo $typelist | cut -f1 -d:)
+        if [ "$TARCH" = "$ARCH" ]
+        then
+            for type in $(echo $typelist | cut -f2 -d: | sed -e 's/,/ /g')
+            do
+                case "$KVER" in
+                *-${type})
+                    echo "$type"
+                    break
+                    ;;
+                *)
+                    ;;
+                esac
+            done
+            break
+        fi
+    done
+}
+
+guess_sles11_dir()
+{
+    KVER="$1"
+
+    DIRTYPE=$(guess_sles11_type "$KVER")
+    ARCH=$(guess_sles11_arch)
+
+    if [ -n "$DIRTYPE" ]
+    then
+        echo "linux-${1%-${DIRTYPE}}-obj/${ARCH}/${DIRTYPE}"
+    fi
+}
+
+verfromdir()
+{
+    TESTDIR="$1"
+    if [ -r "${TESTDIR}/include/linux/utsrelease.h" ]
+    then
+        awk '/UTS_RELEASE/{gsub(/"/,"",$3); print $3}' "${TESTDIR}/include/linux/utsrelease.h"
+    fi
+}
+
+validate_dir()
+{
+    KVER="$1"
+    DIR="$2"
+
+    if [ ! -d "${SLES11_KERNEL_BASE}/${DIR}" ]
+    then
+        return 1
+    elif [ ! -f "${SLES11_KERNEL_BASE}/${DIR}/include/linux/autoconf.h" ]
+    then
+        return 1
+    elif [ ! -f "${SLES11_KERNEL_BASE}/${DIR}/include/linux/version.h" ]
+    then
+        return 1
+    fi
+
+    if [ "$KVER" != "`verfromdir "${SLES11_KERNEL_BASE}/${DIR}"`" ]
+    then
+        return 1
+    fi
+
+    return 0
+}
+
+# Takes a `uname -r` and returns "ver type", where ver
+# is 2.6.9-NN.EL and type is "smp" or the like.
+validate_version()
+{
+    KVER="$1"
+
+    dir=`guess_sles11_dir "$KVER"`
+    if validate_dir "$KVER" "$dir"
+    then
+        echo "${SLES11_KERNEL_BASE}/${dir}"
+    fi
+}
+
+find_version()
+{
+    ARCH="$(guess_sles11_arch)"
+    if [ -z "$ARCH" ]
+    then
+        return
+    fi
+
+    types=
+    for typelist in $SLES11_KERNEL_TYPES
+    do
+        TARCH=$(echo $typelist | cut -f1 -d:)
+        if [ "$TARCH" = "$ARCH" ]
+        then
+            types=$(echo $typelist | cut -f2 -d: | sed -e 's/,/ /g')
+            break
+        fi
+    done
+
+    if [ -z "$types" ]
+    then
+        return
+    fi
+
+     # Find the most recent valid kernel
+    ls -1 -t "$SLES11_KERNEL_BASE" | while read kdir
+    do
+        if [ -L "${SLES11_KERNEL_BASE}/${kdir}" -o ! -d "${SLES11_KERNEL_BASE}/${kdir}" ]
+        then
+            continue
+        fi
+
+        case "$kdir" in
+        *-obj)
+            ;;
+        *)
+            continue
+            ;;
+        esac
+        KERNELDIR=
+        for type in $types
+        do
+            KVER="`verfromdir "${SLES11_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
+            if validate_dir "$KVER" "$kdir/${ARCH}/${type}"
+            then
+                KERNELDIR="${SLES11_KERNEL_BASE}/${kdir}/${ARCH}/${type}"
+                break
+            fi
+        done
+        if [ -n "$KERNELDIR" ]
+        then
+            echo "$KERNELDIR"
+            break
+        fi
+    done
+}
+
+validate_target()
+{
+    DIR="$1"
+    ARCH="$2"
+    types="$3"
+    for type in $types
+    do
+        KVER="`verfromdir "${SLES11_KERNEL_BASE}/${kdir}/${ARCH}/${type}"`"
+        if ! validate_dir "$KVER" "$kdir/${ARCH}/${type}"
+        then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+find_targets()
+{
+    ARCH="$(guess_sles11_arch)"
+    if [ -z "$ARCH" ]
+    then
+        return
+    fi
+
+    types=
+    for typelist in $SLES11_KERNEL_TYPES
+    do
+        TARCH=$(echo $typelist | cut -f1 -d:)
+        if [ "$TARCH" = "$ARCH" ]
+        then
+            types=$(echo $typelist | cut -f2 -d: | sed -e 's/,/ /g')
+            break
+        fi
+    done
+
+    if [ -z "$types" ]
+    then
+        return
+    fi
+
+    ls -1 -t "$SLES11_KERNEL_BASE" | while read kdir
+    do
+        # Avoid the symlinks
+        if [ -L "${SLES11_KERNEL_BASE}/${kdir}" -o ! -d "${SLES11_KERNEL_BASE}/${kdir}" ]
+        then
+            continue
+        fi
+        case "$kdir" in
+        linux-*-obj)
+            if validate_target "$kdir" "$ARCH" "$types"
+            then
+                KVER="${kdir#linux-}"
+                KVER="${KVER%-obj}"
+		SYMS="$(rpm -qa 2>/dev/null | grep "^kernel-syms-${KVER}" 2>/dev/null)"
+                if [ -n "$SYMS" ]
+                then
+                    echo "sles11_${KVER}_rpm"
+                fi
+            fi
+            ;;
+        *)
+            ;;
+        esac
+    done
+}
+
+sles11_includes()
+{
+    DIR="$1"
+    kernelsrc=`awk '/^KERNELSRC/{print $3}' "${DIR}/Makefile" 2>/dev/null`
+
+    INCLUDES="$DIR/include"
+    [ -n "$kernelsrc" ] && INCLUDES="${INCLUDES} ${DIR}/${kernelsrc}/include"
+
+    echo "$INCLUDES"
+}
+
+case "$1" in
+include|build)
+    if [ -n "$2" ]
+    then
+        KPATH="`validate_version "$2"`"
+    else
+        KVER="`uname -r`"
+        KPATH="`validate_version "$KVER"`"
+        if [ -z "$KPATH" ]
+        then
+            KPATH="`find_version`"
+        fi
+    fi
+    if [ -n "$KPATH" ]
+    then
+        if [ "$1" = "include" ]
+        then
+            sles11_includes "${KPATH}"
+        else
+            echo "${KPATH}"
+        fi
+    fi
+    ;;
+targets)
+    find_targets
+    ;;
+"")
+    echo "Missing operation" >&2
+    ;;
+*)
+    echo "Invalid operation: $1" >&2
+    exit 1
+    ;;
+esac

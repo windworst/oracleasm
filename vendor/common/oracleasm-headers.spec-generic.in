@@ -59,11 +59,11 @@ and userspace programs.
 	--infodir=%{_infodir}			\
 	--sbindir=/usr/sbin
 
-make
+#make
 
 
 %install
-make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' -C include install
 
 
 %clean
