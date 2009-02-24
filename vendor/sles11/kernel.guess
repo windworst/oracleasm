@@ -12,7 +12,7 @@ SLES11_KERNEL_BASE="/usr/src"
 # are installed.
 #
 SLES11_KERNEL_TYPES="
-    x86_64:default,smp
+    x86_64:default,xen
     ppc64:pseries64,iseries64,pmac64
     ia64:default,64k-pagesize,sn2
     i386:default,pae,vmi,xen
