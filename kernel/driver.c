@@ -708,11 +708,20 @@ static int asmfs_remount(struct super_block * sb, int * flags, char * data)
 static int compute_max_sectors(struct block_device *bdev)
 {
 	int max_pages, max_sectors, pow_two_sectors;
+	char b[BDEVNAME_SIZE];
 
 	struct request_queue *q;
 
 	q = bdev_get_queue(bdev);
+	mlog(ML_DISK, "Computing limits for block device \%s\":\n",
+	     bdevname(bdev, b));
+	mlog(ML_DISK,
+	     "\tq->max_sectors = %u, q->max_phys_segments = %u, "
+	     "q->max_hw_segments = %u\n",
+	     q->max_sectors, q->max_phys_segments, q->max_hw_segments);
 	max_pages = q->max_sectors >> (PAGE_SHIFT - 9);
+	mlog(ML_DISK, "\tmax_pages = %d, BIO_MAX_PAGES = %d\n",
+	     max_pages, BIO_MAX_PAGES);
 	if (max_pages > BIO_MAX_PAGES)
 		max_pages = BIO_MAX_PAGES;
 	if (max_pages > q->max_phys_segments)
@@ -720,11 +729,14 @@ static int compute_max_sectors(struct block_device *bdev)
 	if (max_pages > q->max_hw_segments)
 		max_pages = q->max_hw_segments;
 	max_pages--; /* Handle I/Os that straddle a page */
-
 	max_sectors = max_pages << (PAGE_SHIFT - 9);
 
 	/* Why is fls() 1-based???? */
 	pow_two_sectors = 1 << (fls(max_sectors) - 1);
+	mlog(ML_DISK,
+	     "\tresulting max_pages = %d, max_sectors = %d, "
+	     "pow_two_sectors = %d\n",
+	     max_pages, max_sectors, pow_two_sectors);
 
 	return pow_two_sectors;
 }
@@ -2385,6 +2397,10 @@ static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
 
 	qd_info->qd_max_sectors = compute_max_sectors(bdev);
 	qd_info->qd_hardsect_size = bdev_hardsect_size(bdev);
+	mlog(ML_ABI|ML_DISK,
+	     "Querydisk returning qd_max_sectors = %u and "
+	     "qd_hardsect_size = %d\n",
+	     qd_info->qd_max_sectors, qd_info->qd_hardsect_size);
 
 	ret = 0;
 
