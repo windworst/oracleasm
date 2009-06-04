@@ -1,0 +1,14 @@
+/.config
+/libosm-virtual-stamp
+/osmlib-linux*.tar.gz
+/.*.sw?
+/*.tar.gz
+/*.rpm
+/Config.make
+/config.log
+/config.cache
+/config.status
+/conf.kvertest
+/configure
+/autom4te.cache
+/confdefs.h

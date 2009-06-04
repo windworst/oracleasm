@@ -1,0 +1,4 @@
+/.*.sw?
+/oracleasm.init
+/*.spec
+/*.spec-generic

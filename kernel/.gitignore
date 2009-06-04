@@ -1,0 +1,11 @@
+/*.sw?
+/.*.d
+/stamp-md5
+/.*.cmd
+/*.ko
+/.tmp_versions
+/oracleasm.mod.c
+/Modules.symvers
+/Module.symvers
+/Module.markers
+/modules.order

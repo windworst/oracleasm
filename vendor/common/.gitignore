@@ -1,0 +1,5 @@
+/.*.sw?
+/oracleasm-headers.spec
+/oracleasm-headers.spec-generic
+/binrpm.spec
+/binrpm.spec-generic
