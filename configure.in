@@ -250,6 +250,12 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     [extern int blkdev_put(struct block_device \*)])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blkdev_put_compat_header"
 
+  blk_limits_compat_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([for old block limits], linux/blkdev.h,
+    $kernelincludes, blk_limits_compat_header="blk_limits.h", ,
+    [extern void blk_queue_hardsect_size])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blk_limits_compat_header"
+
   slab_ctor_header=
   OCFS2_CHECK_KERNEL_INCLUDES([SLAB_CTOR_VERIFY in slab.h], linux/slab.h,
     $kernelincludes, slab_ctor_header=slab_ctor_verify.h, ,

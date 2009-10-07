@@ -718,16 +718,17 @@ static int compute_max_sectors(struct block_device *bdev)
 	mlog(ML_DISK,
 	     "\tq->max_sectors = %u, q->max_phys_segments = %u, "
 	     "q->max_hw_segments = %u\n",
-	     q->max_sectors, q->max_phys_segments, q->max_hw_segments);
-	max_pages = q->max_sectors >> (PAGE_SHIFT - 9);
+	     queue_max_sectors(q), queue_max_phys_segments(q),
+	     queue_max_hw_segments(q));
+	max_pages = queue_max_sectors(q) >> (PAGE_SHIFT - 9);
 	mlog(ML_DISK, "\tmax_pages = %d, BIO_MAX_PAGES = %d\n",
 	     max_pages, BIO_MAX_PAGES);
 	if (max_pages > BIO_MAX_PAGES)
 		max_pages = BIO_MAX_PAGES;
-	if (max_pages > q->max_phys_segments)
-		max_pages = q->max_phys_segments;
-	if (max_pages > q->max_hw_segments)
-		max_pages = q->max_hw_segments;
+	if (max_pages > queue_max_phys_segments(q))
+		max_pages = queue_max_phys_segments(q);
+	if (max_pages > queue_max_hw_segments(q))
+		max_pages = queue_max_hw_segments(q);
 	max_pages--; /* Handle I/Os that straddle a page */
 	max_sectors = max_pages << (PAGE_SHIFT - 9);
 
@@ -760,7 +761,7 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 	if (ret)
 		goto out_get;
 
-	ret = set_blocksize(bdev, bdev_hardsect_size(bdev));
+	ret = set_blocksize(bdev, bdev_physical_block_size(bdev));
 	if (ret)
 		goto out_claim;
 
@@ -1346,7 +1347,7 @@ static int asm_submit_io(struct file *file,
 
 	bdev = d->d_bdev;
 
-	r->r_count = ioc->rcount_asm_ioc * bdev_hardsect_size(bdev);
+	r->r_count = ioc->rcount_asm_ioc * bdev_physical_block_size(bdev);
 
 	/* linux only supports unsigned long size sector numbers */
 	mlog(ML_IOC,
@@ -1364,7 +1365,7 @@ static int asm_submit_io(struct file *file,
 	    (ioc->first_asm_ioc != (unsigned long)ioc->first_asm_ioc) ||
 	    (ioc->rcount_asm_ioc != (unsigned long)ioc->rcount_asm_ioc) ||
 	    (ioc->priority_asm_ioc > 7) ||
-	    (r->r_count > (bdev_get_queue(bdev)->max_sectors << 9)) ||
+	    (r->r_count > (queue_max_sectors(bdev_get_queue(bdev)) << 9)) ||
 	    (r->r_count < 0))
 		goto out_error;
 
@@ -1427,8 +1428,11 @@ static int asm_submit_io(struct file *file,
 	}
 	mlog(ML_BIO, "Mapped bio 0x%p to request 0x%p\n", r->r_bio, r);
 
-	r->r_bio->bi_sector =
-		ioc->first_asm_ioc * (bdev_hardsect_size(bdev) >> 9);
+	/* Block layer always uses 512-byte sector addressing,
+	 * regardless of logical and physical block size.
+	 */
+	r->r_bio->bi_sector = ioc->first_asm_ioc *
+		(bdev_physical_block_size(bdev) >> 9);
 
 	/*
 	 * If the bio is a bounced bio, we have to put the
@@ -2396,7 +2400,7 @@ static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
 	bdev = I_BDEV(filp->f_mapping->host);
 
 	qd_info->qd_max_sectors = compute_max_sectors(bdev);
-	qd_info->qd_hardsect_size = bdev_hardsect_size(bdev);
+	qd_info->qd_hardsect_size = bdev_physical_block_size(bdev);
 	mlog(ML_ABI|ML_DISK,
 	     "Querydisk returning qd_max_sectors = %u and "
 	     "qd_hardsect_size = %d\n",
