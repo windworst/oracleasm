@@ -716,19 +716,15 @@ static int compute_max_sectors(struct block_device *bdev)
 	mlog(ML_DISK, "Computing limits for block device \%s\":\n",
 	     bdevname(bdev, b));
 	mlog(ML_DISK,
-	     "\tq->max_sectors = %u, q->max_phys_segments = %u, "
-	     "q->max_hw_segments = %u\n",
-	     queue_max_sectors(q), queue_max_phys_segments(q),
-	     queue_max_hw_segments(q));
+	     "\tq->max_sectors = %u, q->max_segments = %u\n",
+	     queue_max_sectors(q), queue_max_segments(q));
 	max_pages = queue_max_sectors(q) >> (PAGE_SHIFT - 9);
 	mlog(ML_DISK, "\tmax_pages = %d, BIO_MAX_PAGES = %d\n",
 	     max_pages, BIO_MAX_PAGES);
 	if (max_pages > BIO_MAX_PAGES)
 		max_pages = BIO_MAX_PAGES;
-	if (max_pages > queue_max_phys_segments(q))
-		max_pages = queue_max_phys_segments(q);
-	if (max_pages > queue_max_hw_segments(q))
-		max_pages = queue_max_hw_segments(q);
+	if (max_pages > queue_max_segments(q))
+		max_pages = queue_max_segments(q);
 	max_pages--; /* Handle I/Os that straddle a page */
 	max_sectors = max_pages << (PAGE_SHIFT - 9);
 
