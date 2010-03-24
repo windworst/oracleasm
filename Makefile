@@ -19,6 +19,8 @@ SUBDIRS = include kernel documents vendor
 KAPI_COMPAT_FILES =					\
 	kapi-compat/include/bio_end_io.h		\
 	kapi-compat/include/bio_map_user.h		\
+	kapi-compat/include/blk_limits.h		\
+	kapi-compat/include/blk_segments.h		\
 	kapi-compat/include/blkdev_get.h		\
 	kapi-compat/include/blkdev_put.h		\
 	kapi-compat/include/current_creds.h		\
