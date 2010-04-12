@@ -12,3 +12,5 @@
 /configure
 /autom4te.cache
 /confdefs.h
+*.o
+
