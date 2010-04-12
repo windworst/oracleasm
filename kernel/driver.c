@@ -1954,7 +1954,7 @@ static int asm_fill_timeout(struct timespec *ts, unsigned long timeout,
 {
 	struct timespec __user *ut = (struct timespec __user *)timeout;
 
-#if BITS_PER_LONG == 64
+#if (BITS_PER_LONG == 64) && defined(CONFIG_COMPAT)
 	struct compat_timespec __user *cut =
 		(struct compat_timespec __user *)timeout;
 
@@ -1965,7 +1965,7 @@ static int asm_fill_timeout(struct timespec *ts, unsigned long timeout,
 			__get_user(ts->tv_sec, &cut->tv_sec) ||
 			__get_user(ts->tv_nsec, &cut->tv_nsec)) ? -EFAULT : 0; 
 
-#endif  /* BITS_PER_LONG == 64 */
+#endif  /* BITS_PER_LONG == 64 && defined(CONFIG_COMPAT) */
 
 	return copy_from_user(&ts, ut, sizeof(ts));
 }
@@ -2562,7 +2562,11 @@ static ssize_t asmfs_svc_io32(struct file *file, char *buf, size_t size)
 	if (io_info.io_abi.ai_type != ASMOP_IO32)
 		goto out_error;
 
+#if (BITS_PER_LONG == 64) && !defined(CONFIG_COMPAT)
+	ret = -EINVAL;
+#else
 	ret = asm_do_io(file, &io_info, ASM_BPL_32);
+#endif  /* (BITS_PER_LONG == 64) && !defined(CONFIG_COMPAT) */
 
 out_error:
 	user_abi_info = (struct oracleasm_abi_info __user *)buf;
