@@ -1,0 +1,104 @@
+#!/bin/sh
+
+FEDORA_KERNEL_BASE="/usr/src/kernels"
+
+verfromdir()
+{
+    TESTDIR="$1"
+    if [ -r "${TESTDIR}/include/linux/utsrelease.h" ]
+    then
+        awk '/UTS_RELEASE/{gsub(/"/,"",$3); print $3}' "${TESTDIR}/include/linux/utsrelease.h"
+    fi
+}
+
+validate_dir()
+{
+    KVER="$1"
+
+    if [ ! -d "${FEDORA_KERNEL_BASE}/${KVER}" ]
+    then
+        return 1
+    elif [ ! -f "${FEDORA_KERNEL_BASE}/${KVER}/include/linux/autoconf.h" ]
+    then
+        return 1
+    elif [ ! -f "${FEDORA_KERNEL_BASE}/${KVER}/include/linux/version.h" ]
+    then
+        return 1
+    fi
+
+    return 0
+}
+
+# Takes a `uname -r` and returns "ver type", where ver
+# is 2.6.9-NN.EL and type is "smp" or the like.
+validate_version()
+{
+    KVER="$1"
+
+    if validate_dir "$KVER"
+    then
+        echo "${FEDORA_KERNEL_BASE}/${KVER}"
+    fi
+}
+
+find_version()
+{
+    # Find the most recent valid kernel
+    ls -1 -t "$FEDORA_KERNEL_BASE" | while read kdir
+    do
+        KVER="$(verfromdir "${FEDORA_KERNEL_BASE}/${kdir}")"
+        if validate_dir "$KVER" "$kdir"
+        then
+            echo "${FEDORA_KERNEL_BASE}/${kdir}"
+            break
+        fi
+    done
+}
+
+find_targets()
+{
+    ls -1 -t "$FEDORA_KERNEL_BASE" | while read kdir
+    do
+        KVER="$(verfromdir "${FEDORA_KERNEL_BASE}/${kdir}")"
+        if ! validate_dir "$KVER" "$kdir"
+        then
+            continue
+        fi
+
+        echo "fedora_${KVER}_rpm"
+    done
+}
+
+case "$1" in
+include|build)
+    if [ -n "$2" ]
+    then
+        KPATH="$(validate_version "$2")"
+    else
+        KVER="$(uname -r)"
+        KPATH="$(validate_version "$KVER")"
+        if [ -z "$KPATH" ]
+        then
+            KPATH="$(find_version)"
+        fi
+    fi
+    if [ -n "$KPATH" ]
+    then
+        if [ "$1" = "include" ]
+        then
+            KPATH="${KPATH}/include"
+        fi
+        echo "${KPATH}"
+    fi
+    ;;
+targets)
+    find_targets
+    ;;
+"")
+    echo "Missing operation" >&2
+    ;;
+*)
+    echo "Invalid operation: $1" >&2
+    exit 1
+    ;;
+esac

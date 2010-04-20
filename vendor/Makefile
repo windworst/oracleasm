@@ -11,7 +11,7 @@ include $(TOPDIR)/Preamble.make
 #
 # Add any directories to recurse into via the SUBDIRS variable.
 # 
-SUBDIRS = common rhel5 sles11 sles10 fc6 rhel4 sles9 rhel3 sles8 rhas21
+SUBDIRS = common rhel5 sles11 sles10 rhel4 sles9 rhel3 sles8 rhas21 fedora
 
 #
 # Include this at the very end of the Makefile

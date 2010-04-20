@@ -30,7 +30,7 @@
 
 
 # This must be changed to the minimum ABI compat kernel version expected
-%define kver		@@KVER@@
+%define kver		@@KERNEL_VERSION@@
 
 # The minimum -support package required for the kernel bits.
 %define support_ver     2.0.0
@@ -39,11 +39,11 @@
 
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
-Version: @DIST_VERSION@
-Release: @@PKG_VERSION@@.fc6
+Version: @@DIST_VERSION@@
+Release: @@PKG_VERSION@@%{?dist}
 License: GPL
 Group: System Environment/Kernel
-Source: oracleasm-@DIST_VERSION@.tar.gz
+Source: oracleasm-@@DIST_VERSION@@.tar.gz
 URL: http://oss.oracle.com/projects/oracleasm/
 Distribution: Oracle
 Vendor: Oracle Corporation
@@ -53,7 +53,7 @@ AutoReqProv: no
 Requires: kernel = %{kver}
 Requires: oracleasm-support >= %{support_ver}
 Conflicts: oracleasmlib < %{min_enodev}
-BuildRequires: kernel-devel = %{kver}
+BuildRequires: kernel-devel-uname-r = %{kver}
 
 
 BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
@@ -87,44 +87,32 @@ local_configure()
 		--sharedstatedir=%{_sharedstatedir}	\
 		--mandir=%{_mandir}			\
 		--infodir=%{_infodir}			\
-		--with-vendor=fc6			\
+		--with-vendor=fedora			\
 		--with-vendorkernel="$1"
 }
 
 local_configure "%{kver}"
 
 make QUIET=1
-make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
-
-# 2.6 kbuild can't do this install nicely
-EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}/extra"
-INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}/kernel/drivers/addon/oracleasm"
-mkdir -p "${INST_MODLIB}"
-mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
-
-make clean
-
-
 
 %install
 
-
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
 %clean
 rm -rf "$RPM_BUILD_ROOT"
-
-
 
 %post -n oracleasm-%{kver}
 depmod -ae %{kver}
 
 %files -n oracleasm-%{kver}
 %defattr(-,root,root)
-/lib/modules/%{kver}/kernel/drivers/addon/oracleasm
-
-
+/lib/modules/
 
 %changelog
+* Mon Mar 29 2010 Martin K. Petersen <martin.petersen@oracle.com>
+- Generic Fedora version
+
 * Fri Feb 09 2007 Joel Becker <joel.becker@oracle.com>
 - Strip down for Fedora Core 6
 

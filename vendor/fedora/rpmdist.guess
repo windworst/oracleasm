@@ -1,0 +1,2 @@
+#!/bin/sh
+rpm --showrc | grep ": dist" | awk '{ print $3 }' | sed -e 's/\.//'
