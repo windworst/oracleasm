@@ -5,36 +5,32 @@
 TOOLSARCH = $(shell $(TOPDIR)/vendor/rhel4/rpmarch.guess tools $(TOPDIR))
 MODULEARCH = $(shell $(TOPDIR)/vendor/rhel4/rpmarch.guess module $(TOPDIR))
 VENDOR_EXTENSION = el4
+INCLUDE_REQUIRES = glibc-kernheaders
+
+$(TOPDIR)/vendor/rhel4/oracleasm-%.spec: \
+	KERNEL_VERSION = $(get_version_release)
+
+	# Build large SMP variants if 2.6.9-34
+	LARGESMP = $(if $(call lt,$(get_release_major),34),1,0)
+
+	# Build xenU for versions less than 55
+	XEN = $(if $(call lt,$(get_release_major),55),1,0)
 
 $(TOPDIR)/vendor/rhel4/oracleasm-%.spec: $(TOPDIR)/vendor/rhel4/oracleasm.spec-generic
-	SPECVER="$@"; \
-		SPECVER="$${SPECVER#*oracleasm-}"; \
-		SPECVER="$${SPECVER%.spec}"; \
-		SUBVER="$${SPECVER#2.6.9-}"; \
-		SUBVER="$${SUBVER%%.*}"; \
-		if [ "$${SUBVER}" -lt 34 ]; \
-		then \
-			LARGESMP=0; \
-		else \
-			LARGESMP=1; \
-		fi; \
-		if [ "$${SUBVER}" -lt 55 ]; \
-		then \
-			XENU=0; \
-		else \
-			XENU=1; \
-		fi; \
-		sed -e 's/@@KVER@@/'$${SPECVER}'/' -e 's/@@PKG_VERSION@@/'$(PKG_VERSION)'/' -e 's/@@LARGESMP@@/'$${LARGESMP}'/' -e 's/@@XENU@@/'$${XENU}'/' < $< > $@
+	$(spec_subst) > $@
 
-rhel4_%_srpm: dist $(TOPDIR)/vendor/rhel4/oracleasm-%.spec
-	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" $(TOPDIR)/vendor/rhel4/oracleasm-$(patsubst rhel4_%_srpm,%,$@).spec
+rhel4_%_srpm: $(TOPDIR)/vendor/rhel4/oracleasm-%.spec dist
+	rpmbuild -bs --define "_sourcedir $(TOPDIR)" --define "_srcrpmdir $(TOPDIR)" \
+		$(TOPDIR)/vendor/rhel4/oracleasm-$(patsubst rhel4_%_srpm,%,$@).spec
+	@rm $(TOPDIR)/vendor/rhel4/oracleasm-$(patsubst rhel4_%_srpm,%,$@).spec
 
 rhel4_%_rpm: rhel4_%_srpm
-	rpmbuild --rebuild $(MODULEARCH) "oracleasm-$(patsubst rhel4_%_rpm,%,$@)-$(DIST_VERSION)-$(PKG_VERSION).$(VENDOR_EXTENSION).src.rpm"
+	rpmbuild --rebuild $(MODULEARCH) \
+		"oracleasm-$(patsubst rhel4_%_rpm,%,$@)-$(DPV).src.rpm"
 
-
-# Package required for /usr/include/linux
-INCLUDE_REQUIRES = glibc-kernheaders
 include $(TOPDIR)/vendor/common/Vendor.make
 
 packages: $(shell $(TOPDIR)/vendor/rhel4/kernel.guess targets) headers_rpm
+
+targets:
+	$(TOPDIR)/vendor/rhel4/kernel.guess targets

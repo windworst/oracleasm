@@ -3,7 +3,7 @@ TOPDIR = ../..
 include $(TOPDIR)/Preamble.make
 
 DIST_FILES = 				\
-	oracleasm.spec-generic.in	\
+	oracleasm.spec-generic		\
 	kernel.guess			\
 	rpmarch.guess			\
 	Vendor.make			\

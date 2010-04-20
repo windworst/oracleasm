@@ -53,23 +53,31 @@ guess_rhel5_type()
 
 guess_rhel5_dir()
 {
-    KVER="$1"
+    declare -i VERSION
+    VERSION=`echo $1 | sed 's/^2\.6\.\([0-9]*\).*/\1/'`
 
-    DIRTYPE=$(guess_rhel5_type "$KVER")
-    ARCH=$(guess_rhel5_arch)
-
-    if [ -z "$DIRTYPE" ]
-    then
-        echo "${1%${DIRTYPE}}-${ARCH}"
+    if [ $VERSION -gt 18 ]; then
+	echo $1
     else
-        echo "${1%${DIRTYPE}}-${DIRTYPE}-${ARCH}"
+	DIRTYPE=$(guess_rhel5_type "$KVER")
+	ARCH=$(guess_rhel5_arch)
+
+	if [ -z "$DIRTYPE" ]
+	then
+            echo "${1%${DIRTYPE}}-${ARCH}"
+	else
+            echo "${1%${DIRTYPE}}-${DIRTYPE}-${ARCH}"
+	fi
     fi
 }
 
 verfromdir()
 {
     TESTDIR="$1"
-    if [ -r "${TESTDIR}/include/linux/utsrelease.h" ]
+    if [ -r "${TESTDIR}/include/generated/utsrelease.h" ]
+    then
+        awk '/UTS_RELEASE/{gsub(/"/,"",$3); print $3}' "${TESTDIR}/include/generated/utsrelease.h"
+    elif [ -r "${TESTDIR}/include/linux/utsrelease.h" ]
     then
         awk '/UTS_RELEASE/{gsub(/"/,"",$3); print $3}' "${TESTDIR}/include/linux/utsrelease.h"
     fi
@@ -133,16 +141,26 @@ validate_target()
     ARCH="$2"
     TYPELIST="$3"
 
-    SUBVER="${KVER#2.6.18-}"
-    SUBVER="${SUBVER%%.*}"
+    declare -i VERSION
+    VERSION=`echo $1 | sed 's/^2\.6\.\([0-9]*\).*/\1/'`
 
-    # Red Hat introduced the "debug" type in 53.el5. Anything older can ignore it.
-    if [ $SUBVER -lt 53 ]
+    declare -i RELEASE
+    RELEASE=`echo $1 | sed 's/^2\.6\.[0-9.]*\-\([0-9]*\).*/\1/'`
+
+    if [ $VERSION -le 18 ]
     then
-        TYPELIST="${TYPELIST%,debug}"
+	# Red Hat introduced the "debug" type in 53.el5. Anything older can
+	# ignore it.
+	if [ $RELEASE -lt 53 ] ; then
+	    TYPELIST="${TYPELIST%,debug}"
+	fi
+
+	typelist="${TYPELIST#$ARCH:}"
+    else
+	# Later kernels don't have any variants
+	typelist=""
     fi
 
-    typelist="${TYPELIST#$ARCH:}"
     while :
     do
         type="${typelist%%,*}"

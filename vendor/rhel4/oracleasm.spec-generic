@@ -8,43 +8,48 @@
 # Because RPM is dumb
 %define _unpackaged_files_terminate_build 0
 
-%define builddef	1
-%define buildpae	0
-%define buildxen	0
-%define builddebug	0
+# Turn on's and off's
+%define buildup		1
+%define buildsmp	0
+%define buildhugemem	0
+%define buildlargesmp	0
+%define buildxenu	0
 
 %ifarch i686
 %define karch		i686
-%define buildpae	1
-%define buildxen	1
-%define builddebug	@@DEBUG@@
+%define buildsmp	1
+%define buildhugemem	1
+%define buildxenu	@@XEN@@
 %endif
 
 %ifarch x86_64
 %define karch		x86_64
-%define buildxen	1
-%define builddebug	@@DEBUG@@
+%define buildsmp	1
+%define buildlargesmp	@@LARGESMP@@
+%define buildxenu	@@XEN@@
+%endif
+
+%ifarch ia32e
+%define karch		ia32e
 %endif
 
 %ifarch ia64
 %define karch		ia64
-%define buildxen	1
-%define builddebug	@@DEBUG@@
+%define buildlargesmp	@@LARGESMP@@
 %endif
 
 %ifarch ppc64
 %define karch		ppc64
-%define builddebug	@@DEBUG@@
+%define buildlargesmp	@@LARGESMP@@
 %endif
 
 %ifarch s390x
 %define karch		s390x
-%define builddebug	@@DEBUG@@
 %endif
 
 
 # This must be changed to the minimum ABI compat kernel version expected
-%define kver		@@KVER@@
+%define kver		@@KERNEL_VERSION@@
 
 # The minimum -support package required for the kernel bits.
 %define support_ver     2.0.0
@@ -53,11 +58,11 @@
 
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
-Version: @DIST_VERSION@
-Release: @@PKG_VERSION@@.el5
+Version: @@DIST_VERSION@@
+Release: @@PKG_VERSION@@.el4
 License: GPL
 Group: System Environment/Kernel
-Source: oracleasm-@DIST_VERSION@.tar.gz
+Source: oracleasm-@@DIST_VERSION@@.tar.gz
 URL: http://oss.oracle.com/projects/oracleasm/
 Distribution: Oracle
 Vendor: Oracle Corporation
@@ -77,55 +82,70 @@ BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
 Kernel driver for the Oracle Automatic Storage Management library.
 This package is compiled for the default kernel.
 
-
-%if %{buildpae}
-%package -n oracleasm-%{kver}PAE
-Summary: The Oracle Automatic Storage Management library driver for PAE systems.
+%if %{buildsmp}
+%package -n oracleasm-%{kver}smp
+Summary: The Oracle Automatic Storage Management library driver for SMP systems.
 Group: System Environment/Kernel
 AutoReqProv: no
 Provides: oracleasm = %{version}
-Requires: kernel-PAE = %{kver}
+Requires: kernel-smp = %{kver}
 Requires: oracleasm-support >= %{support_ver}
 Conflicts: oracleasmlib < %{min_enodev}
-BuildRequires: kernel-PAE-devel = %{kver}
+BuildRequires: kernel-smp-devel = %{kver}
 
-%description -n oracleasm-%{kver}PAE
+%description -n oracleasm-%{kver}smp
 Kernel driver for the Oracle Automatic Storage Management library.
-This package is compiled for the PAE kernel.
+This package is compiled for symmetric multiprocessor kernels.
 %endif
 
 
-%if %{buildxen}
-%package -n oracleasm-%{kver}xen
-Summary: The Oracle Automatic Storage Management library driver for Xen systems.
+%if %{buildhugemem}
+%package -n oracleasm-%{kver}hugemem
+Summary: The Oracle Automatic Storage Management library driver for NUMA systems.
 Group: System Environment/Kernel
-AutoReqProv: no
 Provides: oracleasm = %{version}
-Requires: kernel-xen = %{kver}
+AutoReqProv: no
+Requires: kernel-hugemem = %{kver}
 Requires: oracleasm-support >= %{support_ver}
 Conflicts: oracleasmlib < %{min_enodev}
-BuildRequires: kernel-xen-devel = %{kver}
+BuildRequires: kernel-hugemem-devel = %{kver}
 
-%description -n oracleasm-%{kver}xen
+%description -n oracleasm-%{kver}hugemem
 Kernel driver for the Oracle Automatic Storage Management library.
-This package is compiled for the Xen virtualized systems.
+This package is compiled for large memory SMP kernels.
 %endif
 
 
-%if %{builddebug}
-%package -n oracleasm-%{kver}debug
-Summary: The Oracle Automatic Storage Management library driver for debug systems.
+%if %{buildlargesmp}
+%package -n oracleasm-%{kver}largesmp
+Summary: The Oracle Automatic Storage Management library driver for NUMA systems.
 Group: System Environment/Kernel
-AutoReqProv: no
 Provides: oracleasm = %{version}
-Requires: kernel-debug = %{kver}
+AutoReqProv: no
+Requires: kernel-largesmp = %{kver}
 Requires: oracleasm-support >= %{support_ver}
 Conflicts: oracleasmlib < %{min_enodev}
-BuildRequires: kernel-debug-devel = %{kver}
+BuildRequires: kernel-largesmp-devel = %{kver}
 
-%description -n oracleasm-%{kver}debug
+%description -n oracleasm-%{kver}largesmp
 Kernel driver for the Oracle Automatic Storage Management library.
-This package is compiled for the debug kernel.
+This package is compiled for large SMP kernels.
+%endif
+
+%if %{buildxenu}
+%package -n oracleasm-%{kver}xenU
+Summary: The Oracle Automatic Storage Management library driver for Xen DomU kernels.
+Group: System Environment/Kernel
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel-xenU = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-xenU-devel = %{kver}
+
+%description -n oracleasm-%{kver}xenU
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for Xen DomU kernels.
 %endif
 
 
@@ -151,14 +171,14 @@ local_configure()
 		--sharedstatedir=%{_sharedstatedir}	\
 		--mandir=%{_mandir}			\
 		--infodir=%{_infodir}			\
-		--with-vendor=rhel5			\
+		--with-vendor=rhel4			\
 		--with-vendorkernel="$1"
 }
 
-%if %{builddef}
+%if %{buildup}
 local_configure "%{kver}"
 
-make V=0
+make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
 # 2.6 kbuild can't do this install nicely
@@ -170,45 +190,60 @@ mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
 make clean
 %endif
 
-%if %{buildpae}
-local_configure "%{kver}PAE"
+%if %{buildsmp}
+local_configure "%{kver}smp"
 
-make V=0
+make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
 # 2.6 kbuild can't do this install nicely
-EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}PAE/extra"
-INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}PAE/kernel/drivers/addon/oracleasm"
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}smp/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}smp/kernel/drivers/addon/oracleasm"
 mkdir -p "${INST_MODLIB}"
 mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
 
 make clean
 %endif
 
-%if %{buildxen}
-local_configure "%{kver}xen"
+%if %{buildhugemem}
+local_configure "%{kver}hugemem"
 
-make V=0
+make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
 # 2.6 kbuild can't do this install nicely
-EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}xen/extra"
-INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}xen/kernel/drivers/addon/oracleasm"
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}hugemem/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}hugemem/kernel/drivers/addon/oracleasm"
 mkdir -p "${INST_MODLIB}"
 mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
 
 make clean
 %endif
 
-%if %{builddebug}
-local_configure "%{kver}debug"
+%if %{buildlargesmp}
+local_configure "%{kver}largesmp"
 
-make V=0
+make QUIET=1
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
 # 2.6 kbuild can't do this install nicely
-EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}debug/extra"
-INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}debug/kernel/drivers/addon/oracleasm"
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}largesmp/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}largesmp/kernel/drivers/addon/oracleasm"
+mkdir -p "${INST_MODLIB}"
+mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
+
+make clean
+%endif
+
+%if %{buildxenu}
+local_configure "%{kver}xenU"
+
+make QUIET=1
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install
+
+# 2.6 kbuild can't do this install nicely
+EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}xenU/extra"
+INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}xenU/kernel/drivers/addon/oracleasm"
 mkdir -p "${INST_MODLIB}"
 mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
 
@@ -225,7 +260,7 @@ rm -rf "$RPM_BUILD_ROOT"
 
 
 
-%if %{builddef}
+%if %{buildup}
 %post -n oracleasm-%{kver}
 depmod -ae %{kver}
 
@@ -234,43 +269,48 @@ depmod -ae %{kver}
 /lib/modules/%{kver}/kernel/drivers/addon/oracleasm
 %endif
 
-%if %{buildpae}
-%post -n oracleasm-%{kver}PAE
-depmod -ae %{kver}PAE
 
-%files -n oracleasm-%{kver}PAE
+%if %{buildsmp}
+%post -n oracleasm-%{kver}smp
+depmod -ae %{kver}smp
+
+%files -n oracleasm-%{kver}smp
 %defattr(-,root,root)
-/lib/modules/%{kver}PAE/kernel/drivers/addon/oracleasm
+/lib/modules/%{kver}smp/kernel/drivers/addon/oracleasm
 %endif
 
-%if %{buildxen}
-%post -n oracleasm-%{kver}xen
-depmod -ae %{kver}xen
 
-%files -n oracleasm-%{kver}xen
+%if %{buildhugemem}
+%post -n oracleasm-%{kver}hugemem
+depmod -ae %{kver}hugemem
+
+%files -n oracleasm-%{kver}hugemem
 %defattr(-,root,root)
-/lib/modules/%{kver}xen/kernel/drivers/addon/oracleasm
+/lib/modules/%{kver}hugemem/kernel/drivers/addon/oracleasm
 %endif
 
-%if %{builddebug}
-%post -n oracleasm-%{kver}debug
-depmod -ae %{kver}debug
+%if %{buildlargesmp}
+%post -n oracleasm-%{kver}largesmp
+depmod -ae %{kver}largesmp
 
-%files -n oracleasm-%{kver}debug
+%files -n oracleasm-%{kver}largesmp
 %defattr(-,root,root)
-/lib/modules/%{kver}debug/kernel/drivers/addon/oracleasm
+/lib/modules/%{kver}largesmp/kernel/drivers/addon/oracleasm
+%endif
+
+%if %{buildxenu}
+%post -n oracleasm-%{kver}xenU
+depmod -ae %{kver}xenU
+
+%files -n oracleasm-%{kver}xenU
+%defattr(-,root,root)
+/lib/modules/%{kver}xenU/kernel/drivers/addon/oracleasm
 %endif
 
 
 %changelog
-* Mon Nov 12 2007 Sunil Mushran <sunil.mushran@oracle.com>
-- Add support to build modules for kernel-debug for RHEL5
-
-* Wed Apr 18 2007 Joel Becker <joel.becker@oracle.com>
-- Add RHEL5
-
-* Fri Feb 09 2007 Joel Becker <joel.becker@oracle.com>
-- Strip down for Fedora Core 6
+* Fri Oct 26 2007 Sunil Mushran <sunil.mushran@oracle.com>
+- Add xenU
 
 * Thu May 25 2006 Joel Becker <joel.becker@oracle.com>
 - Add largesmp

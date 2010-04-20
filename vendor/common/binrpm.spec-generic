@@ -9,7 +9,7 @@
 %define _unpackaged_files_terminate_build 0
 
 # This must be changed to the minimum ABI compat kernel version expected
-%define kver		@KERNELVER@
+%define kver		@@KERNEL_VERSION@@
 
 # The minimum -support package required for the kernel bits.
 %define support_ver     2.0.0
@@ -18,7 +18,7 @@
 
 Summary: The Oracle Automatic Storage Management library driver.
 Name: oracleasm-%{kver}
-Version: @DIST_VERSION@
+Version: @@DIST_VERSION@@
 Release: @@PKG_VERSION@@.built
 License: GPL
 Group: System Environment/Kernel
@@ -43,12 +43,6 @@ This package is built out of a compiled source tree.
 %install
 make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
 
-# 2.6 kbuild can't do this install nicely
-EXTRA_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}/extra"
-INST_MODLIB="${RPM_BUILD_ROOT}/lib/modules/%{kver}/kernel/drivers/addon/oracleasm"
-mkdir -p "${INST_MODLIB}"
-mv "${EXTRA_MODLIB}"/oracleasm.ko "${INST_MODLIB}/"
-
 %clean
 #echo rm -rf "$RPM_BUILD_ROOT"
 
@@ -58,7 +52,7 @@ depmod -ae %{kver}
 
 %files
 %defattr(-,root,root)
-/lib/modules/%{kver}/kernel/drivers/addon/oracleasm
+/lib/modules/
 
 
 %changelog
