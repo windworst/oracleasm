@@ -7,6 +7,7 @@ DIST_FILES =					\
 	oracleasm-headers.spec-generic.in	\
 	gmsl					\
 	__gmsl					\
+	subst.make				\
 	Vendor.make
 
 include $(TOPDIR)/Postamble.make
