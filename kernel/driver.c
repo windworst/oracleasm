@@ -2885,7 +2885,7 @@ out_free_asb:
  */
 static void __init init_asmfs_dir_operations(void) {
 	asmfs_dir_operations		= simple_dir_operations;
-	asmfs_dir_operations.fsync	= simple_sync_file;
+	asmfs_dir_operations.fsync	= noop_fsync;
 };
 
 
