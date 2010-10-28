@@ -324,11 +324,13 @@ static void init_asmdisk_once(void *foo)
 # define kapi_asm_blkdev_put blkdev_put
 #endif
 
-static void asmdisk_clear_inode(struct inode *inode)
+static void asmdisk_evict_inode(struct inode *inode)
 {
 	struct asm_disk_info *d = ASMDISK_I(inode);
 
 	mlog_entry("(0x%p)\n", inode);
+
+	end_writeback(inode);
 
 	mlog_bug_on_msg(atomic_read(&d->d_ios),
 			"Disk 0x%p has outstanding I/Os\n", d);
@@ -359,7 +361,7 @@ static struct super_operations asmdisk_sops = {
 	.alloc_inode		= asmdisk_alloc_inode,
 	.destroy_inode		= asmdisk_destroy_inode,
 	.drop_inode		= generic_delete_inode,
-	.clear_inode		= asmdisk_clear_inode,
+	.evict_inode		= asmdisk_evict_inode,
 };
 
 #ifdef GET_SB_HAS_VFSMOUNT

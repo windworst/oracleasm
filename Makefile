@@ -23,6 +23,7 @@ KAPI_COMPAT_FILES =					\
 	kapi-compat/include/blk_segments.h		\
 	kapi-compat/include/blkdev_get.h		\
 	kapi-compat/include/blkdev_put.h		\
+	kapi-compat/include/clear_inode.h		\
 	kapi-compat/include/current_creds.h		\
 	kapi-compat/include/i_blksize.h			\
 	kapi-compat/include/i_mutex.h			\
