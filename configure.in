@@ -176,14 +176,19 @@ KAPI_COMPAT_CFLAGS=
 BACKING_DEV_CAPABILITIES=
 GET_SB_HAS_VFSMOUNT=
 if test x"$BUILD_DRIVER" = "xyes"; then
+
+  AC_MSG_CHECKING(for kernel include directory)
+
   if test x"$vendordir" = x"$kerneldir" ; then
-      kernelincludes="`vendor/${mb_vendor}/kernel.guess include`"
+      kernelincludes="`vendor/${mb_vendor}/kernel.guess include $kversion`"
   else
       kernelincludes="$KBUILDINC"
-      if test "x$BUILDINC" != "x$KERNELINC"; then
+      if test "x$KBUILDINC" != "x$KERNELINC"; then
           kernelincludes="$kernelincludes $KERNELINC"
       fi
   fi
+
+  AC_MSG_RESULT([$kernelincludes])
 
   KAPI_COMPAT_HEADERS=
   TRANS_COMPAT_HEADERS=
