@@ -1969,7 +1969,7 @@ static int asm_fill_timeout(struct timespec *ts, unsigned long timeout,
 
 #endif  /* BITS_PER_LONG == 64 && defined(CONFIG_COMPAT) */
 
-	return copy_from_user(&ts, ut, sizeof(ts));
+	return copy_from_user(ts, ut, sizeof(struct timespec));
 }
 
 static int asm_do_io(struct file *file, struct oracleasm_io_v2 *io,
