@@ -86,6 +86,8 @@
 #include "proc.h"
 #include "transaction_file.h"
 
+#include "../kapi-compat/include/blkdev_get_put.h"
+
 #if PAGE_CACHE_SIZE % 1024
 #error Oh no, PAGE_CACHE_SIZE is not divisible by 1k! I cannot cope.
 #endif  /* PAGE_CACHE_SIZE % 1024 */
@@ -317,12 +319,6 @@ static void init_asmdisk_once(void *foo)
 #ifndef kapi_init_asmdisk_once
 # define kapi_init_asmdisk_once init_asmdisk_once
 #endif
-#ifndef kapi_asm_blkdev_get
-# define kapi_asm_blkdev_get blkdev_get
-#endif
-#ifndef kapi_asm_blkdev_put
-# define kapi_asm_blkdev_put blkdev_put
-#endif
 
 static void asmdisk_evict_inode(struct inode *inode)
 {
@@ -347,7 +343,6 @@ static void asmdisk_evict_inode(struct inode *inode)
 		mlog(ML_DISK,
 		     "Releasing disk 0x%p (bdev 0x%p, dev %X)\n",
 		     d, d->d_bdev, d->d_bdev->bd_dev);
-		bd_release(d->d_bdev);
 		kapi_asm_blkdev_put(d->d_bdev, FMODE_WRITE | FMODE_READ);
 		d->d_bdev = NULL;
 	}
@@ -365,7 +360,19 @@ static struct super_operations asmdisk_sops = {
 };
 
 
-#if defined(MOUNT_BDEV)
+#if defined(PSEUDO_DOPS)
+static struct dentry * asmdisk_mount(struct file_system_type *fs_type, int flags,
+			      const char *dev_name, void *data)
+{
+	return mount_pseudo(fs_type, "asmdisk:", &asmdisk_sops, NULL, 0x61736D64);
+}
+
+static struct file_system_type asmdisk_type = {
+	.name		= "asmdisk",
+	.mount		= asmdisk_mount,
+	.kill_sb	= kill_anon_super,
+};
+#elif defined(MOUNT_BDEV)
 static struct dentry * asmdisk_mount(struct file_system_type *fs_type, int flags,
 			      const char *dev_name, void *data)
 {
@@ -770,22 +777,18 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 
 	mlog_entry("(0x%p, 0x%p)\n", file, bdev);
 
-	ret = kapi_asm_blkdev_get(bdev, FMODE_WRITE | FMODE_READ);
+	ret = kapi_asm_blkdev_get(bdev, FMODE_WRITE | FMODE_READ, inode->i_sb);
 	if (ret)
 		goto out;
 
-	ret = bd_claim(bdev, inode->i_sb);
-	if (ret)
-		goto out_get;
-
 	ret = set_blocksize(bdev, bdev_physical_block_size(bdev));
 	if (ret)
-		goto out_claim;
+		goto out_get;
 
 	ret = -ENOMEM;
 	h = kmalloc(sizeof(struct asm_disk_head), GFP_KERNEL);
 	if (!h)
-		goto out_claim;
+		goto out_get;
 
 	mlog(ML_DISK, "Looking up disk for bdev %p (dev %X)\n", bdev,
 	     bdev->bd_dev);
@@ -826,7 +829,6 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 		mlog(ML_DISK,
 		     "Open of disk 0x%p (bdev 0x%p, dev %X)\n",
 		     d, d->d_bdev, d->d_bdev->bd_dev);
-		bd_release(bdev);
 		kapi_asm_blkdev_put(bdev, FMODE_WRITE | FMODE_READ);
 	}
 
@@ -846,9 +848,6 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 
 out_head:
 	kfree(h);
-
-out_claim:
-	bd_release(bdev);
 
 out_get:
 	kapi_asm_blkdev_put(bdev, FMODE_WRITE | FMODE_READ);

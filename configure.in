@@ -201,6 +201,10 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     linux/fs.h, $kernelincludes,
     MOUNT_BDEV=yes, , [\<mount_bdev\>])
 
+  OCFS2_CHECK_KERNEL_INCLUDES([dentry ops in mount_pseudo in fs.h],
+    linux/fs.h, $kernelincludes,
+    PSEUDO_DOPS=yes, , [const struct dentry_operations \*dops])
+
   OCFS2_CHECK_KERNEL_INCLUDES([vfsmount in ->get_sb() helpers],
     linux/fs.h, $kernelincludes, GET_SB_HAS_VFSMOUNT=yes, ,
     [^extern int get_sb_pseudo])
@@ -254,17 +258,16 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     [^.*void (\*)(void \*, .*kmem_cache.* \*, unsigned long),])
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $kmem_cache_create_header"
 
-  blkdev_get_compat_header=
+  OCFS2_CHECK_KERNEL_INCLUDES([bd_claim], linux/fs.h, $kernelincludes,
+    BD_CLAIM=yes, ,[^.*bd_claim(struct block_device])
+
   OCFS2_CHECK_KERNEL_INCLUDES([for three argument blkdev_get], linux/fs.h,
-    $kernelincludes, blkdev_get_compat_header="blkdev_get.h", ,
-    [extern int blkdev_get(struct block_device \*, f\?mode_t, unsigned)])
-  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blkdev_get_compat_header"
- 
-  blkdev_put_compat_header=
-  OCFS2_CHECK_KERNEL_INCLUDES([for one argument blkdev_put], linux/fs.h,
-    $kernelincludes, blkdev_put_compat_header="blkdev_put.h", ,
-    [extern int blkdev_put(struct block_device \*)])
-  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blkdev_put_compat_header"
+    $kernelincludes, BLKDEV_GET_THREE=yes, ,
+    [extern int blkdev_get(struct block_device \*\w*, f\?mode_t \w*,])
+
+  OCFS2_CHECK_KERNEL_INCLUDES([for two argument blkdev_put], linux/fs.h,
+    $kernelincludes, BLKDEV_PUT_TWO=yes, ,
+    [extern int blkdev_put(struct block_device \*\w*,])
 
   blk_limits_compat_header=
   OCFS2_CHECK_KERNEL_INCLUDES([for old block limits], linux/blkdev.h,
@@ -332,7 +335,10 @@ AC_SUBST(TRANS_COMPAT_CFLAGS)
 AC_SUBST(BACKING_DEV_CAPABILITIES)
 AC_SUBST(GET_SB_HAS_VFSMOUNT)
 AC_SUBST(MOUNT_BDEV)
-
+AC_SUBST(PSEUDO_DOPS)
+AC_SUBST(BD_CLAIM)
+AC_SUBST(BLKDEV_GET_THREE)
+AC_SUBST(BLKDEV_PUT_TWO)
 
 AC_OUTPUT([Config.make
 include/linux/oracleasm/module_version.h
