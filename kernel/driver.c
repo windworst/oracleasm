@@ -364,7 +364,20 @@ static struct super_operations asmdisk_sops = {
 	.evict_inode		= asmdisk_evict_inode,
 };
 
-#ifdef GET_SB_HAS_VFSMOUNT
+
+#if defined(MOUNT_BDEV)
+static struct dentry * asmdisk_mount(struct file_system_type *fs_type, int flags,
+			      const char *dev_name, void *data)
+{
+	return mount_pseudo(fs_type, "asmdisk:", &asmdisk_sops, 0x61736D64);
+}
+
+static struct file_system_type asmdisk_type = {
+	.name		= "asmdisk",
+	.mount		= asmdisk_mount,
+	.kill_sb	= kill_anon_super,
+};
+#elif defined(GET_SB_HAS_VFSMOUNT)
 static int asmdisk_get_sb(struct file_system_type *fs_type, int flags,
 			  const char *dev_name, void *data,
 			  struct vfsmount *mnt)
@@ -372,6 +385,12 @@ static int asmdisk_get_sb(struct file_system_type *fs_type, int flags,
 	return get_sb_pseudo(fs_type, "asmdisk:",
 			     &asmdisk_sops, 0x61736D64, mnt);
 }
+
+static struct file_system_type asmdisk_type = {
+	.name		= "asmdisk",
+	.get_sb		= asmdisk_get_sb,
+	.kill_sb	= kill_anon_super,
+};
 #else
 static struct super_block *asmdisk_get_sb(struct file_system_type *fs_type,
 					  int flags,
@@ -381,13 +400,13 @@ static struct super_block *asmdisk_get_sb(struct file_system_type *fs_type,
 	return get_sb_pseudo(fs_type, "asmdisk:",
 			     &asmdisk_sops, 0x61736D64);
 }
-#endif
 
 static struct file_system_type asmdisk_type = {
 	.name		= "asmdisk",
 	.get_sb		= asmdisk_get_sb,
 	.kill_sb	= kill_anon_super,
 };
+#endif
 
 static struct vfsmount *asmdisk_mnt;
 
@@ -2890,22 +2909,27 @@ static void __init init_asmfs_dir_operations(void) {
 	asmfs_dir_operations.fsync	= noop_fsync;
 };
 
+#if defined(MOUNT_BDEV)
+static struct dentry *asmfs_mount(struct file_system_type *fs_type,
+				       int flags, const char *dev_name,
+				       void *data)
+{
+	return mount_nodev(fs_type, flags, data, asmfs_fill_super);
+}
 
-#ifdef GET_SB_HAS_VFSMOUNT
+static struct file_system_type asmfs_fs_type = {
+	.owner		= THIS_MODULE,
+	.name		= "oracleasmfs",
+	.mount		= asmfs_mount,
+	.kill_sb	= kill_litter_super,
+};
+#elif defined (GET_SB_HAS_VFSMOUNT)
 static int asmfs_get_sb(struct file_system_type *fs_type, int flags,
 			const char *dev_name, void *data,
 			struct vfsmount *mnt)
 {
 	return get_sb_nodev(fs_type, flags, data, asmfs_fill_super, mnt);
 }
-#else
-static struct super_block *asmfs_get_sb(struct file_system_type *fs_type,
-					int flags, const char *dev_name,
-					void *data)
-{
-	return get_sb_nodev(fs_type, flags, data, asmfs_fill_super);
-}
-#endif  /* GET_SB_HAS_VFSMOUNT */
 
 static struct file_system_type asmfs_fs_type = {
 	.owner		= THIS_MODULE,
@@ -2913,6 +2937,21 @@ static struct file_system_type asmfs_fs_type = {
 	.get_sb		= asmfs_get_sb,
 	.kill_sb	= kill_litter_super,
 };
+#else
+static struct super_block *asmfs_get_sb(struct file_system_type *fs_type,
+					int flags, const char *dev_name,
+					void *data)
+{
+	return get_sb_nodev(fs_type, flags, data, asmfs_fill_super);
+}
+
+static struct file_system_type asmfs_fs_type = {
+	.owner		= THIS_MODULE,
+	.name		= "oracleasmfs",
+	.get_sb		= asmfs_get_sb,
+	.kill_sb	= kill_litter_super,
+};
+#endif  /* MOUNT_BDEV / GET_SB_HAS_VFSMOUNT */
 
 static int __init init_asmfs_fs(void)
 {

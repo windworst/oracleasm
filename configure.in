@@ -197,6 +197,10 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     linux/backing-dev.h, $kernelincludes,
     BACKING_DEV_CAPABILITIES=yes, , [\<BDI_CAP_NO_WRITEBACK\>])
 
+  OCFS2_CHECK_KERNEL_INCLUDES([mount_bdev / mount_pseudo in fs.h],
+    linux/fs.h, $kernelincludes,
+    MOUNT_BDEV=yes, , [\<mount_bdev\>])
+
   OCFS2_CHECK_KERNEL_INCLUDES([vfsmount in ->get_sb() helpers],
     linux/fs.h, $kernelincludes, GET_SB_HAS_VFSMOUNT=yes, ,
     [^extern int get_sb_pseudo])
@@ -327,6 +331,7 @@ AC_SUBST(KAPI_COMPAT_CFLAGS)
 AC_SUBST(TRANS_COMPAT_CFLAGS)
 AC_SUBST(BACKING_DEV_CAPABILITIES)
 AC_SUBST(GET_SB_HAS_VFSMOUNT)
+AC_SUBST(MOUNT_BDEV)
 
 
 AC_OUTPUT([Config.make
