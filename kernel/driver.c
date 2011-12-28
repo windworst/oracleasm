@@ -1441,6 +1441,15 @@ static int asm_submit_io(struct file *file,
 		r->r_bio = NULL;
 		goto out_error;
 	}
+
+	if (r->r_bio->bi_size != r->r_count) {
+		mlog(ML_ERROR|ML_BIO, "Only mapped partial ioc buffer\n");
+		bio_unmap_user(r->r_bio);
+		r->r_bio = NULL;
+		ret = -ENOMEM;
+		goto out_error;
+	}
+
 	mlog(ML_BIO, "Mapped bio 0x%p to request 0x%p\n", r->r_bio, r);
 
 	/* Block layer always uses 512-byte sector addressing,
