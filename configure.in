@@ -319,6 +319,14 @@ if test x"$BUILD_DRIVER" = "xyes"; then
   KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $current_creds_header"
   TRANS_COMPAT_HEADERS="$TRANS_COMPAT_HEADERS $current_creds_header"
 
+  blk_run_address_space=
+  OCFS2_CHECK_KERNEL_INCLUDES([blk_run_address_space in blkdev.h],
+    linux/blkdev.h linux/backing-dev.h, $kernelincludes, ,
+    blk_run_address_space_header="blk_run_address_space.h",
+    [^.*blk_run_address_space])
+  KAPI_COMPAT_HEADERS="$KAPI_COMPAT_HEADERS $blk_run_address_space_header"
+
+
   # using -include has two advantages:
   #  the source doesn't need to know to include compat headers
   #  the compat header file names don't go through the search path

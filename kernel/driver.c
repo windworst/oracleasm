@@ -64,7 +64,6 @@
 #include <linux/slab.h>
 #include <linux/blkdev.h>
 #include <linux/mount.h>
-#include <linux/smp_lock.h>
 #include <linux/parser.h>
 #include <linux/backing-dev.h>
 #include <linux/compat.h>
