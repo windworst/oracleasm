@@ -128,6 +128,19 @@ static struct kmem_cache	*asmdisk_cachep;
 # define kapi_kmem_cache_create kmem_cache_create
 #endif
 
+static bool use_logical_block_size = false;
+module_param(use_logical_block_size, bool, 0644);
+MODULE_PARM_DESC(use_logical_block_size,
+	"Prefer logical block size over physical (Y=logical, N=physical [default])");
+
+static inline unsigned int asm_block_size(struct block_device *bdev)
+{
+	if (use_logical_block_size)
+		return bdev_logical_block_size(bdev);
+
+	return bdev_physical_block_size(bdev);
+}
+
 /*
  * asmfs super-block data in memory
  */
@@ -780,7 +793,7 @@ static int asm_open_disk(struct file *file, struct block_device *bdev)
 	if (ret)
 		goto out;
 
-	ret = set_blocksize(bdev, bdev_physical_block_size(bdev));
+	ret = set_blocksize(bdev, asm_block_size(bdev));
 	if (ret)
 		goto out_get;
 
@@ -1362,7 +1375,7 @@ static int asm_submit_io(struct file *file,
 
 	bdev = d->d_bdev;
 
-	r->r_count = ioc->rcount_asm_ioc * bdev_physical_block_size(bdev);
+	r->r_count = ioc->rcount_asm_ioc * asm_block_size(bdev);
 
 	/* linux only supports unsigned long size sector numbers */
 	mlog(ML_IOC,
@@ -1455,8 +1468,7 @@ static int asm_submit_io(struct file *file,
 	/* Block layer always uses 512-byte sector addressing,
 	 * regardless of logical and physical block size.
 	 */
-	r->r_bio->bi_sector = ioc->first_asm_ioc *
-		(bdev_physical_block_size(bdev) >> 9);
+	r->r_bio->bi_sector = ioc->first_asm_ioc * (asm_block_size(bdev) >> 9);
 
 	/*
 	 * If the bio is a bounced bio, we have to put the
@@ -2424,7 +2436,7 @@ static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
 	bdev = I_BDEV(filp->f_mapping->host);
 
 	qd_info->qd_max_sectors = compute_max_sectors(bdev);
-	qd_info->qd_hardsect_size = bdev_physical_block_size(bdev);
+	qd_info->qd_hardsect_size = asm_block_size(bdev);
 	mlog(ML_ABI|ML_DISK,
 	     "Querydisk returning qd_max_sectors = %u and "
 	     "qd_hardsect_size = %d\n",
