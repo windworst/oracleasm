@@ -13,24 +13,26 @@
  *      required to support the userspace library.
  *
  * MODIFIED   (YYYY/MM/DD)
+ *	2008/09/01 - Martin K. Petersen <martin.petersen@oracle.com>
+ *		Data integrity changes.
  *      2004/01/02 - Joel Becker <joel.becker@oracle.com>
  *		Initial GPL header.
  *      2004/09/10 - Joel Becker <joel.becker@oracle.com>
- *      	First port to 2.6.
+ *		First port to 2.6.
  *      2004/12/16 - Joel Becker <joel.becker@oracle.com>
- *      	Change from ioctl to transaction files.
+ *		Change from ioctl to transaction files.
  *
- * Copyright (c) 2002-2004 Oracle Corporation.  All rights reserved.
+ * Copyright (c) 2002-2013 Oracle Corporation.  All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
  * License, version 2 as published by the Free Software Foundation.
- * 
+ *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- * 
+ *
  * You should have recieved a copy of the GNU General Public
  * License along with this library; if not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
@@ -84,6 +86,8 @@
 #include "masklog.h"
 #include "proc.h"
 #include "transaction_file.h"
+#include "request.h"
+#include "integrity.h"
 
 #include "../kapi-compat/include/blkdev_get_put.h"
 
@@ -154,7 +158,7 @@ struct asmfs_sb_info {
 
 	/* It is important that at least the free counts below be
 	   signed.  free_XXX may become negative if a limit is changed
-	   downwards (by a remount) below the current usage. */	  
+	   downwards (by a remount) below the current usage. */
 
 	/* max number of inodes - controls # of instances */
 	long max_inodes;
@@ -240,22 +244,6 @@ struct asm_disk_head {
 	struct list_head h_flist;	/* Hook into file's list */
 	struct list_head h_dlist;	/* Hook into disk's list */
 };
-
-
-/* ASM I/O requests */
-struct asm_request {
-	struct list_head r_list;
-	struct asmfs_file_info *r_file;
-	struct asm_disk_info *r_disk;
-	asm_ioc *r_ioc;				/* User asm_ioc */
-	u16 r_status;				/* status_asm_ioc */
-	int r_error;
-	unsigned long r_elapsed;		/* Start time while in-flight, elapsted time once complete */
-	struct bio *r_bio;			/* The I/O */
-	size_t r_count;				/* Total bytes */
-	atomic_t r_bio_count;			/* Atomic count */
-};
-
 
 /*
  * Transaction file contexts.
@@ -733,7 +721,7 @@ static int asmfs_remount(struct super_block * sb, int * flags, char * data)
 	reset_limits(asb, &params);
 
 	printk(KERN_DEBUG
- 	       "ASM: oracleasmfs remounted with options: %s\n", 
+ 	       "ASM: oracleasmfs remounted with options: %s\n",
 	       data ? (char *)data : "<defaults>" );
 	printk(KERN_DEBUG "ASM:	maxinstances=%ld\n",
 	       asb->max_inodes);
@@ -905,7 +893,7 @@ static int asm_close_disk(struct file *file, unsigned long handle)
 	 * If an additional thread raced us to close the disk, it
 	 * will have removed the disk from the list already.
 	 */
-	
+
 	spin_lock_irq(&ASMFS_FILE(file)->f_lock);
 	h = NULL;
 	list_for_each(p, &ASMFS_FILE(file)->f_disks) {
@@ -957,11 +945,7 @@ static int asm_close_disk(struct file *file, unsigned long handle)
 			 * not ours, so the wake_up() never happens
 			 * here and we need the timeout.
 			 */
-#if 0  /* Damn you, kernel */
-			io_schedule_timeout(HZ);
-#else
 			schedule_timeout(HZ);
-#endif
 		} while (1);
 		set_task_state(tsk, TASK_RUNNING);
 		remove_wait_queue(&ASMFS_FILE(file)->f_wait, &wait);
@@ -1018,7 +1002,7 @@ static inline void set_timeout(struct timeout *to, const struct timespec *ts)
 	how_long = ts->tv_sec * HZ;
 #define HZ_NS (1000000000 / HZ)
 	how_long += (ts->tv_nsec + HZ_NS - 1) / HZ_NS;
-	
+
 	to->timer.expires = jiffies + how_long;
 	add_timer(&to->timer);
 }
@@ -1134,7 +1118,7 @@ static struct asm_request *asm_request_alloc(void)
 	struct asm_request *r;
 
 	r = kmem_cache_alloc(asm_request_cachep, GFP_KERNEL);
-	
+
 	if (r) {
 		r->r_status = ASM_SUBMITTED;
 		r->r_error = 0;
@@ -1176,7 +1160,7 @@ static void asm_finish_io(struct asm_request *r)
 		r->r_bio = NULL;
 	}
 
- 	d = r->r_disk;
+	d = r->r_disk;
 	r->r_disk = NULL;
 
 	list_del(&r->r_list);
@@ -1246,6 +1230,10 @@ static void asm_end_ioc(struct asm_request *r, unsigned int bytes_done,
 			r->r_error = ASM_ERR_IO;
 			break;
 
+		case -EILSEQ:
+			r->r_error = asm_integrity_error(r);
+			break;
+
 		case -ENODEV:
 			r->r_error = ASM_ERR_NODEV;
 			r->r_status |= ASM_LOCAL_ERROR;
@@ -1307,6 +1295,7 @@ static int asm_submit_io(struct file *file,
 	struct asm_disk_info *d;
 	struct inode *disk_inode;
 	struct block_device *bdev;
+	struct oracleasm_integrity_v2 *it;
 
 	mlog_entry("(0x%p, 0x%p, 0x%p)\n", file, user_iocp, ioc);
 
@@ -1349,10 +1338,11 @@ static int asm_submit_io(struct file *file,
 	spin_unlock_irq(&ASMFS_FILE(file)->f_lock);
 
 	ret = -ENODEV;
-	args.fa_handle = (unsigned long)ioc->disk_asm_ioc;
+	args.fa_handle = (unsigned long)ioc->disk_asm_ioc &
+		~ASM_INTEGRITY_HANDLE_MASK;
 	args.fa_inode = ASMFS_I(inode);
 	disk_inode = ilookup5(asmdisk_mnt->mnt_sb,
-			      (unsigned long)ioc->disk_asm_ioc,
+			      (unsigned long)args.fa_handle,
 			      asmdisk_test, &args);
 	if (!disk_inode)
 		goto out_error;
@@ -1421,6 +1411,11 @@ static int asm_submit_io(struct file *file,
 	     "Request 0x%p (user_ioc 0x%p) passed validation checks\n",
 	     r, user_iocp);
 
+	if (bdev_get_integrity(bdev))
+		it = (struct oracleasm_integrity_v2 *)ioc->check_asm_ioc;
+	else
+		it = NULL;
+
 	switch (ioc->operation_asm_ioc) {
 		default:
 			goto out_error;
@@ -1428,10 +1423,18 @@ static int asm_submit_io(struct file *file,
 
 		case ASM_READ:
 			rw = READ;
+
+			if (it && asm_integrity_check(it, bdev) < 0)
+				goto out_error;
+
 			break;
 
 		case ASM_WRITE:
 			rw = WRITE;
+
+			if (it && asm_integrity_check(it, bdev) < 0)
+				goto out_error;
+
 			break;
 
 		case ASM_NOOP:
@@ -1439,7 +1442,7 @@ static int asm_submit_io(struct file *file,
 			r->r_count = 0;
 			break;
 	}
-	
+
 	/* Not really an error, but hey, it's an end_io call */
 	ret = 0;
 	if (r->r_count == 0)
@@ -1469,6 +1472,17 @@ static int asm_submit_io(struct file *file,
 	 * regardless of logical and physical block size.
 	 */
 	r->r_bio->bi_sector = ioc->first_asm_ioc * (asm_block_size(bdev) >> 9);
+
+	if (it) {
+		ret = asm_integrity_map(it, r, rw == READ);
+
+		if (ret < 0) {
+			mlog(ML_ERROR|ML_BIO,
+			     "Could not attach integrity payload\n");
+			bio_unmap_user(r->r_bio);
+			goto out_error;
+		}
+	}
 
 	/*
 	 * If the bio is a bounced bio, we have to put the
@@ -1513,7 +1527,7 @@ static int asm_maybe_wait_io(struct file *file,
 	DECLARE_WAITQUEUE(to_wait, tsk);
 
 	mlog_entry("(0x%p, 0x%p, 0x%p)\n", file, iocp, to);
-	
+
 	if (copy_from_user(&p, &(iocp->reserved_asm_ioc),
 			   sizeof(p))) {
 		ret = -EFAULT;
@@ -1588,7 +1602,7 @@ static int asm_maybe_wait_io(struct file *file,
 		set_task_state(tsk, TASK_RUNNING);
 		remove_wait_queue(&afi->f_wait, &wait);
 		remove_wait_queue(&to->wait, &to_wait);
-		
+
 		if (ret)
 			goto out;
 	}
@@ -1654,7 +1668,7 @@ static int asm_complete_io(struct file *file,
 	spin_unlock_irq(&afi->f_lock);
 
 	*ioc = r->r_ioc;
-	
+
 	ret = asm_update_user_ioc(file, r);
 
 	asm_request_free(r);
@@ -1753,7 +1767,7 @@ static inline int asm_submit_io_native(struct file *file,
 	asm_ioc tmp;
 
 	mlog_entry("(0x%p, 0x%p)\n", file, io);
-	
+
 	for (i = 0; i < io->io_reqlen; i++) {
 		ret = -EFAULT;
 		if (get_user(iocp,
@@ -1783,7 +1797,7 @@ static inline int asm_maybe_wait_io_native(struct file *file,
 	asm_ioc *iocp;
 
 	mlog_entry("(0x%p, 0x%p, 0x%p)\n", file, io, to);
-	
+
 	for (i = 0; i < io->io_waitlen; i++) {
 		if (get_user(iocp,
 			     ((asm_ioc **)((unsigned long)(io->io_waitreqs))) + i)) {
@@ -1990,7 +2004,7 @@ static inline int asm_complete_ios_thunk(struct file *file,
 
 
 static int asm_fill_timeout(struct timespec *ts, unsigned long timeout,
-			    int bpl) 
+			    int bpl)
 {
 	struct timespec __user *ut = (struct timespec __user *)timeout;
 
@@ -2000,10 +2014,10 @@ static int asm_fill_timeout(struct timespec *ts, unsigned long timeout,
 
 	/* We open-code get_compat_timespec() because it's not exported */
 	if (bpl == ASM_BPL_32)
-	        return (!access_ok(VERIFY_READ, cut,
+		return (!access_ok(VERIFY_READ, cut,
 				   sizeof(*cut)) ||
 			__get_user(ts->tv_sec, &cut->tv_sec) ||
-			__get_user(ts->tv_nsec, &cut->tv_nsec)) ? -EFAULT : 0; 
+			__get_user(ts->tv_nsec, &cut->tv_nsec)) ? -EFAULT : 0;
 
 #endif  /* BITS_PER_LONG == 64 && defined(CONFIG_COMPAT) */
 
@@ -2118,6 +2132,7 @@ static void asm_cleanup_bios(struct file *file)
 
 		spin_unlock_irq(&afi->f_lock);
 		mlog(ML_BIO, "Unmapping bio 0x%p\n", bio);
+		asm_integrity_unmap(bio);
 		bio_unmap_user(bio);
 		spin_lock_irq(&afi->f_lock);
 	}
@@ -2236,7 +2251,7 @@ static int asmfs_file_release(struct inode *inode, struct file *file)
 	} while (1);
 	set_task_state(tsk, TASK_RUNNING);
 	remove_wait_queue(&afi->f_wait, &wait);
-	
+
 	/* I don't *think* we need the lock here anymore, but... */
 
 	/* Clear unreaped I/Os */
@@ -2310,7 +2325,7 @@ static ssize_t asmfs_svc_query_version(struct file *file, char *buf, size_t size
 out:
 	if (!abi_info->ai_status)
 		abi_info->ai_status = ret;
-	
+
 	mlog_exit(size);
 	return size;
 }
@@ -2437,10 +2452,13 @@ static ssize_t asmfs_svc_query_disk(struct file *file, char *buf, size_t size)
 
 	qd_info->qd_max_sectors = compute_max_sectors(bdev);
 	qd_info->qd_hardsect_size = asm_block_size(bdev);
+	qd_info->qd_feature = asm_integrity_format(bdev) &
+		ASM_INTEGRITY_QDF_MASK;
 	mlog(ML_ABI|ML_DISK,
 	     "Querydisk returning qd_max_sectors = %u and "
-	     "qd_hardsect_size = %d\n",
-	     qd_info->qd_max_sectors, qd_info->qd_hardsect_size);
+	     "qd_hardsect_size = %u, qd_integrity = %u\n",
+	     qd_info->qd_max_sectors, qd_info->qd_hardsect_size,
+	     asm_integrity_format(bdev));
 
 	ret = 0;
 
@@ -2898,7 +2916,7 @@ static int asmfs_fill_super(struct super_block *sb,
 	sb->s_root = root;
 
 
-	printk(KERN_DEBUG "ASM: oracleasmfs mounted with options: %s\n", 
+	printk(KERN_DEBUG "ASM: oracleasmfs mounted with options: %s\n",
 	       data ? (char *)data : "<defaults>" );
 	printk(KERN_DEBUG "ASM:	maxinstances=%ld\n", asb->max_inodes);
 	return 0;

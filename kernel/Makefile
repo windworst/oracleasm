@@ -13,8 +13,15 @@ include $(ORACLEASM_SRC_DIR)/../Config.make
 endif
 
 
-UNINST_HEADERS = transaction_file.h proc.h masklog.h compat.h
+UNINST_HEADERS = transaction_file.h proc.h masklog.h compat.h integrity.h request.h
 SOURCES = driver.c transaction_file.c proc.c masklog.c
+OPT_SOURCES += integrity.c
+
+ifdef DATA_INTEGRITY
+SOURCES += integrity.c
+EXTRA_CFLAGS += -DDATA_INTEGRITY
+endif
+
 OBJECTS = $(subst .c,.o,$(SOURCES))
 
 ifeq ($(KERNELRELEASE),)
@@ -39,7 +46,7 @@ clean-oracleasm:
 install-oracleasm: $(INSTALL_MODULE)
 	$(MAKE) -C $(KERNELDIR) M=$(CURDIR) modules_install
 
-DIST_FILES = $(SOURCES) $(UNINST_HEADERS)
+DIST_FILES = $(SOURCES) $(UNINST_HEADERS) $(OPT_SOURCES)
 
 include $(TOPDIR)/Postamble.make
 
@@ -80,9 +87,10 @@ EXTRA_CFLAGS += -DBD_CLAIM
 endif
 
 CFLAGS_driver.o = $(KAPI_COMPAT_CFLAGS)
+CFLAGS_integrity.o = $(KAPI_COMPAT_CFLAGS)
 CFLAGS_transaction_file.o = $(TRANS_COMPAT_CFLAGS)
 
 obj-m := oracleasm.o
-oracleasm-objs := $(OBJECTS)
+oracleasm-y := $(OBJECTS)
 
 endif

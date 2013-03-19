@@ -338,6 +338,25 @@ if test x"$BUILD_DRIVER" = "xyes"; then
     TRANS_COMPAT_CFLAGS="$TRANS_COMPAT_CFLAGS -include \$(OUR_TOPDIR)/kapi-compat/include/$h"
   done
 fi
+
+DATA_INTEGRITY=
+OCFS2_CHECK_KERNEL_INCLUDES([block layer data integrity],
+  linux/autoconf.h, $kernelincludes, bdev_integrity=1, ,
+  [CONFIG_BLK_DEV_INTEGRITY 1])
+
+if test "x$bdev_integrity" != "x"; then	
+  OCFS2_CHECK_KERNEL_INCLUDES([BIO_MAPPED_INTEGRITY], linux/bio.h linux/blk_types.h,
+    $kernelincludes, DATA_INTEGRITY=yes, , [BIO_MAPPED_INTEGRITY])
+fi
+
+AC_MSG_CHECKING(whether data integrity extensions can be enabled)
+if test "x$DATA_INTEGRITY" != "x"; then
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+
+AC_SUBST(DATA_INTEGRITY)
 AC_SUBST(KAPI_COMPAT_CFLAGS)
 AC_SUBST(TRANS_COMPAT_CFLAGS)
 AC_SUBST(BACKING_DEV_CAPABILITIES)
