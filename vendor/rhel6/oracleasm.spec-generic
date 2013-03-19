@@ -1,0 +1,148 @@
+#
+# Spec file for oracleasm
+#
+
+# Macros
+# This one is hardcoded because, well, it belongs there
+%define _prefix /usr
+# Because RPM is dumb
+%define _unpackaged_files_terminate_build 0
+
+%ifarch i686
+%define karch		i686
+%endif
+
+%ifarch x86_64
+%define karch		x86_64
+%endif
+
+%ifarch ia64
+%define karch		ia64
+%endif
+
+%ifarch ppc64
+%define karch		ppc64
+%endif
+
+%ifarch s390x
+%define karch		s390x
+%endif
+
+
+# This must be changed to the minimum ABI compat kernel version expected
+%define kver		@@KERNEL_VERSION@@
+
+# The minimum -support package required for the kernel bits.
+%define support_ver     2.0.0
+# Minimum oracleasmlib version that supports positive ASM_ERR_NODEV.
+%define min_enodev	2.0.1
+
+Summary: The Oracle Automatic Storage Management library driver.
+Name: oracleasm-%{kver}
+Version: @@DIST_VERSION@@
+Release: @@PKG_VERSION@@%{?dist}
+License: GPL
+Group: System Environment/Kernel
+Source: oracleasm-@@DIST_VERSION@@.tar.gz
+URL: http://oss.oracle.com/projects/oracleasm/
+Distribution: Oracle
+Vendor: Oracle Corporation
+Packager: Joel Becker <joel.becker@oracle.com>
+Provides: oracleasm = %{version}
+AutoReqProv: no
+Requires: kernel = %{kver}
+Requires: oracleasm-support >= %{support_ver}
+Conflicts: oracleasmlib < %{min_enodev}
+BuildRequires: kernel-devel-uname-r = %{kver}
+
+
+BuildRoot: %{_tmppath}/oracleasm-%{PACKAGE_VERSION}-%{PACKAGE_RELEASE}-root
+
+
+%description
+Kernel driver for the Oracle Automatic Storage Management library.
+This package is compiled for the default kernel.
+
+
+
+%prep
+%setup -n oracleasm-%{version}
+
+
+%build
+
+local_configure()
+{
+	./configure					\
+		--prefix=%{_prefix}			\
+		--exec-prefix=%{_exec_prefix}		\
+		--bindir=%{_bindir}			\
+		--sbindir=%{_sbindir}			\
+		--sysconfdir=%{_sysconfdir}		\
+		--datadir=%{_datadir}			\
+		--includedir=%{_includedir}		\
+		--libdir=%{_libdir}			\
+		--libexecdir=%{_libexecdir}		\
+		--localstatedir=%{_localstatedir}	\
+		--sharedstatedir=%{_sharedstatedir}	\
+		--mandir=%{_mandir}			\
+		--infodir=%{_infodir}			\
+		--with-vendor=rhel6			\
+		--with-vendorkernel="$1"
+}
+
+local_configure "%{kver}"
+
+make QUIET=1
+
+%install
+
+make DESTDIR="$RPM_BUILD_ROOT" INSTALL_MOD_PATH='$(DESTDIR)' install 
+
+%clean
+rm -rf "$RPM_BUILD_ROOT"
+
+%post -n oracleasm-%{kver}
+depmod -ae %{kver}
+
+%files -n oracleasm-%{kver}
+%defattr(-,root,root)
+/lib/modules/
+
+%changelog
+* Mon Mar 29 2010 Martin K. Petersen <martin.petersen@oracle.com>
+- Generic Fedora version
+
+* Fri Feb 09 2007 Joel Becker <joel.becker@oracle.com>
+- Strip down for Fedora Core 6
+
+* Thu May 25 2006 Joel Becker <joel.becker@oracle.com>
+- Add largesmp
+
+* Fri Feb 04 2005 Joel Becker <joel.becker@oracle.com>
+- Make RHEL4 specfile.
+
+* Tue Sep 21 2004 Joel Becker <joel.becker@oracle.com>
+- Make SLES9 specfile.
+
+* Tue Jan 13 2004 Joel Becker <joel.becker@oracle.com>
+- Make kernel-only.
+
+* Thu Nov 20 2003 Joel Becker <joel.becker@oracle.com>
+- Add x86 and ia64 targets.
+
+* Wed Nov 19 2003 Joel Becker <joel.becker@oracle.com>
+- Make the UL SP3 changes.
+
+* Wed Nov 12 2003 Joel Becker <joel.becker@oracle.com>
+- Start the ASM rename.
+
+* Thu Oct 30 2003 Joel Becker <joel.becker@oracle.com>
+- Created EL3 version
+
+* Mon Jun 23 2003 Joel Becker <joel.becker@oracle.com>
+- Added osm-lib bits
+
+* Fri Jun 20 2003 Joel Becker <joel.becker@oracle.com>
+- Initial RPM
+
